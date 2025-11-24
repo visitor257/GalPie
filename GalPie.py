@@ -173,6 +173,7 @@ class GalGameWindow(QMainWindow):
         self.current_scene_index = 0
         self.loaded_resources = {}
         self.base_path = Path(".")
+        self.current_page_data = []
 
         # 新增：播放状态控制
         self.is_text_finished = False  # 字幕是否播放完成
@@ -182,15 +183,27 @@ class GalGameWindow(QMainWindow):
         self.audio_timer.timeout.connect(self.on_audio_finished)
 
         # 新增：自动播放开关
-        self.auto_play = False  # 默认为开启自动播放
+        self.auto_play = False  # 默认为关闭自动播放
         self.is_waiting_for_next_page = False  # 标记是否在等待进入下一页
+
+        # 新增：UI设置
+        self.ui_settings = {
+            "chatbox_style": None,  # 字幕框样式图片路径
+            "name_show_region": [[76, 60], [270, 149]],  # 名字显示区域，默认值
+            "words_show_region": [[310, 60], [805, 149]]  # 文本显示区域，默认值
+        }
+
+        # UI控件
+        self.name_label = None
+        self.text_display = None
+        self.chatbox_item = None
 
         self.setup_ui()
         self.load_story_file()
 
     def setup_ui(self):
         """设置用户界面"""
-        self.setWindowTitle("Galgame Engine")
+        self.setWindowTitle("GalPie")
         self.setGeometry(100, 100, 1280, 720)
 
         # 中央控件
@@ -205,15 +218,109 @@ class GalGameWindow(QMainWindow):
         self.graphics_view = GraphicsView()
         layout.addWidget(self.graphics_view)
 
-        # 对话框区域
-        self.setup_dialog_area()
-
         # 确保窗口可以接收焦点和鼠标事件
         self.setFocusPolicy(Qt.StrongFocus)
         self.graphics_view.setFocusPolicy(Qt.NoFocus)  # 防止图形视图抢焦点
 
     def setup_dialog_area(self):
-        """设置对话框区域"""
+        """设置对话框区域 - 在加载JSON后调用"""
+        # 清除已有的对话框区域
+        if self.chatbox_item:
+            self.graphics_view.scene.removeItem(self.chatbox_item)
+            self.chatbox_item = None
+
+        # 加载UI设置
+        self.load_ui_settings()
+        
+        # 对话框的位置
+        chatbox_pos=[0,0]
+
+        # 创建对话框背景
+        if self.ui_settings["chatbox_style"]:
+            # 使用自定义字幕框样式
+            chatbox_path = self.base_path / self.ui_settings["chatbox_style"]
+            chatbox_pixmap = self.load_pixmap(str(chatbox_path))
+            if chatbox_pixmap and not chatbox_pixmap.isNull():
+                # 创建自定义字幕框
+                self.chatbox_item = QGraphicsPixmapItem(chatbox_pixmap)
+                # self.chatbox_item.setPos(0, 500)  # 对话框位置
+                chatbox_pos=[(int(self.story_data["settings"]["window_size"].split("x")[0])-chatbox_pixmap.width())//2, int(self.story_data["settings"]["window_size"].split("x")[1])-chatbox_pixmap.height()]
+                self.chatbox_item.setPos(chatbox_pos[0],chatbox_pos[1])  # 对话框位置
+                self.chatbox_item.setZValue(10)  # 确保在最上层
+                self.graphics_view.scene.addItem(self.chatbox_item)
+                print(f"使用自定义字幕框样式: {self.ui_settings['chatbox_style']}")
+            else:
+                # 如果自定义样式加载失败，使用默认样式
+                print(f"无法加载自定义字幕框样式，使用默认样式")
+                self.create_default_chatbox()
+        else:
+            # 使用默认字幕框样式
+            self.create_default_chatbox()
+
+        # 名字显示区域
+        name_region = self.ui_settings["name_show_region"]
+        name_pos = name_region[0]  # 名字显示区域的左上角坐标
+        name_size = [name_region[1][0] - name_region[0][0], name_region[1][1] - name_region[0][1]]  # 名字显示区域的大小
+
+        # 文本显示区域
+        words_region = self.ui_settings["words_show_region"]
+        words_pos = words_region[0]  # 文本显示区域的左上角坐标
+        words_size = [words_region[1][0] - words_region[0][0], words_region[1][1] - words_region[0][1]]  # 文本显示区域的大小
+
+        # 调整坐标（相对于字幕框）
+        # name_pos[1] += 500  # 字幕框的Y坐标是500
+        # words_pos[1] += 500  # 字幕框的Y坐标是500
+
+        # 如果名字标签不存在，创建它
+        if not self.name_label:
+            self.name_label = QLabel()
+            self.name_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    background: transparent;
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+            """)
+            self.name_label.setAlignment(Qt.AlignCenter)
+            self.name_label.setFixedSize(name_size[0], name_size[1])
+
+            # 创建代理控件添加到场景中
+            name_widget_proxy = self.graphics_view.scene.addWidget(self.name_label)
+            name_widget_proxy.setZValue(12)  # 确保在背景之上
+        else:
+            # 更新名字标签大小
+            self.name_label.setFixedSize(name_size[0], name_size[1])
+
+        # 设置名字标签位置
+        name_widget_proxy = self.name_label.graphicsProxyWidget()
+        if name_widget_proxy:
+            name_widget_proxy.setPos(chatbox_pos[0]+name_region[0][0], chatbox_pos[1]+name_region[0][1])
+
+        # 如果文本显示控件不存在，创建它
+        if not self.text_display:
+            self.text_display = TextDisplayWidget()
+            self.text_display.setFixedSize(words_size[0], words_size[1])
+
+            # 创建代理控件添加到场景中
+            text_widget_proxy = self.graphics_view.scene.addWidget(self.text_display)
+            text_widget_proxy.setZValue(12)  # 确保在背景之上
+
+            # 确保文本控件不会拦截鼠标事件
+            self.text_display.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        else:
+            # 更新文本显示控件大小
+            self.text_display.setFixedSize(words_size[0], words_size[1])
+
+        # 设置文本显示控件位置
+        text_widget_proxy = self.text_display.graphicsProxyWidget()
+        if text_widget_proxy:
+            text_widget_proxy.setPos(chatbox_pos[0]+words_region[0][0], chatbox_pos[1]+words_region[0][1])
+
+    def create_default_chatbox(self):
+        """创建默认字幕框样式"""
         # 创建对话框背景（半透明黑色矩形）
         dialog_bg = QGraphicsRectItem(0, 0, 1280, 220)
         dialog_bg.setBrush(QBrush(QColor(0, 0, 0, 180)))
@@ -221,6 +328,7 @@ class GalGameWindow(QMainWindow):
         dialog_bg.setPos(0, 500)  # 对话框位置
         dialog_bg.setZValue(10)  # 确保在最上层
         self.graphics_view.scene.addItem(dialog_bg)
+        self.chatbox_item = dialog_bg
 
         # 名字显示区域背景
         name_bg = QGraphicsRectItem(0, 0, 200, 40)
@@ -230,36 +338,33 @@ class GalGameWindow(QMainWindow):
         name_bg.setZValue(11)
         self.graphics_view.scene.addItem(name_bg)
 
-        # 名字显示标签
-        self.name_label = QLabel()
-        self.name_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                background: transparent;
-                padding: 5px 10px;
-                border-radius: 5px;
-                font-size: 16px;
-                font-weight: bold;
-            }
-        """)
-        self.name_label.setAlignment(Qt.AlignCenter)
-        self.name_label.setFixedSize(200, 40)
+    def load_ui_settings(self):
+        """加载UI设置"""
+        if not self.story_data or "ui" not in self.story_data:
+            print("使用默认UI设置")
+            return
 
-        # 文本显示区域
-        self.text_display = TextDisplayWidget()
-        self.text_display.setFixedSize(500, 100)  # 在这里设置固定大小
+        ui_data = self.story_data["ui"]
 
-        # 创建代理控件添加到场景中
-        name_widget_proxy = self.graphics_view.scene.addWidget(self.name_label)
-        name_widget_proxy.setPos(76, 520)
-        name_widget_proxy.setZValue(12)  # 确保在背景之上
+        # 加载字幕框样式
+        if "chatbox_and_words_position" in ui_data:
+            chatbox_data = ui_data["chatbox_and_words_position"]
 
-        text_widget_proxy = self.graphics_view.scene.addWidget(self.text_display)
-        text_widget_proxy.setPos(310, 520)
-        text_widget_proxy.setZValue(12)  # 确保在背景之上
+            # 加载字幕框样式图片
+            if "chatbox" in chatbox_data:
+                chatbox_path = chatbox_data["chatbox"]
+                self.ui_settings["chatbox_style"] = chatbox_path
+                print(f"加载字幕框样式: {chatbox_path}")
 
-        # 确保文本控件不会拦截鼠标事件
-        self.text_display.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            # 加载名字显示区域
+            if "name_show_region" in chatbox_data:
+                self.ui_settings["name_show_region"] = chatbox_data["name_show_region"]
+                print(f"加载名字显示区域: {self.ui_settings['name_show_region']}")
+
+            # 加载文本显示区域
+            if "words_show_region" in chatbox_data:
+                self.ui_settings["words_show_region"] = chatbox_data["words_show_region"]
+                print(f"加载文本显示区域: {self.ui_settings['words_show_region']}")
 
     def showEvent(self, event):
         """窗口显示时确保获得焦点"""
@@ -295,12 +400,21 @@ class GalGameWindow(QMainWindow):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 self.story_data = json.load(f)
+            
+            # 按json的内容设置窗口
+            if self.story_data["settings"]["window_title"]:
+                self.setWindowTitle(self.story_data["settings"]["window_title"])
+            if self.story_data["settings"]["window_size"]:
+                self.setGeometry(100, 100, int(self.story_data["settings"]["window_size"].split("x")[0]), int(self.story_data["settings"]["window_size"].split("x")[1]))
 
             # 设置基础路径为JSON文件所在目录
             self.base_path = file_path.parent
 
             # 应用设置
             self.apply_settings()
+
+            # 设置对话框区域（在加载JSON后调用）
+            self.setup_dialog_area()
 
             # 开始故事
             self.start_story()
