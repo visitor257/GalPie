@@ -1,7 +1,8 @@
 {
   "settings": {
     "language": ["zh"],
-    "window_size": "1280x720"
+    "window_size": "1280x720",
+    "window_title": "Sample story"
   },
   "ui": {
     "chatbox_and_words_position": {
