@@ -2,14 +2,15 @@
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
+from math import sin, cos, pi
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QPushButton, QFileDialog,
                                QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
                                QTextEdit, QFrame, QGraphicsRectItem)
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint
-from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush, QTextCursor
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint, QPointF
+from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush, QTextCursor, QTransform
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 
@@ -92,6 +93,113 @@ class TextDisplayWidget(QTextEdit):
         return self.char_index >= len(self.full_text)
 
 
+class AnimatedPixmapItem(QGraphicsPixmapItem):
+    """支持缩放和动画的图形项"""
+    def __init__(self, pixmap=None):
+        super().__init__(pixmap)
+        self.original_pixmap = pixmap
+        self.current_zoom = 1.0
+        self.original_pos = QPointF(0, 0)
+        self.animations = []
+        self.current_animation_group = None
+        self.animation_timer = QTimer()
+        self.animation_timer.timeout.connect(self.update_animation)
+        self.animation_start_time = 0
+        self.animation_progress = 0
+
+    def set_zoom(self, zoom: float):
+        """设置缩放级别"""
+        self.current_zoom = zoom
+        if self.original_pixmap:
+            # 计算缩放后的尺寸
+            new_width = int(self.original_pixmap.width() * zoom)
+            new_height = int(self.original_pixmap.height() * zoom)
+            scaled_pixmap = self.original_pixmap.scaled(
+                new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.setPixmap(scaled_pixmap)
+
+    def set_animations(self, animations: List):
+        """设置动画序列"""
+        self.animations = animations
+        if animations:
+            self.start_animation_group(0)
+
+    def start_animation_group(self, group_index: int):
+        """开始播放动画组"""
+        if group_index >= len(self.animations):
+            # 所有动画组播放完毕
+            return
+
+        self.current_animation_group = self.animations[group_index]
+        self.animation_start_time = 0
+        self.animation_progress = 0
+        self.animation_timer.start(16)  # 约60fps
+
+    def update_animation(self):
+        """更新动画状态"""
+        if not self.current_animation_group:
+            self.animation_timer.stop()
+            return
+
+        # 更新动画进度
+        self.animation_progress += 16  # 增加16毫秒
+
+        # 检查当前动画组是否完成
+        group_duration = max(anim.get("time", 0) * 1000 for anim in self.current_animation_group)
+        if self.animation_progress >= group_duration:
+            # 当前动画组完成，播放下一个组
+            current_index = self.animations.index(self.current_animation_group)
+            self.start_animation_group(current_index + 1)
+            return
+
+        # 应用当前动画组中的所有动画
+        for animation in self.current_animation_group:
+            self.apply_animation(animation)
+
+    def apply_animation(self, animation: Dict):
+        """应用单个动画效果"""
+        duration = animation.get("time", 0) * 1000  # 转换为毫秒
+        if duration == 0:
+            return
+
+        # 计算动画进度 (0.0 到 1.0)
+        progress = min(self.animation_progress / duration, 1.0)
+
+        # 应用缩放动画
+        if "zoom" in animation:
+            target_zoom = animation["zoom"]
+            # 使用缓动函数使动画更自然
+            eased_progress = self.ease_in_out(progress)
+            current_zoom = 1.0 + (target_zoom - 1.0) * eased_progress
+            self.set_zoom(current_zoom)
+
+        # 应用移动动画
+        if "move" in animation:
+            move_path = animation["move"]
+            if move_path and len(move_path) > 0:
+                # 计算当前应该应用哪个移动点
+                points_count = len(move_path)
+                point_index = min(int(progress * points_count), points_count - 1)
+                move_offset = move_path[point_index]
+
+                # 应用移动偏移
+                new_pos = QPointF(
+                    self.original_pos.x() + move_offset[0],
+                    self.original_pos.y() + move_offset[1]
+                )
+                self.setPos(new_pos)
+
+    def ease_in_out(self, t: float) -> float:
+        """缓动函数：平滑的加速和减速"""
+        return t * t * (3.0 - 2.0 * t)
+
+    def set_original_position(self, pos: QPointF):
+        """设置原始位置（用于动画计算）"""
+        self.original_pos = pos
+        self.setPos(pos)
+
+
 class GraphicsView(QGraphicsView):
     """支持GPU加速的图形视图"""
     def __init__(self, parent=None):
@@ -130,19 +238,30 @@ class GraphicsView(QGraphicsView):
         if self.background_item and self.sceneRect().isValid():
             self.fitInView(self.sceneRect(), Qt.KeepAspectRatioByExpanding)
 
-    def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int]):
-        """添加角色"""
+    def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None):
+        """添加角色，支持缩放和动画"""
         if char_id in self.character_items:
             self.remove_character(char_id)
 
-        item = QGraphicsPixmapItem(pixmap)
-        item.setPos(pos[0], pos[1])
+        # 创建支持动画的图形项
+        item = AnimatedPixmapItem(pixmap)
+        item.set_original_position(QPointF(pos[0], pos[1]))
+        item.set_zoom(zoom)
+
+        if animations:
+            item.set_animations(animations)
+
         self.scene.addItem(item)
         self.character_items[char_id] = item
 
     def remove_character(self, char_id: str):
         """移除角色"""
         if char_id in self.character_items:
+            # 停止角色动画
+            character_item = self.character_items[char_id]
+            if hasattr(character_item, 'animation_timer'):
+                character_item.animation_timer.stop()
+
             self.scene.removeItem(self.character_items[char_id])
             del self.character_items[char_id]
 
@@ -175,22 +294,22 @@ class GalGameWindow(QMainWindow):
         self.base_path = Path(".")
         self.current_page_data = []
 
-        # 新增：播放状态控制
-        self.is_text_finished = False  # 字幕是否播放完成
-        self.is_audio_finished = False  # 音频是否播放完成
-        self.audio_timer = QTimer()  # 模拟音频播放
+        # 播放状态控制
+        self.is_text_finished = False
+        self.is_audio_finished = False
+        self.audio_timer = QTimer()
         self.audio_timer.setSingleShot(True)
         self.audio_timer.timeout.connect(self.on_audio_finished)
 
-        # 新增：自动播放开关
-        self.auto_play = False  # 默认为关闭自动播放
-        self.is_waiting_for_next_page = False  # 标记是否在等待进入下一页
+        # 自动播放开关
+        self.auto_play = False
+        self.is_waiting_for_next_page = False
 
-        # 新增：UI设置
+        # UI设置
         self.ui_settings = {
-            "chatbox_style": None,  # 字幕框样式图片路径
-            "name_show_region": [[76, 60], [270, 149]],  # 名字显示区域，默认值
-            "words_show_region": [[310, 60], [805, 149]]  # 文本显示区域，默认值
+            "chatbox_style": None,
+            "name_show_region": [[76, 60], [270, 149]],
+            "words_show_region": [[310, 60], [805, 149]]
         }
 
         # UI控件
@@ -220,10 +339,10 @@ class GalGameWindow(QMainWindow):
 
         # 确保窗口可以接收焦点和鼠标事件
         self.setFocusPolicy(Qt.StrongFocus)
-        self.graphics_view.setFocusPolicy(Qt.NoFocus)  # 防止图形视图抢焦点
+        self.graphics_view.setFocusPolicy(Qt.NoFocus)
 
     def setup_dialog_area(self):
-        """设置对话框区域 - 在加载JSON后调用"""
+        """设置对话框区域"""
         # 清除已有的对话框区域
         if self.chatbox_item:
             self.graphics_view.scene.removeItem(self.chatbox_item)
@@ -231,9 +350,14 @@ class GalGameWindow(QMainWindow):
 
         # 加载UI设置
         self.load_ui_settings()
-        
-        # 对话框的位置
-        chatbox_pos=[0,0]
+
+        # 获取窗口尺寸
+        window_width, window_height = 1280, 720
+        if self.story_data and "settings" in self.story_data:
+            window_size = self.story_data["settings"].get("window_size", "1280x720")
+            window_width, window_height = map(int, window_size.split('x'))
+
+        chatbox_pos = [0, 0]
 
         # 创建对话框背景
         if self.ui_settings["chatbox_style"]:
@@ -243,35 +367,32 @@ class GalGameWindow(QMainWindow):
             if chatbox_pixmap and not chatbox_pixmap.isNull():
                 # 创建自定义字幕框
                 self.chatbox_item = QGraphicsPixmapItem(chatbox_pixmap)
-                # self.chatbox_item.setPos(0, 500)  # 对话框位置
-                chatbox_pos=[(int(self.story_data["settings"]["window_size"].split("x")[0])-chatbox_pixmap.width())//2, int(self.story_data["settings"]["window_size"].split("x")[1])-chatbox_pixmap.height()]
-                self.chatbox_item.setPos(chatbox_pos[0],chatbox_pos[1])  # 对话框位置
-                self.chatbox_item.setZValue(10)  # 确保在最上层
+                # 计算居中位置
+                chatbox_pos = [
+                    (window_width - chatbox_pixmap.width()) // 2,
+                    window_height - chatbox_pixmap.height()
+                ]
+                self.chatbox_item.setPos(chatbox_pos[0], chatbox_pos[1])
+                self.chatbox_item.setZValue(10)
                 self.graphics_view.scene.addItem(self.chatbox_item)
                 print(f"使用自定义字幕框样式: {self.ui_settings['chatbox_style']}")
             else:
-                # 如果自定义样式加载失败，使用默认样式
-                print(f"无法加载自定义字幕框样式，使用默认样式")
-                self.create_default_chatbox()
+                print("无法加载自定义字幕框样式，使用默认样式")
+                self.create_default_chatbox(window_width, window_height)
         else:
-            # 使用默认字幕框样式
-            self.create_default_chatbox()
+            self.create_default_chatbox(window_width, window_height)
 
         # 名字显示区域
         name_region = self.ui_settings["name_show_region"]
-        name_pos = name_region[0]  # 名字显示区域的左上角坐标
-        name_size = [name_region[1][0] - name_region[0][0], name_region[1][1] - name_region[0][1]]  # 名字显示区域的大小
+        name_pos = name_region[0]
+        name_size = [name_region[1][0] - name_region[0][0], name_region[1][1] - name_region[0][1]]
 
         # 文本显示区域
         words_region = self.ui_settings["words_show_region"]
-        words_pos = words_region[0]  # 文本显示区域的左上角坐标
-        words_size = [words_region[1][0] - words_region[0][0], words_region[1][1] - words_region[0][1]]  # 文本显示区域的大小
+        words_pos = words_region[0]
+        words_size = [words_region[1][0] - words_region[0][0], words_region[1][1] - words_region[0][1]]
 
-        # 调整坐标（相对于字幕框）
-        # name_pos[1] += 500  # 字幕框的Y坐标是500
-        # words_pos[1] += 500  # 字幕框的Y坐标是500
-
-        # 如果名字标签不存在，创建它
+        # 创建名字显示标签
         if not self.name_label:
             self.name_label = QLabel()
             self.name_label.setStyleSheet("""
@@ -285,48 +406,40 @@ class GalGameWindow(QMainWindow):
                 }
             """)
             self.name_label.setAlignment(Qt.AlignCenter)
-            self.name_label.setFixedSize(name_size[0], name_size[1])
-
-            # 创建代理控件添加到场景中
             name_widget_proxy = self.graphics_view.scene.addWidget(self.name_label)
-            name_widget_proxy.setZValue(12)  # 确保在背景之上
-        else:
-            # 更新名字标签大小
-            self.name_label.setFixedSize(name_size[0], name_size[1])
+            name_widget_proxy.setZValue(12)
 
-        # 设置名字标签位置
+        self.name_label.setFixedSize(name_size[0], name_size[1])
         name_widget_proxy = self.name_label.graphicsProxyWidget()
         if name_widget_proxy:
-            name_widget_proxy.setPos(chatbox_pos[0]+name_region[0][0], chatbox_pos[1]+name_region[0][1])
+            name_widget_proxy.setPos(chatbox_pos[0] + name_pos[0], chatbox_pos[1] + name_pos[1])
 
-        # 如果文本显示控件不存在，创建它
+        # 创建文本显示区域
         if not self.text_display:
             self.text_display = TextDisplayWidget()
-            self.text_display.setFixedSize(words_size[0], words_size[1])
-
-            # 创建代理控件添加到场景中
             text_widget_proxy = self.graphics_view.scene.addWidget(self.text_display)
-            text_widget_proxy.setZValue(12)  # 确保在背景之上
-
-            # 确保文本控件不会拦截鼠标事件
+            text_widget_proxy.setZValue(12)
             self.text_display.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        else:
-            # 更新文本显示控件大小
-            self.text_display.setFixedSize(words_size[0], words_size[1])
 
-        # 设置文本显示控件位置
+        self.text_display.setFixedSize(words_size[0], words_size[1])
         text_widget_proxy = self.text_display.graphicsProxyWidget()
         if text_widget_proxy:
-            text_widget_proxy.setPos(chatbox_pos[0]+words_region[0][0], chatbox_pos[1]+words_region[0][1])
+            text_widget_proxy.setPos(chatbox_pos[0] + words_pos[0], chatbox_pos[1] + words_pos[1])
 
-    def create_default_chatbox(self):
+    def create_default_chatbox(self, window_width: int, window_height: int):
         """创建默认字幕框样式"""
-        # 创建对话框背景（半透明黑色矩形）
-        dialog_bg = QGraphicsRectItem(0, 0, 1280, 220)
+        chatbox_width, chatbox_height = 1280, 220
+        chatbox_pos = [
+            (window_width - chatbox_width) // 2,
+            window_height - chatbox_height
+        ]
+
+        # 创建对话框背景
+        dialog_bg = QGraphicsRectItem(0, 0, chatbox_width, chatbox_height)
         dialog_bg.setBrush(QBrush(QColor(0, 0, 0, 180)))
         dialog_bg.setPen(QPen(Qt.NoPen))
-        dialog_bg.setPos(0, 500)  # 对话框位置
-        dialog_bg.setZValue(10)  # 确保在最上层
+        dialog_bg.setPos(chatbox_pos[0], chatbox_pos[1])
+        dialog_bg.setZValue(10)
         self.graphics_view.scene.addItem(dialog_bg)
         self.chatbox_item = dialog_bg
 
@@ -334,7 +447,7 @@ class GalGameWindow(QMainWindow):
         name_bg = QGraphicsRectItem(0, 0, 200, 40)
         name_bg.setBrush(QBrush(QColor(0, 0, 0, 150)))
         name_bg.setPen(QPen(Qt.NoPen))
-        name_bg.setPos(76, 520)  # 根据JSON中的位置调整
+        name_bg.setPos(chatbox_pos[0] + 76, chatbox_pos[1] + 20)
         name_bg.setZValue(11)
         self.graphics_view.scene.addItem(name_bg)
 
@@ -346,22 +459,17 @@ class GalGameWindow(QMainWindow):
 
         ui_data = self.story_data["ui"]
 
-        # 加载字幕框样式
         if "chatbox_and_words_position" in ui_data:
             chatbox_data = ui_data["chatbox_and_words_position"]
 
-            # 加载字幕框样式图片
             if "chatbox" in chatbox_data:
-                chatbox_path = chatbox_data["chatbox"]
-                self.ui_settings["chatbox_style"] = chatbox_path
-                print(f"加载字幕框样式: {chatbox_path}")
+                self.ui_settings["chatbox_style"] = chatbox_data["chatbox"]
+                print(f"加载字幕框样式: {self.ui_settings['chatbox_style']}")
 
-            # 加载名字显示区域
             if "name_show_region" in chatbox_data:
                 self.ui_settings["name_show_region"] = chatbox_data["name_show_region"]
                 print(f"加载名字显示区域: {self.ui_settings['name_show_region']}")
 
-            # 加载文本显示区域
             if "words_show_region" in chatbox_data:
                 self.ui_settings["words_show_region"] = chatbox_data["words_show_region"]
                 print(f"加载文本显示区域: {self.ui_settings['words_show_region']}")
@@ -377,10 +485,8 @@ class GalGameWindow(QMainWindow):
         json_files = list(story_dir.glob("*.json"))
 
         if json_files:
-            # 自动加载第一个JSON文件
             self.load_json_file(json_files[0])
         else:
-            # 弹出文件选择对话框
             self.show_file_selection_dialog()
 
     def show_file_selection_dialog(self):
@@ -392,7 +498,6 @@ class GalGameWindow(QMainWindow):
         if file_path:
             self.load_json_file(Path(file_path))
         else:
-            # 如果没有选择文件，退出程序
             QApplication.quit()
 
     def load_json_file(self, file_path: Path):
@@ -400,20 +505,14 @@ class GalGameWindow(QMainWindow):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 self.story_data = json.load(f)
-            
-            # 按json的内容设置窗口
-            if self.story_data["settings"]["window_title"]:
-                self.setWindowTitle(self.story_data["settings"]["window_title"])
-            if self.story_data["settings"]["window_size"]:
-                self.setGeometry(100, 100, int(self.story_data["settings"]["window_size"].split("x")[0]), int(self.story_data["settings"]["window_size"].split("x")[1]))
 
-            # 设置基础路径为JSON文件所在目录
+            # 设置基础路径
             self.base_path = file_path.parent
 
             # 应用设置
             self.apply_settings()
 
-            # 设置对话框区域（在加载JSON后调用）
+            # 设置对话框区域
             self.setup_dialog_area()
 
             # 开始故事
@@ -429,10 +528,12 @@ class GalGameWindow(QMainWindow):
             return
 
         settings = self.story_data.get("settings", {})
-        window_size = settings.get("window_size", "1280x720")
 
-        if window_size:
-            width, height = map(int, window_size.split('x'))
+        if "window_title" in settings:
+            self.setWindowTitle(settings["window_title"])
+
+        if "window_size" in settings:
+            width, height = map(int, settings["window_size"].split('x'))
             self.resize(width, height)
 
     def start_story(self):
@@ -450,37 +551,31 @@ class GalGameWindow(QMainWindow):
         story = self.story_data["story_and_position"].get("story", {})
         page_key = str(self.current_page)
 
-        print(f"尝试播放页面: {page_key}")  # 调试信息
+        print(f"尝试播放页面: {page_key}")
 
         if page_key not in story:
-            # 故事结束
             print("故事结束")
             return
 
         page_data = story[page_key]
-        self.current_page_data = page_data  # 保存当前页数据
+        self.current_page_data = page_data
         self.current_scene_index = 0
-        self.is_waiting_for_next_page = False  # 重置等待标志
+        self.is_waiting_for_next_page = False
 
-        # 立即播放场景序列，不添加任何延迟
         self.play_scene_sequence()
 
     def play_scene_sequence(self):
         """播放场景序列"""
-        print(f"播放场景序列，当前场景索引: {self.current_scene_index}, 总场景数: {len(self.current_page_data)}")  # 调试信息
+        print(f"播放场景序列，当前场景索引: {self.current_scene_index}, 总场景数: {len(self.current_page_data)}")
 
         if self.current_scene_index >= len(self.current_page_data):
-            # 当前页所有场景播放完毕，准备下一页
             self.current_page += 1
             self.current_scene_index = 0
-            print(f"准备下一页: {self.current_page}")  # 调试信息
+            print(f"准备下一页: {self.current_page}")
 
-            # 检查自动播放设置
             if self.auto_play:
-                # 自动播放开启，立即进入下一页
                 self.play_current_page()
             else:
-                # 自动播放关闭，设置等待标志
                 self.is_waiting_for_next_page = True
                 print("自动播放已关闭，等待用户点击进入下一页")
             return
@@ -490,7 +585,7 @@ class GalGameWindow(QMainWindow):
 
     def execute_scene(self, scene: Dict):
         """执行单个场景"""
-        print(f"执行场景 {self.current_scene_index}: {scene}")  # 调试信息
+        print(f"执行场景 {self.current_scene_index}: {scene}")
 
         # 重置播放状态
         self.is_text_finished = False
@@ -530,17 +625,14 @@ class GalGameWindow(QMainWindow):
             content = scene["content"]
             self.display_dialog(content)
 
-            # 检查是否有音频需要播放
+            # 模拟音频播放
             if self.has_audio(content):
-                # 如果有音频，模拟音频播放
-                audio_duration = 2000  # 默认2秒
+                audio_duration = 2000
                 self.audio_timer.start(audio_duration)
             else:
-                # 如果没有音频，立即标记音频完成
                 print("场景中没有音频，立即标记音频完成")
                 self.on_audio_finished()
         else:
-            # 如果没有对话内容，直接标记为完成
             print("场景中没有对话内容，直接标记文本和音频完成")
             self.is_text_finished = True
             self.is_audio_finished = True
@@ -548,22 +640,22 @@ class GalGameWindow(QMainWindow):
 
     def has_audio(self, content: Dict) -> bool:
         """检查场景是否有音频需要播放"""
-        # 这里可以根据实际需要扩展音频检查逻辑
-        # 目前暂时返回False，表示没有音频
         return False
 
     def setup_character(self, char_id: str, char_info: Dict, char_data: Dict):
-        """设置角色 - 合并身体和面部"""
+        """设置角色 - 支持缩放和动画"""
         form_name = char_info["form"]
         face_info = char_info["face"]
 
-        # 处理面部信息（可能是字符串或数组）
+        # 处理面部信息
         if isinstance(face_info, list):
             face_name = face_info[0]
         else:
             face_name = face_info
 
         pos = char_info["pos"]
+        zoom = char_info.get("zoom", 1.0)  # 默认缩放为1.0
+        animations = char_info.get("animate", [])  # 动画配置
 
         # 加载服装（身体）
         form_pixmap = None
@@ -593,18 +685,17 @@ class GalGameWindow(QMainWindow):
             # 先绘制身体
             painter.drawPixmap(0, 0, form_pixmap)
 
-            # 再绘制面部（假设面部和身体大小相同，位置对齐）
+            # 再绘制面部
             painter.drawPixmap(0, 0, face_pixmap)
 
             painter.end()
 
-            self.graphics_view.add_character(char_id, combined_pixmap, pos)
+            # 添加角色到场景，支持缩放和动画
+            self.graphics_view.add_character(char_id, combined_pixmap, pos, zoom, animations)
         elif form_pixmap:
-            # 只有身体，没有面部
-            self.graphics_view.add_character(char_id, form_pixmap, pos)
+            self.graphics_view.add_character(char_id, form_pixmap, pos, zoom, animations)
         elif face_pixmap:
-            # 只有面部，没有身体
-            self.graphics_view.add_character(char_id, face_pixmap, pos)
+            self.graphics_view.add_character(char_id, face_pixmap, pos, zoom, animations)
         else:
             print(f"无法加载角色图片: {char_id}")
 
@@ -624,8 +715,6 @@ class GalGameWindow(QMainWindow):
 
         # 获取对话文本
         words = content["words"]["zh"]
-
-        # 设置文本显示完成后的回调
         self.text_display.set_text(words, self.on_text_display_complete)
 
     def on_text_display_complete(self):
@@ -642,22 +731,16 @@ class GalGameWindow(QMainWindow):
 
     def check_auto_advance(self):
         """检查是否可以自动进入下一个场景"""
-        print(f"检查自动前进: 文本完成={self.is_text_finished}, 音频完成={self.is_audio_finished}")  # 调试信息
+        print(f"检查自动前进: 文本完成={self.is_text_finished}, 音频完成={self.is_audio_finished}")
 
         if self.is_text_finished and self.is_audio_finished:
             print("文本和音频都已完成，自动进入下一个场景")
-            # 立即进入下一个场景，不添加任何延迟
             self.advance_to_next_scene()
 
     def advance_to_next_scene(self):
-        """前进到下一个场景 - 移除所有延迟"""
-        # 停止音频计时器
+        """前进到下一个场景"""
         self.audio_timer.stop()
-
-        # 前进到下一个场景
         self.current_scene_index += 1
-
-        # 立即播放场景序列，不添加延迟
         self.play_scene_sequence()
 
     def load_pixmap(self, path: str) -> Optional[QPixmap]:
@@ -666,7 +749,6 @@ class GalGameWindow(QMainWindow):
             return self.loaded_resources[path]
 
         try:
-            # 检查文件是否存在
             if not os.path.exists(path):
                 print(f"图片文件不存在: {path}")
                 return None
@@ -684,16 +766,16 @@ class GalGameWindow(QMainWindow):
 
     def mousePressEvent(self, event):
         """鼠标点击事件处理"""
-        print("鼠标点击事件触发")  # 调试信息
+        print("鼠标点击事件触发")
         if event.button() == Qt.LeftButton:
             self.handle_click()
 
     def keyPressEvent(self, event):
-        """键盘事件处理 - 也支持空格键和回车键"""
+        """键盘事件处理"""
         if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
-            print("空格键或回车键按下")  # 调试信息
+            print("空格键或回车键按下")
             self.handle_click()
-        elif event.key() == Qt.Key_A:  # 按A键切换自动播放
+        elif event.key() == Qt.Key_A:
             self.toggle_auto_play()
         else:
             super().keyPressEvent(event)
@@ -704,16 +786,14 @@ class GalGameWindow(QMainWindow):
         status = "开启" if self.auto_play else "关闭"
         print(f"自动播放已{status}")
 
-        # 如果自动播放开启且正在等待下一页，立即进入下一页
         if self.auto_play and self.is_waiting_for_next_page:
             self.play_current_page()
 
     def handle_click(self):
         """处理点击事件"""
-        print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")  # 调试信息
-        print(f"等待下一页: {self.is_waiting_for_next_page}")  # 调试信息
+        print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")
+        print(f"等待下一页: {self.is_waiting_for_next_page}")
 
-        # 检查是否在等待进入下一页
         if self.is_waiting_for_next_page:
             print("正在等待进入下一页，立即进入下一页")
             self.is_waiting_for_next_page = False
@@ -721,26 +801,21 @@ class GalGameWindow(QMainWindow):
             return
 
         if not self.is_text_finished:
-            # 如果文本没有显示完，立即完成显示
             print("文本未完成，立即完成显示")
             self.text_display.complete_display()
         elif not self.is_audio_finished:
-            # 如果文本已完成但音频未完成，立即完成音频
             print("文本已完成，音频未完成，立即完成音频")
             self.on_audio_finished()
         else:
-            # 文本和音频都已完成，进入下一个场景
             print("文本和音频都已完成，进入下一个场景")
             self.advance_to_next_scene()
 
 
 def main():
-    # 启用GPU加速
     QApplication.setAttribute(Qt.AA_UseOpenGLES)
 
     app = QApplication(sys.argv)
 
-    # 创建故事目录（如果不存在）
     story_dir = Path("story")
     story_dir.mkdir(exist_ok=True)
 
