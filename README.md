@@ -1,2 +1,2 @@
 # GalPie
-A galgame maker with PySide6
+A galgame maker/reader with PySide6
