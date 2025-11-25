@@ -93,6 +93,30 @@ class TextDisplayWidget(QTextEdit):
         return self.char_index >= len(self.full_text)
 
 
+class BackgroundPixmapItem(QGraphicsPixmapItem):
+    """背景图片控件"""
+    def __init__(self, pixmap=None):
+        super().__init__(pixmap)
+        self.original_pixmap = pixmap
+        self.setZValue(-1)  # 确保背景在最底层
+
+    def set_pixmap(self, pixmap: QPixmap):
+        """设置背景图片"""
+        self.original_pixmap = pixmap
+        self.setPixmap(pixmap)
+
+    def resize_to_fit_window(self, width: int, height: int, bg_pos=[0,0]):
+        """调整背景图片大小以适应窗口"""
+        if self.original_pixmap and not self.original_pixmap.isNull():
+            # 保持宽高比，填充整个区域
+            scaled_pixmap = self.original_pixmap.scaled(
+                width, height, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
+            )
+            self.setPixmap(scaled_pixmap)
+            # 背景图片始终放置在(0,0)位置
+            self.setPos(bg_pos[0], bg_pos[1])
+
+
 class AnimatedPixmapItem(QGraphicsPixmapItem):
     """支持缩放和动画的图形项"""
     def __init__(self, pixmap=None):
@@ -182,7 +206,7 @@ class AnimatedPixmapItem(QGraphicsPixmapItem):
         if "zoom" in animation:
             target_zoom = animation["zoom"]
 
-            # 修复：从当前缩放值变化到目标缩放值
+            # 从当前缩放值变化到目标缩放值
             current_zoom = self.animation_start_zoom + (target_zoom - self.animation_start_zoom) * eased_progress
             self.set_zoom(current_zoom)
 
@@ -214,7 +238,7 @@ class AnimatedPixmapItem(QGraphicsPixmapItem):
 
 class GraphicsView(QGraphicsView):
     """支持GPU加速的图形视图"""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, background_pos=[0,0]):
         super().__init__(parent)
 
         # 启用OpenGL加速
@@ -228,27 +252,40 @@ class GraphicsView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setFrameStyle(0)
 
+        # 设置黑色背景
+        self.setStyleSheet("background-color: black;")
+
         self.scene = QGraphicsScene()
         self.setScene(self.scene)
 
         # 存储图形项
         self.background_item = None
         self.character_items = {}
+        
+        self.bg_pos=background_pos
+    
+    def update_bg_pos(self, bg_pos=[0,0]):
+        self.bg_pos=bg_pos
 
     def set_background(self, pixmap: QPixmap):
         """设置背景图片"""
         if self.background_item:
             self.scene.removeItem(self.background_item)
 
-        self.background_item = QGraphicsPixmapItem(pixmap)
+        # 创建专门的背景控件
+        self.background_item = BackgroundPixmapItem(pixmap)
         self.scene.addItem(self.background_item)
-        self.scene.setSceneRect(self.background_item.boundingRect())
+
+        # 调整背景大小以适应视图
         self.fit_background()
 
     def fit_background(self):
         """调整背景适应视图大小"""
         if self.background_item and self.sceneRect().isValid():
-            self.fitInView(self.sceneRect(), Qt.KeepAspectRatioByExpanding)
+            # 获取视图大小
+            view_size = self.size()
+            # 调整背景大小
+            self.background_item.resize_to_fit_window(view_size.width(), view_size.height(), self.bg_pos)
 
     def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None):
         """添加角色，支持缩放和动画"""
@@ -289,7 +326,7 @@ class GraphicsView(QGraphicsView):
             self.scene.removeItem(self.background_item)
             self.background_item = None
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event, bg_pos=[0,0]):
         """重写 resize 事件以保持背景适应"""
         super().resizeEvent(event)
         self.fit_background()
@@ -331,11 +368,17 @@ class GalGameWindow(QMainWindow):
 
         self.setup_ui()
         self.load_story_file()
+        
+        self.window_size=[1280,720]
+        self.background_pos=[0,0]
 
     def setup_ui(self):
         """设置用户界面"""
         self.setWindowTitle("GalPie")
         self.setGeometry(100, 100, 1280, 720)
+
+        # 设置窗口背景为黑色
+        self.setStyleSheet("background-color: black;")
 
         # 中央控件
         central_widget = QWidget()
@@ -562,8 +605,8 @@ class GalGameWindow(QMainWindow):
             self.setWindowTitle(settings["window_title"])
 
         if "window_size" in settings:
-            width, height = map(int, settings["window_size"].split('x'))
-            self.resize(width, height)
+            self.window_size = list(map(int, settings["window_size"].split('x')))
+            self.resize(self.window_size[0], self.window_size[1])
 
     def start_story(self):
         """开始故事"""
@@ -639,6 +682,8 @@ class GalGameWindow(QMainWindow):
                 full_bg_path = self.base_path / bg_path
                 bg_pixmap = self.load_pixmap(str(full_bg_path))
                 if bg_pixmap:
+                    self.background_pos=[(self.window_size[0]-bg_pixmap.width())//2,0]
+                    self.graphics_view.update_bg_pos(self.background_pos)
                     self.graphics_view.set_background(bg_pixmap)
                 else:
                     print(f"无法加载背景图片: {full_bg_path}")
@@ -693,7 +738,7 @@ class GalGameWindow(QMainWindow):
         else:
             face_name = face_info
 
-        pos = char_info["pos"]
+        pos = [char_info["pos"][0]+self.background_pos[0], char_info["pos"][1]+self.background_pos[1]]
         zoom = char_info.get("zoom", 1.0)  # 默认缩放为1.0
         animations = char_info.get("animate", [])  # 动画配置
 
