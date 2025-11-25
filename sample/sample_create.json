@@ -24,7 +24,7 @@
           "平常": "./res/character/girl/normal.png",
           "脸红": "./res/character/girl/shy.png",
           "惊讶": "./res/character/girl/surprise.png",
-          "脸红及微笑": "./res/character/girl/shy_smile.png"
+          "脸红及微笑": "./res/character/girl/smile_shy.png"
         }
       }
     },
@@ -155,7 +155,7 @@
           "girl": {
             "form": "校服",
             "pos": [320,80],
-            "face": ["惊讶",[0,0]],
+            "face": ["脸红",[0,0]],
             "zoom": 1.5,
             "animate": [
               [{
@@ -167,6 +167,77 @@
                 "move": [[0,-10],[0,10],[0,-10],[0,10]]
               }]
             ]
+          }
+        }
+      }],
+      "11": [{
+        "clear_all": false,
+        "content": {
+          "speaking": {
+            "zh": ""
+          },
+          "words": {
+            "zh": "我的突然邀请，让女孩顿时红了脸。"
+          }
+        }
+      }],
+      "12": [{
+        "clear_all": false,
+        "content": {
+          "speaking": {
+            "zh": ""
+          },
+          "words": {
+            "zh": "我的突然邀请，让女孩顿时红了脸。"
+          }
+        }
+      }],
+      "13": [{
+        "clear_all": false,
+        "change": "gradient",
+        "bg": "公园",
+        "characters": {
+          "girl": {
+            "form": "校服",
+            "pos": [320,80],
+            "face": ["脸红及微笑",[0,0]],
+            "zoom": 1.4,
+            "animate": [
+              [{
+                "time": 0.2,
+                "move": [[0,-10],[0,10],[0,-10],[0,10]]
+              }]
+            ]
+          }
+        },
+        "content": {
+          "speaking_name": "girl",
+          "words": {
+            "zh": "好啊，我很乐意！"
+          }
+        }
+      }],
+      "14": [{
+        "clear_all": false,
+        "content": {
+          "speaking": {
+            "zh": "主角"
+          },
+          "words": {
+            "zh": "那走吧，我请客。"
+          }
+        }
+      }],
+      "15": [{
+        "clear_all": true,
+        "change": "gradient",
+        "bg": "天空",
+        "content": {
+          "speaking": {
+            "zh": ""
+          },
+          "words": {
+            "zh": "就这样，我们的相遇，开启了一段可能的故事。"
           }
         }
       }]
