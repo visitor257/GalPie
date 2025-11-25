@@ -326,7 +326,7 @@ class GraphicsView(QGraphicsView):
             self.scene.removeItem(self.background_item)
             self.background_item = None
 
-    def resizeEvent(self, event, bg_pos=[0,0]):
+    def resizeEvent(self, event):
         """重写 resize 事件以保持背景适应"""
         super().resizeEvent(event)
         self.fit_background()
