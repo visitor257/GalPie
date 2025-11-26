@@ -1,0 +1,42 @@
+本文档分为2部分：
+1. 剧情json规则解释
+2. 示例json解析
+
+1. 剧情json规则解释：
+首级keys："settings", "ui", "story_and_position"
+
+"settings": 字典（必填）
+    说明：用于设置语言支持、窗口大小、标题等
+    "settings"内的keys："language", "window_size", "window_title"
+    
+    "language": 列表（必填）
+        "language"内的元素解释：列表内装填所支持语言的标签，如：["zh", "en", "ru"]。
+    
+    "window_size": 字符串（选填）
+        "window_size"的内容解释：设定窗口大小，格式为"<宽>x<高>"，如："1280x720"。
+    
+    "window_title"：字符串（选填）
+        "window_title"的内容解释：设置游戏窗口的标题。若不填写，则默认为"GalPie"。
+
+"ui": 字典（理论必填）
+    说明：用于设置交互界面，如对话框
+    "ui"内的keys："chatbox_and_words_position"
+    
+    "chatbox_and_words_position": 字典（理论必填）
+        说明：对话框样式的设置
+        "chatbox_and_words_position"内的keys："chatbox", "name_show_region", "words_show_region"
+        
+        "chatbox": 字符串（必填）
+            "chatbox"的内容解释：对话框样式（应为图片）的储存位置，填写的应为从json文件所在位置开始的相对路径，如："./res/ui/chatbox.png"
+        
+        "name_show_region"：列表（必填）
+            "name_show_region"内的元素解释：列表内应有两个列表，两个列表分别代表对话框内说话人名字显示区域的左上角坐标和右下角坐标，坐标系基于对话框样式"chatbox"的图片，图片坐上角为0点，x轴像右增加，y轴向下增加，格式如此：[[76,60],[270,149]]，代表以对话框样式（图片）上，位于(76, 60)的像素为左上，位于(270, 149)的像素为右下的区域作为说话人名字的显示区域。
+        
+        "words_show_region"：列表（必填）
+            "words_show_region"内的元素解释：类似于"name_show_region"，列表内应有两个列表，两个列表分别代表对话框内字幕显示区域的左上角坐标和右下角坐标，坐标系基于对话框样式"chatbox"的图片，图片坐上角为0点，x轴像右增加，y轴向下增加，格式如此：[[310,60],[805,149]]，代表以对话框样式（图片）上，位于(310, 60)的像素为左上，位于(805, 149)的像素为右下的区域作为字幕的显示区域。
+
+"story_and_position"：字典（必填）
+    说明：设置剧情内容、人物、背景等
+    "story_and_position"内的keys："character_and_motion", "backgrounds", "story"
+    
+    
