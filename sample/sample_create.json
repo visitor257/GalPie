@@ -194,7 +194,6 @@
       }],
       "13": [{
         "clear_all": false,
-        "change": "gradient",
         "bg": "公园",
         "characters": {
           "girl": {
