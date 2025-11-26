@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint, QPointF
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush, QTextCursor, QTransform
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import QGraphicsOpacityEffect
 
 
 class TextDisplayWidget(QTextEdit):
@@ -261,13 +262,15 @@ class GraphicsView(QGraphicsView):
         # 存储图形项
         self.background_item = None
         self.character_items = {}
-        
-        self.bg_pos=background_pos
-    
-    def update_bg_pos(self, bg_pos=[0,0]):
-        self.bg_pos=bg_pos
 
-    def set_background(self, pixmap: QPixmap):
+        self.bg_pos = background_pos
+        self.pending_animations = []  # 临时存储待启动的动画
+        self.active_animations = []  # 存储正在进行的动画，防止被GC回收
+
+    def update_bg_pos(self, bg_pos=[0,0]):
+        self.bg_pos = bg_pos
+
+    def set_background(self, pixmap: QPixmap, changeEffect=None):
         """设置背景图片"""
         if self.background_item:
             self.scene.removeItem(self.background_item)
@@ -279,6 +282,10 @@ class GraphicsView(QGraphicsView):
         # 调整背景大小以适应视图
         self.fit_background()
 
+        # 如果有转场效果，添加到待启动列表
+        if changeEffect:
+            self.prepare_change_effect(None, changeEffect, "add", "bg")
+
     def fit_background(self):
         """调整背景适应视图大小"""
         if self.background_item and self.sceneRect().isValid():
@@ -287,7 +294,7 @@ class GraphicsView(QGraphicsView):
             # 调整背景大小
             self.background_item.resize_to_fit_window(view_size.width(), view_size.height(), self.bg_pos)
 
-    def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None):
+    def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None, changeEffect=None):
         """添加角色，支持缩放和动画"""
         if char_id in self.character_items:
             self.remove_character(char_id)
@@ -302,6 +309,111 @@ class GraphicsView(QGraphicsView):
 
         self.scene.addItem(item)
         self.character_items[char_id] = item
+
+        # 如果有转场效果，添加到待启动列表
+        if changeEffect:
+            self.prepare_change_effect(char_id, changeEffect, "add", "character")
+
+    def prepare_change_effect(self, char_id=None, changeEffect=None, mode="remove", item="character"):
+        """准备转场效果，但不立即启动动画"""
+        if changeEffect == "gradient":
+            if item == "character":
+                if char_id not in self.character_items:
+                    return
+                target_item = self.character_items[char_id]
+            elif item == "bg":
+                if not self.background_item:
+                    return
+                target_item = self.background_item
+            else:
+                return
+
+            # 创建或获取 opacity effect
+            effect = target_item.graphicsEffect()
+            if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
+                effect = QGraphicsOpacityEffect()
+                target_item.setGraphicsEffect(effect)
+
+            # 设置初始值
+            start_value = 1.0 if mode == "remove" else 0.0
+            end_value = 0.0 if mode == "remove" else 1.0
+
+            # 创建动画，但不启动
+            animate = QPropertyAnimation(effect, b"opacity")
+            animate.setDuration(1000)
+            animate.setStartValue(start_value)
+            animate.setEndValue(end_value)
+            animate.setEasingCurve(QEasingCurve.InOutQuad)
+
+            if mode == "remove":
+                def on_finished():
+                    if item == "character":
+                        self.remove_character(char_id)
+                    elif item == "bg":
+                        self.clear_bg()
+                animate.finished.connect(on_finished)
+
+            # 将动画添加到待启动列表
+            self.pending_animations.append(animate)
+
+    def start_pending_animations(self):
+        """启动所有待启动的动画"""
+        for animate in self.pending_animations:
+            self.active_animations.append(animate)
+            animate.finished.connect(lambda a=animate: self.active_animations.remove(a) if a in self.active_animations else None)
+            animate.start()
+        self.pending_animations.clear()
+
+    # def change_effect(self, char_id=None, changeEffect=None, mode="remove", item="character"):
+    #     """应用转场效果（立即执行，不用于批量）"""
+    #     if changeEffect == "gradient":
+    #         if item == "character":
+    #             if char_id not in self.character_items:
+    #                 return
+    #             target_item = self.character_items[char_id]
+    #         elif item == "bg":
+    #             if not self.background_item:
+    #                 return
+    #             target_item = self.background_item
+    #         else:
+    #             return
+    # 
+    #         # 创建或获取 opacity effect
+    #         effect = target_item.graphicsEffect()
+    #         if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
+    #             effect = QGraphicsOpacityEffect()
+    #             target_item.setGraphicsEffect(effect)
+    # 
+    #         # 设置初始值
+    #         start_value = 1.0 if mode == "remove" else 0.0
+    #         end_value = 0.0 if mode == "remove" else 1.0
+    # 
+    #         # 创建动画
+    #         animate = QPropertyAnimation(effect, b"opacity")
+    #         animate.setDuration(1000)
+    #         animate.setStartValue(start_value)
+    #         animate.setEndValue(end_value)
+    #         animate.setEasingCurve(QEasingCurve.InOutQuad)
+    # 
+    #         if mode == "remove":
+    #             def on_finished():
+    #                 if item == "character":
+    #                     self.remove_character(char_id)
+    #                 elif item == "bg":
+    #                     self.clear_bg()
+    #             animate.finished.connect(on_finished)
+    # 
+    #         # 保存动画对象，防止被GC回收
+    #         self.active_animations.append(animate)
+    #         animate.finished.connect(lambda: self.active_animations.remove(animate) if animate in self.active_animations else None)
+    #         animate.start()
+    #     else:
+    #         # 非 gradient 效果，立即移除
+    #         if mode == "remove":
+    #             if item == "character" and char_id in self.character_items:
+    #                 self.remove_character(char_id)
+    #             elif item == "bg" and self.background_item:
+    #                 self.clear_bg()
 
     def remove_character(self, char_id: str):
         """移除角色"""
@@ -318,6 +430,11 @@ class GraphicsView(QGraphicsView):
         """清除所有角色"""
         for char_id in list(self.character_items.keys()):
             self.remove_character(char_id)
+
+    def clear_bg(self):
+        if self.background_item:
+            self.scene.removeItem(self.background_item)
+            self.background_item = None
 
     def clear_all(self):
         """清除所有元素（背景和角色）"""
@@ -368,7 +485,7 @@ class GalGameWindow(QMainWindow):
 
         self.setup_ui()
         self.load_story_file()
-        
+
         self.window_size=[1280,720]
         self.background_pos=[0,0]
 
@@ -684,7 +801,7 @@ class GalGameWindow(QMainWindow):
                 if bg_pixmap:
                     self.background_pos=[(self.window_size[0]-bg_pixmap.width())//2,0]
                     self.graphics_view.update_bg_pos(self.background_pos)
-                    self.graphics_view.set_background(bg_pixmap)
+                    self.graphics_view.set_background(bg_pixmap, scene.get("change", None))
                 else:
                     print(f"无法加载背景图片: {full_bg_path}")
             else:
@@ -696,9 +813,12 @@ class GalGameWindow(QMainWindow):
             character_defs = self.story_data["story_and_position"].get("character_and_motion", {})
             for char_id, char_info in characters_data.items():
                 if char_id in character_defs:
-                    self.setup_character(char_id, char_info, character_defs[char_id])
+                    self.setup_character(char_id, char_info, character_defs[char_id], scene.get("change", None))
                 else:
                     print(f"角色未定义: {char_id}")
+
+        # 启动所有待执行的动画
+        self.graphics_view.start_pending_animations()
 
         # 显示对话内容
         if "content" in scene:
@@ -727,7 +847,7 @@ class GalGameWindow(QMainWindow):
         # 目前暂时返回False，表示没有音频
         return False
 
-    def setup_character(self, char_id: str, char_info: Dict, char_data: Dict):
+    def setup_character(self, char_id: str, char_info: Dict, char_data: Dict, changeEffect=None):
         """设置角色 - 合并身体和面部，支持缩放和动画"""
         form_name = char_info["form"]
         face_info = char_info["face"]
@@ -775,13 +895,13 @@ class GalGameWindow(QMainWindow):
 
             painter.end()
 
-            self.graphics_view.add_character(char_id, combined_pixmap, pos, zoom, animations)
+            self.graphics_view.add_character(char_id, combined_pixmap, pos, zoom, animations, changeEffect)
         elif form_pixmap:
             # 只有身体，没有面部
-            self.graphics_view.add_character(char_id, form_pixmap, pos, zoom, animations)
+            self.graphics_view.add_character(char_id, form_pixmap, pos, zoom, animations, changeEffect)
         elif face_pixmap:
             # 只有面部，没有身体
-            self.graphics_view.add_character(char_id, face_pixmap, pos, zoom, animations)
+            self.graphics_view.add_character(char_id, face_pixmap, pos, zoom, animations, changeEffect)
         else:
             print(f"无法加载角色图片: {char_id}")
 
