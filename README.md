@@ -22,7 +22,7 @@
 </tr>
 <tr>
 <td>[F2]</td>
-<td>快速存档（储存在 **saves** 文件夹内）</td>
+<td>快速存档（储存在 <b>saves</b> 文件夹内）</td>
 </tr>
 <tr>
 <td>[F3]</td>
