@@ -960,6 +960,51 @@ class GalGameWindow(QMainWindow):
             os.mkdir("saves")
         with open(f"./saves/{data[0]}_{data[1]}_{data[-2]}_{data[-1]}.gpsave","wb") as f:
             pickle.dump(data,f)
+    
+    def load_save(self, load_file_name=None):
+        """读取存档"""
+        if not load_file_name:
+            # 未指定读取文件，读取最新存档（快速读档）
+            save_files=self.get_this_story_saves_new_to_old()
+            with open("./saves/"+save_files[0],"rb") as f:
+                data=pickle.load(f)
+            self.current_page=int(data[3])
+            self.play_current_page()
+            return
+    
+    def get_this_story_saves_new_to_old(self, save_dir="./saves", content_check=False):
+        """获取当前剧情的存档列表，从新至旧"""
+        settings=self.story_data.get("settings",{"window_title": "GalPie","identify_code": ""})
+        story_name=settings.get("window_title", "GalPie").replace(" ","-").replace("_","+")
+        story_id=settings.get("identify_code", "").replace(" ","-").replace("_","+")
+        result=[]
+        processing={}
+
+        if content_check:
+            # 从文件内容检查，是否为该本剧情的存档文件
+            for i in os.listdir(save_dir):
+                if os.path.splitext(i)[-1]==".gpsave":
+                    with open(i,"rb") as f:
+                        data=pickle.load(f)
+                    if data[0]==story_name and data[1]==story_id:
+                        time_number_str=data[-2].replace("-","")+data[-1].replace("-","")
+                        result.append(int(time_number_str))
+                        processing[time_number_str]=i
+        else:
+            # 从文件名检查，是否为该本剧情的存档文件
+            for i in os.listdir(save_dir):
+                file_name_check=i.split("_")
+                if os.path.splitext(i)[-1]==".gpsave" and file_name_check[0]==story_name and file_name_check[1]==story_id:
+                    time_number_str=file_name_check[-2].replace("-","")+file_name_check[-1][0:-7].replace("-","")
+                    result.append(int(time_number_str))
+                    processing[time_number_str]=i
+        
+        # 进行时间排序，从新到旧
+        result.sort(reverse=True)
+        for i in range(len(result)):
+            result[i]=processing[str(result[i])]
+        
+        return result
 
     def mousePressEvent(self, event):
         """鼠标点击事件处理"""
@@ -974,8 +1019,10 @@ class GalGameWindow(QMainWindow):
             self.handle_click()
         elif event.key() == Qt.Key_A:  # 按A键切换自动播放
             self.toggle_auto_play()
-        elif event.key() == Qt.Key_F2:
+        elif event.key() == Qt.Key_F2: # F2键保存游戏
             self.save_game()
+        elif event.key() == Qt.Key_F3: # F3键加载最新存档
+            self.load_save()
         else:
             super().keyPressEvent(event)
 
