@@ -6,6 +6,7 @@
 <br><br>
 主程序：GaiPie.py<br>
 目前可读取按照规则编写的剧情json文件来进行游戏<br>
+（编写规则可查看 **doc** 文件夹中的 **剧情json规则.txt** ，亦可参考 **sample** 文件夹中的 **sample_create.json** 进行编写）<br>
 <br>
 游戏中的热键：<br>
 <table>
