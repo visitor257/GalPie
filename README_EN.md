@@ -22,7 +22,7 @@ Hotkeys in the game:  <br>
 </tr>  
 <tr>  
 <td>[F2]</td>  
-<td>Fast save</td>  
+<td>Fast save (Saves are stored in the <b>saves</b> folder)</td>  
 </tr>  
 <tr>  
 <td>[F3]</td>  
