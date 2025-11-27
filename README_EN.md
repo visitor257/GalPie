@@ -6,6 +6,7 @@ A galgame maker/reader with PySide6<br>
 <br><br>
 Main Program: GaiPie.py<br>
 It can currently read story JSON files written according to the rules to play the game.<br>
+(For writing rules, please refer to **Story JSON rules.txt** in the **doc** folder. You can also consult **sample_create.json** in the **sample** folder as a reference when writing.)<br>
 <br>
 Hotkeys in the game:  <br>
 <table>  
