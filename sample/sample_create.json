@@ -12,6 +12,11 @@
       "words_show_region": [[310,60],[805,149]]
     }
   },
+  "menu": {
+    "bg": {
+      "初始": "./res/menu/bg.png"
+    }
+  },
   "story_and_position": {
     "character_and_motion": {
       "girl": {
