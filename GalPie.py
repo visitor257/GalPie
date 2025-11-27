@@ -4,12 +4,13 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from math import sin, cos, pi
+import pickle
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QPushButton, QFileDialog,
                                QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
                                QTextEdit, QFrame, QGraphicsRectItem)
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint, QPointF
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint, QPointF, QDateTime, QByteArray, QBuffer
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush, QTextCursor, QTransform
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QGraphicsOpacityEffect
@@ -927,6 +928,35 @@ class GalGameWindow(QMainWindow):
             print(f"加载图片失败 {path}: {e}")
 
         return None
+    
+    def save_game(self):
+        """存档"""
+        settings=self.story_data.get("settings",{"window_title": "GalPie","identify_code": ""})
+        
+        # 数据结构：[窗口名, 识别码, 图片数据QPixmap->QByteArray, 页数, 说话人, 字幕, 日期, 时间]
+        data=[settings.get("window_title", "GalPie").replace(" ","-").replace("_","+"), settings.get("identify_code", "").replace(" ","-").replace("_","+"), None, str(self.current_page-1), None, None, QDateTime.currentDateTime().toString("yyyy-MM-dd"), QDateTime.currentDateTime().toString("HH-mm-ss")]
+        
+        img=self.grab()
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QBuffer.WriteOnly)
+        img.save(buffer, "PNG")
+        save_img=byte_array.data()
+        data[2]=save_img
+        
+        page=self.current_page-1
+        page_content=self.story_data.get("story_and_position",{}).get("story",{}).get(str(page),None)[0].get("content",None)
+        if page_content:
+            if "speaking" in page_content:
+                data[4]=page_content.get("speaking",None)
+            else:
+                data[4]=page_content.get("speaking_name",None)
+            data[5]=page_content.get("words",None)
+        
+        if not os.path.exists("saves"):
+            os.mkdir("saves")
+        with open(f"./saves/{data[0]}_{data[1]}_{data[-2]}_{data[-1]}.gpsave","wb") as f:
+            pickle.dump(data,f)
 
     def mousePressEvent(self, event):
         """鼠标点击事件处理"""
@@ -941,6 +971,8 @@ class GalGameWindow(QMainWindow):
             self.handle_click()
         elif event.key() == Qt.Key_A:  # 按A键切换自动播放
             self.toggle_auto_play()
+        elif event.key() == Qt.Key_F2:
+            self.save_game()
         else:
             super().keyPressEvent(event)
 
