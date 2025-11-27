@@ -364,57 +364,6 @@ class GraphicsView(QGraphicsView):
             animate.start()
         self.pending_animations.clear()
 
-    # def change_effect(self, char_id=None, changeEffect=None, mode="remove", item="character"):
-    #     """应用转场效果（立即执行，不用于批量）"""
-    #     if changeEffect == "gradient":
-    #         if item == "character":
-    #             if char_id not in self.character_items:
-    #                 return
-    #             target_item = self.character_items[char_id]
-    #         elif item == "bg":
-    #             if not self.background_item:
-    #                 return
-    #             target_item = self.background_item
-    #         else:
-    #             return
-    # 
-    #         # 创建或获取 opacity effect
-    #         effect = target_item.graphicsEffect()
-    #         if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
-    #             effect = QGraphicsOpacityEffect()
-    #             target_item.setGraphicsEffect(effect)
-    # 
-    #         # 设置初始值
-    #         start_value = 1.0 if mode == "remove" else 0.0
-    #         end_value = 0.0 if mode == "remove" else 1.0
-    # 
-    #         # 创建动画
-    #         animate = QPropertyAnimation(effect, b"opacity")
-    #         animate.setDuration(1000)
-    #         animate.setStartValue(start_value)
-    #         animate.setEndValue(end_value)
-    #         animate.setEasingCurve(QEasingCurve.InOutQuad)
-    # 
-    #         if mode == "remove":
-    #             def on_finished():
-    #                 if item == "character":
-    #                     self.remove_character(char_id)
-    #                 elif item == "bg":
-    #                     self.clear_bg()
-    #             animate.finished.connect(on_finished)
-    # 
-    #         # 保存动画对象，防止被GC回收
-    #         self.active_animations.append(animate)
-    #         animate.finished.connect(lambda: self.active_animations.remove(animate) if animate in self.active_animations else None)
-    #         animate.start()
-    #     else:
-    #         # 非 gradient 效果，立即移除
-    #         if mode == "remove":
-    #             if item == "character" and char_id in self.character_items:
-    #                 self.remove_character(char_id)
-    #             elif item == "bg" and self.background_item:
-    #                 self.clear_bg()
-
     def remove_character(self, char_id: str):
         """移除角色"""
         if char_id in self.character_items:
