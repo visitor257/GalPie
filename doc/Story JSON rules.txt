@@ -276,17 +276,6 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
         "clear_all": false,
         "content": {
           "speaking": {
-            "zh": "Protagonist"
-          },
-          "words": {
-            "zh": "Well, I just like the quiet here. How about you? Why are you at the park today?"
-          }
-        }
-      }],
-      "8": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
             "zh": ""
           },
           "words": {
@@ -294,7 +283,7 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
           }
         }
       }],
-      "9": [{
+      "8": [{
         "clear_all": false,
         "content": {
           "speaking_name": "girl",
@@ -303,7 +292,7 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
           }
         }
       }],
-      "10": [{                                              <- Page 10
+      "9": [{                                               <- Page 9
         "clear_all": false,                                 <- First scene, "clear_all" is false, won't clear previous scene's content.
         "content": {
           "speaking": {
@@ -335,29 +324,18 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
           }
         }
       }],
+      "10": [{
+        "clear_all": false,
+        "content": {
+          "speaking": {
+            "zh": ""
+          },
+          "words": {
+            "zh": "My sudden invitation made the girl blush instantly."
+          }
+        }
+      }],
       "11": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "My sudden invitation made the girl blush instantly."
-          }
-        }
-      }],
-      "12": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "My sudden invitation made the girl blush instantly."
-          }
-        }
-      }],
-      "13": [{
         "clear_all": false,
         "bg": "公园",
         "characters": {
@@ -381,7 +359,7 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
           }
         }
       }],
-      "14": [{
+      "12": [{
         "clear_all": false,
         "content": {
           "speaking": {
@@ -392,7 +370,7 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
           }
         }
       }],
-      "15": [{
+      "13": [{
         "clear_all": true,
         "change": "gradient",
         "bg": "天空",
