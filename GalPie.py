@@ -936,6 +936,7 @@ class GalGameWindow(QMainWindow):
         # 数据结构：[窗口名, 识别码, 图片数据QPixmap->QByteArray, 页数, 说话人, 字幕, 日期, 时间]
         data=[settings.get("window_title", "GalPie").replace(" ","-").replace("_","+"), settings.get("identify_code", "").replace(" ","-").replace("_","+"), None, str(self.current_page-1), None, None, QDateTime.currentDateTime().toString("yyyy-MM-dd"), QDateTime.currentDateTime().toString("HH-mm-ss")]
         
+        # 截取窗口画面，并以二进制数据保存
         img=self.grab()
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
@@ -944,6 +945,7 @@ class GalGameWindow(QMainWindow):
         save_img=byte_array.data()
         data[2]=save_img
         
+        # 获取读取页的说话人和字幕
         page=self.current_page-1
         page_content=self.story_data.get("story_and_position",{}).get("story",{}).get(str(page),None)[0].get("content",None)
         if page_content:
@@ -953,6 +955,7 @@ class GalGameWindow(QMainWindow):
                 data[4]=page_content.get("speaking_name",None)
             data[5]=page_content.get("words",None)
         
+        # 保存存档文件
         if not os.path.exists("saves"):
             os.mkdir("saves")
         with open(f"./saves/{data[0]}_{data[1]}_{data[-2]}_{data[-1]}.gpsave","wb") as f:
