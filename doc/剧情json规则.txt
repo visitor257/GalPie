@@ -12,7 +12,7 @@
 
 "settings": 字典（必填）
     说明：用于设置语言支持、窗口大小、标题等
-    "settings"内的keys："language", "window_size", "window_title"
+    "settings"内的keys："language", "window_size", "window_title", "identify_code"
     
     "language": 列表（必填）
         "language"内的元素解释：列表内装填所支持语言的标签，如：["zh", "en", "ru"]。
@@ -22,6 +22,9 @@
     
     "window_title"：字符串（选填）
         "window_title"的内容解释：设置游戏窗口的标题。若不填写，则默认为"GalPie"。
+    
+    "identify_code": 字符串（选填）
+        "identify_code"的内容解释：设置此剧情的识别码，用于更方便管理剧情存档文件。
 
 "ui": 字典（理论必填）
     说明：用于设置交互界面，如对话框
@@ -168,7 +171,8 @@
   "settings": {                         <-基本设置
     "language": ["zh"],                 <-设置语言，填入语言标签
     "window_size": "1280x720",          <-窗口大小，选填，默认1280x720
-    "window_title": "Sample story"      <-窗口标题，选填，默认为GalPie
+    "window_title": "Sample story",     <-窗口标题，选填，默认为GalPie
+    "identify_code": "sample_identify"  <-剧情识别码，选填
   },
   "ui": {                                           <-UI设置
     "chatbox_and_words_position": {                 <-设置对话框样式

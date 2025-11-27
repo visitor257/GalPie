@@ -20,6 +20,9 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
 
     "window_title": string (Optional)
         Explanation of "window_title" content: Sets the game window title. If not filled, defaults to "GalPie".
+    
+    "identify_code": string（Optional）
+        Explanation of "identify_code" content: Sets the identify code of this story. Use for better management of the saves of this story.
 
 "ui": dictionary (Theoretically Required)
     Description: Used to set up the interactive interface, such as the dialog box.
@@ -163,7 +166,8 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
   "settings": {                         <- Basic settings
     "language": ["zh"],                 <- Set language, fill in language tags
     "window_size": "1280x720",          <- Window size, optional, default 1280x720
-    "window_title": "Sample story"      <- Window title, optional, defaults to "GalPie"
+    "window_title": "Sample story",     <- Window title, optional, defaults to "GalPie"
+    "identify_code": "sample_identify"  <- Story identify code, optional
   },
   "ui": {                                           <- UI settings
     "chatbox_and_words_position": {                 <- Set dialog box style
