@@ -22,6 +22,10 @@ Hotkeys in the game:  <br>
 </tr>  
 <tr>  
 <td>[F2]</td>  
-<td>Save, Create a save file</td>  
+<td>Fast save</td>  
+</tr>  
+<tr>  
+<td>[F3]</td>  
+<td>Quick load (load the newest save)</td>  
 </tr>  
 </table>
