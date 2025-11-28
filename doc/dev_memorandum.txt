@@ -1,0 +1,1 @@
+﻿2025-11-28_21:34: GalPie.py: load_save: 需回溯场景，获取bg和characters，构建场景data，并填入specify_scene

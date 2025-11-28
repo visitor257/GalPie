@@ -1,388 +1,419 @@
-This document is divided into 2 parts:
-1. Explanation of the story JSON rules.
-2. Example JSON parsing.
+This document is divided into 2 parts:  
+1. Explanation of Story JSON Rules  
+2. Example JSON Parsing  
 
-Note:
-1. Unless otherwise specified, all file paths filled in should be relative paths starting from the location of the JSON file.
+Note:  
+1. Unless otherwise specified, all file paths should be relative paths starting from the location of the JSON file.  
 
-1. Explanation of the story JSON rules:
-Top-level keys: "settings", "ui", "story_and_position" (all are required unless stated otherwise).
 
-"settings": dictionary (Required)
-    Description: Used to set language support, window size, title, etc.
-    Keys within "settings": "language", "window_size", "window_title"
 
-    "language": list (Required)
-        Explanation of elements within "language": The list contains tags for the supported languages, e.g.: ["zh", "en", "ru"].
+1. Explanation of Story JSON Rules:  
+Top-level keys: "settings", "ui", "story_and_position"
 
-    "window_size": string (Optional)
-        Explanation of "window_size" content: Sets the window size. Format is "<width>x<height>", e.g.: "1280x720".
-
-    "window_title": string (Optional)
-        Explanation of "window_title" content: Sets the game window title. If not filled, defaults to "GalPie".
+"settings": dictionary (required)  
+    Description: Used to configure language support, window size, title, etc.  
+    Keys inside "settings": "language", "window_size", "window_title", "identify_code"  
     
-    "identify_code": string（Optional）
-        Explanation of "identify_code" content: Sets the identify code of this story. Use for better management of the saves of this story.
+    "language": list (required)  
+        Explanation of elements in "language": The list contains language tags that are supported, e.g., ["zh", "en", "ru"].  
+    
+    "window_size": string (optional)  
+        Explanation of "window_size": Specifies the window dimensions in the format "<width>x<height>", e.g., "1280x720".  
+    
+    "window_title": string (optional)  
+        Explanation of "window_title": Sets the game window title. If not provided, defaults to "GalPie".  
+    
+    "identify_code": string (optional)  
+        Explanation of "identify_code": Sets an identification code for this story, used to manage story save files more conveniently.
 
-"ui": dictionary (Theoretically Required)
-    Description: Used to set up the interactive interface, such as the dialog box.
-    Keys within "ui": "chatbox_and_words_position"
+"ui": dictionary (theoretically required)  
+    Description: Used to configure interactive UI elements, such as dialogue boxes.  
+    Keys inside "ui": "chatbox_and_words_position"  
+    
+    "chatbox_and_words_position": dictionary (theoretically required)  
+        Description: Configuration for dialogue box appearance.  
+        Keys inside "chatbox_and_words_position": "chatbox", "name_show_region", "words_show_region"  
+        
+        "chatbox": string (required)  
+            Explanation of "chatbox": Specifies the storage path (relative to the JSON file) of the dialogue box image, e.g., "./res/ui/chatbox.png".  
+        
+        "name_show_region": list (required)  
+            Explanation of elements in "name_show_region": The list contains two sublists representing the top-left and bottom-right coordinates of the area where the speaker's name appears within the dialogue box. Coordinates are based on the "chatbox" image, with the top-left corner as origin (0,0), x-axis increasing rightward, y-axis increasing downward. Format example: [[76,60],[270,149]] means the name display region spans from pixel (76,60) to (270,149) on the chatbox image.  
+        
+        "words_show_region": list (required)  
+            Explanation of elements in "words_show_region": Similar to "name_show_region", the list contains two sublists representing the top-left and bottom-right coordinates of the subtitle display area within the dialogue box. Coordinates follow the same system as above. Format example: [[310,60],[805,149]] defines the subtitle region from (310,60) to (805,149) on the chatbox image.
 
-    "chatbox_and_words_position": dictionary (Theoretically Required)
-        Description: Settings for the dialog box style.
-        Keys within "chatbox_and_words_position": "chatbox", "name_show_region", "words_show_region"
+"story_and_position": dictionary (required)  
+    Description: Configures story content, characters, backgrounds, etc.  
+    Keys inside "story_and_position": "character_and_motion", "backgrounds", "story"  
+    
+    "character_and_motion": dictionary (required)  
+        Description: Defines characters with visual representations.  
+        Keys inside "character_and_motion": Custom character tags, e.g., "girl", "congyu", "丛雨"  
+        
+        <character_tag>: dictionary (required)  
+            Keys inside the character tag: "name", "form", "face"  
+            
+            "name": dictionary (required)  
+                Description: Sets the in-game display name for this character.  
+                Keys inside "name": Language tags defined in "settings" → "language", e.g., if "language" is ["zh", "en", "jp"], then this dictionary should be: {"zh": "丛雨", "en": "Murasame", "jp": "ムラサメ"}  
+                
+                <language_tag>: string (required)  
+                    Explanation: The character's display name in the corresponding language.  
+            
+            "form": dictionary (required)  
+                Description: Defines different visual forms (outfits/poses) for the character and their associated image paths.  
+                Keys inside "form": Custom form tags, e.g., "校服", "工作", "校服2"  
+                
+                <form_tag>: string (required)  
+                    Explanation: File path to the image for this form, e.g., "校服": "./res/character/girl/uniform.png"  
+            
+            "face": dictionary (optional)  
+                Description: Defines facial expressions and their image paths. Alternatively, you may embed expressions directly into form images and skip this section.  
+                Keys inside "face": Custom expression tags, e.g., "微笑", "脸红", "平常"  
+                
+                <expression_tag>: string (required)  
+                    Explanation: File path to the expression image, e.g., "脸红": "./res/character/girl/shy.png"  
+    
+    "backgrounds": dictionary (required)  
+        Description: Defines background labels and their image paths.  
+        Keys inside "backgrounds": Custom background tags, e.g., "学校", "教室", "公园"  
+        
+        <background_tag>: string (required)  
+            Explanation: File path to the background image, e.g., "公园": "./res/bg/park.png"  
+    
+    "storyline_id": dictionary (required)  
+        Description: Defines storyline identifiers.  
+        Keys inside "storyline_id": Custom storyline tags  
+        
+        <storyline_tag>: float (required)  
+            Explanation: The value determines which storyline is active. At startup and branching points, the program compares all storyline values and automatically enters the one with the highest value. For example, {"main": 1.0, "girl": 0.5} will start with the "main" storyline. Values can be adjusted during gameplay. Avoid having two or more storylines share the same maximum value; if this occurs, no new storyline will be entered. See Part 2 for usage examples.  
+    
+    "story": dictionary (required)  
+        Description: Contains the actual story content for each storyline.  
+        Keys inside "story": Storyline tags defined in "storyline_id"  
+        
+        <storyline_tag>: dictionary (required)  
+            Description: Story scenes, settings, subtitles, etc. Note: When "clear_all": false, scene elements from the previous page persist unless explicitly redefined—redefining replaces the entire content of that element. See Part 2 for examples.  
+            Keys inside this dictionary: Page numbers, starting from 1  
+            
+            <page_number>: list (required)  
+                Description: Defines scenes on this page.  
+                Elements in the list: Each element is a dictionary; n elements mean n scenes (n ≥ 1).  
+                
+                List element: dictionary (required)  
+                    Description: Scene configuration.  
+                    Keys inside the dictionary: "clear_all", "change", "bg", "characters", "content", "edit_storylineID_value"  
+                    
+                    "clear_all": bool (theoretically required)  
+                        Description: Whether to clear all content from the previous page. true = yes, false = no.  
+                    
+                    "change": string (optional)  
+                        Explanation of "change": Specifies transition effect. Default is instant change.  
+                        Currently supported effects:  
+                            Fade-in/out: "gradient"  
+                    
+                    "bg": string (optional)  
+                        Explanation of "bg": Specifies background using a label from "backgrounds", e.g., "bg": "公园"  
+                    
+                    "characters": dictionary (optional)  
+                        Description: Brings visual characters onto the scene.  
+                        Keys inside "characters": Character tags from "character_and_motion"  
+                        
+                        <character_tag>: dictionary (required)  
+                            Description: Configures the character’s form, position, expression, zoom, animation, etc.  
+                            Keys inside: "form", "pos", "face", "zoom", "animate"  
+                            
+                            "form": string (required)  
+                                Explanation: Form label defined under this character’s "form" in "character_and_motion".  
+                            
+                            "pos": list (required)  
+                                Explanation: Two values for x and y coordinates placing the character image on the background. Origin is top-left of background (0,0), x increases rightward, y downward. Format: [320,80] places the character at (320,80) on the background.  
+                            
+                            "face": list (theoretically required)  
+                                Explanation: Two elements: first is an expression label from this character’s "face"; second is a list of x,y offsets placing the expression image on the character’s form image (origin top-left of form image). Example: ["脸红",[0,0]]  
+                            
+                            "zoom": float (optional)  
+                                Explanation: Character scale factor. Default is 1.0; <1.0 shrinks, >1.0 enlarges.  
+                            
+                            "animate": list (optional)  
+                                Description: Animations for this character in this scene.  
+                                Elements: Each is a dictionary; n elements = n animations played sequentially.  
+                                
+                                List element: dictionary (required)  
+                                    Keys: "time", "zoom", "move"  
+                                    
+                                    "time": float (required)  
+                                        Explanation: Animation duration in seconds.  
+                                    
+                                    "zoom": float (optional)  
+                                        Explanation: Target zoom value. Over the animation duration ("time"), zoom interpolates from current value to this value. See Part 2 for examples.  
+                                    
+                                    "move": list (optional)  
+                                        Explanation: Sequence of relative movements. Each sublist contains [dx, dy] (x right+, y down+). Over "time", the character moves through these offsets sequentially. Example: [[-10,0],[0,10],[10,0],[0,-10]] moves left 10, down 10, right 10, up 10.  
+                    
+                    "content": dictionary (required)  
+                        Description: Dialogue content.  
+                        Keys: "speaking"/"speaking_name", "words"  
+                        
+                        "speaking": dictionary / "speaking_name": string (choose one, but one is required)  
+                            "speaking" explanation: Sets speaker name per language. See Part 2 for examples.  
+                            Keys in "speaking": Language tags from "settings" → "language"  
+                            
+                            <language_tag>: string (required)  
+                                Explanation: Speaker name in this language.  
+                            
+                            "speaking_name" explanation: If the speaker is defined in "character_and_motion", use their character tag here.  
+                            "speaking_name" content: A character tag from "character_and_motion".  
+                        
+                        "words": dictionary (required)  
+                            Description: Subtitle text per language. See Part 2 for examples.  
+                            Keys in "words": Language tags from "settings" → "language"  
+                            
+                            <language_tag>: string (required)  
+                                Explanation: Subtitle text in this language.  
+                    
+                    "edit_storylineID_value": dictionary (optional)  
+                        Description: Adjusts values in "storyline_id".  
+                        Keys: Storyline tags from "storyline_id"  
+                        
+                        <storyline_tag>: list (required)  
+                            Explanation: Two elements: first is operation ("replace" or "add"); second is value. Example: "girl": ["add", -0.2] subtracts 0.2 from the current "girl" storyline value.  
+                    
+                    "check_storyline": bool (optional)  
+                        Description: If true, after this scene, the program checks storyline values and enters the one with the highest value. If false, nothing happens.  
 
-        "chatbox": string (Required)
-            Explanation of "chatbox" content: The storage location of the dialog box style (should be an image). The filled path should be a relative path starting from the JSON file's location, e.g.: "./res/ui/chatbox.png".
 
-        "name_show_region": list (Required)
-            Explanation of elements within "name_show_region": The list should contain two lists. These two lists represent the top-left and bottom-right coordinates of the speaker's name display area within the dialog box. The coordinate system is based on the dialog box style image ("chatbox"), with the top-left corner of the image as point (0,0), the x-axis increasing to the right, and the y-axis increasing downward. Format example: [[76,60],[270,149]] means using the area from pixel (76, 60) as top-left to pixel (270, 149) as bottom-right on the dialog box style image as the display region for the speaker's name.
 
-        "words_show_region": list (Required)
-            Explanation of elements within "words_show_region": Similar to "name_show_region". The list should contain two lists representing the top-left and bottom-right coordinates of the subtitle display area within the dialog box. Coordinate system is based on the dialog box style image. Format example: [[310,60],[805,149]] means using the area from pixel (310, 60) to pixel (805, 149) as the subtitle display region.
 
-"story_and_position": dictionary (Required)
-    Description: Sets the story content, characters, backgrounds, etc.
-    Keys within "story_and_position": "character_and_motion", "backgrounds", "story"
-
-    "character_and_motion": dictionary (Required)
-        Description: Defines characters with appearances.
-        Explanation of keys within "character_and_motion": Custom character tags, e.g.: "girl", "congyu", "丛雨".
-
-        <Character Tag>: dictionary (Required)
-            Keys within the character tag: "name", "form", "face"
-
-            "name": dictionary (Required)
-                Description: Sets the name/title for this character tag in the game.
-                Explanation of keys within "name": These are the language tags set in "settings" -> "language". For example, if "language" is set to ["zh", "en", "jp"], this dictionary should contain: {"zh": "丛雨", "en": "Murasame", "jp": "ムラサメ"}.
-
-                <Language Tag>: string (Required)
-                    Content explanation: The name/title of the character in the language corresponding to the language tag.
-
-            "form": dictionary (Required)
-                Description: Sets the different forms (outfits/states) for this character and the image file path associated with each form.
-                Explanation of keys within "form": Custom form tags, e.g.: "校服" (School Uniform), "工作" (Work), "校服2".
-
-                <Form Tag>: string (Required)
-                    Content explanation: The image file path associated with this form tag. e.g.: "校服": "./res/character/girl/uniform.png".
-
-            "face": dictionary (Optional)
-                Description: Sets the facial expressions for this character and the associated image file paths. You can also include expressions directly on the form image and call that form in the story later, thus omitting this section.
-                Explanation of keys within "face": Custom expression tags, e.g.: "微笑" (Smile), "脸红" (Blush), "平常" (Normal).
-
-                <Expression Tag>: string (Required)
-                    Content explanation: The image file path associated with this expression tag. e.g.: "脸红": "./res/character/girl/shy.png".
-
-    "backgrounds": dictionary (Required)
-        Description: Sets tags for different backgrounds and their associated image file paths.
-        Explanation of keys within "backgrounds": Custom background tags, e.g.: "学校" (School), "教室" (Classroom), "公园" (Park).
-
-        <Background Tag>: string (Required)
-            Content explanation: The image file path associated with this background tag. e.g.: "公园": "./res/bg/park.png".
-
-    "story": dictionary (Required)
-        Description: The story content and scene settings (background, characters, dialog). Note: If "clear_all": false, elements from the previous page's scene will persist unless explicitly changed. If an element is reset, its content will be completely replaced by the new settings. Details can be understood in the example JSON parsing in Part 2.
-        Explanation of keys within "story": Page numbers, starting from 1.
-
-        <Page Number>: list (Required)
-            Description: Sets the scenes for this page.
-            Explanation of list elements: Each element is a dictionary. Having n elements (dictionaries) in the list means there are n scenes (n must be at least 1).
-
-            Element within the list: dictionary (Required)
-                Description: Settings for a scene.
-                Keys within the dictionary: "clear_all", "change", "bg", "characters", "content".
-
-                "clear_all": bool (Theoretically Required)
-                    Description: Whether to clear all content from the previous page's scene. true for yes, false for no.
-
-                "change": string (Optional)
-                    Explanation of "change" content: Sets the transition effect. Default is an immediate change.
-                    Currently supported effects:
-                        Gradient/Fade: "gradient".
-
-                "bg": string (Optional)
-                    Explanation of "bg" content: Sets the background. The content should be a background tag defined above in "backgrounds". e.g.: "bg": "公园".
-
-                "characters": dictionary (Optional)
-                    Description: Places characters with appearances on the stage.
-                    Explanation of keys within "characters": These are the character tags defined above in "character_and_motion".
-
-                    <Character Tag>: dictionary (Required)
-                        Description: Sets the form, position, expression, zoom, animation, etc., for the character appearing on stage.
-                        Keys within the dictionary: "form", "pos", "face", "zoom", "animate".
-
-                        "form": string (Required)
-                            Explanation of "form" content: This should be a form tag defined within this character's "form" dictionary in "character_and_motion".
-
-                        "pos": list (Required)
-                            Explanation of elements within "pos": The list should contain two values, corresponding to the x and y coordinates where the form image will be placed on the background image. The coordinate system is based on the background image, with the top-left corner as (0,0), x increasing right, y increasing down. Format example: [320,80] means placing the form image at pixel (320, 80) on the background image.
-
-                        "face": list (Theoretically Required)
-                            Explanation of elements within "face": Contains two elements. The first is a string, which is the expression tag defined in this character's "face" dictionary. The second is a list containing two values, the x and y coordinates where the expression image will be placed on the form image. The coordinate system is based on the form image. Format example: [0,0] means placing the expression image at (0, 0) on the form image. The full list format is: ["脸红",[0,0]].
-
-                        "zoom": float (Optional)
-                            Explanation of "zoom" value: Sets the character's zoom scale. Default is 1.0. Values less than (<) 1.0 shrink, greater than (>) 1.0 enlarge.
-
-                        "animate": list (Optional)
-                            Description: Sets animations for the character within this scene.
-                            Explanation of list elements: Each element is a dictionary. Having n elements means n animations. Animations play sequentially.
-
-                            Element within the list: dictionary (Required)
-                                Keys within the dictionary: "time", "zoom", "move".
-
-                                "time": float (Required)
-                                    Explanation of "time" value: The duration of the animation in seconds.
-
-                                "zoom": float (Optional)
-                                    Explanation of "zoom" value: Sets a zoom animation. Over the animation duration ("time"), the character's zoom will change from the initial "zoom" value (set above for the character) to this value. See the example JSON parsing in Part 2 for details.
-
-                                "move": list (Optional)
-                                    Explanation of "move" content: The elements are lists. There is no strict upper limit to the number of inner lists. Each inner list contains two numerical values, corresponding to relative x and y coordinates (relative to the character's current position). The x-axis increases right, y-axis down. Over the animation duration ("time"), the character will move sequentially to these relative coordinates. Example: To move the character left 10, then down 10, then right 10, then up 10, you would input: [[-10,0],[0,10],[10,0],[0,-10]].
-
-                "content": dictionary (Required)
-                    Description: Sets the dialog content.
-                    Keys within "content": "speaking"/"speaking_name", "words".
-
-                    "speaking": dictionary / "speaking_name": string (Choose one, either is required)
-                        "speaking" description: Sets the speaker's name for each language tag. See the example JSON parsing in Part 2 for details.
-                        Explanation of keys within "speaking": These are the language tags set in "settings" -> "language".
-
-                        <Language Tag>: string (Required)
-                            Content explanation: The speaker's name in the language corresponding to the language tag.
-
-                        "speaking_name" description: If the speaker is defined in "character_and_motion", you can directly use the character tag here.
-                        Explanation of "speaking_name" content: A character tag defined in "character_and_motion".
-
-                    "words": dictionary (Required)
-                        Description: Sets the dialog subtitle for each language tag.
-                        Explanation of keys within "words": These are the language tags set in "settings" -> "language".
-
-                        <Language Tag>: string (Required)
-                            Content explanation: The dialog subtitle in the language corresponding to the language tag.
-
-2. Example JSON parsing:
+2. Example JSON Parsing:
 
 {
   "settings": {                         <- Basic settings
-    "language": ["zh"],                 <- Set language, fill in language tags
-    "window_size": "1280x720",          <- Window size, optional, default 1280x720
-    "window_title": "Sample story",     <- Window title, optional, defaults to "GalPie"
-    "identify_code": "sample_identify"  <- Story identify code, optional
+    "language": ["zh"],                 <- Set languages using language tags
+    "window_size": "1280x720",          <- Window size (optional, default: 1280x720)
+    "window_title": "Sample story",     <- Window title (optional, default: "GalPie")
+    "identify_code": "sample_identify"  <- Story identification code (optional)
   },
   "ui": {                                           <- UI settings
-    "chatbox_and_words_position": {                 <- Set dialog box style
-      "chatbox": "./res/ui/chatbox.png",            <- Dialog box style image
-      "name_show_region": [[76,60],[270,149]],      <- Region for speaker name on dialog box image (top-left and bottom-right)
-      "words_show_region": [[310,60],[805,149]]     <- Region for subtitles on dialog box image (top-left and bottom-right)
+    "chatbox_and_words_position": {                 <- Configure dialogue box style
+      "chatbox": "./res/ui/chatbox.png",            <- Dialogue box image
+      "name_show_region": [[76,60],[270,149]],      <- Name display region on chatbox (top-left & bottom-right)
+      "words_show_region": [[310,60],[805,149]]     <- Subtitle display region on chatbox (top-left & bottom-right)
     }
   },
   "story_and_position": {       <- Story, characters, and backgrounds
-    "character_and_motion": {   <- Character settings
+    "character_and_motion": {   <- Character definitions
       "girl": {                 <- Character tag
-        "name": {               <- Character's name/title
-          "zh": "女孩"            <- Name/title for the corresponding language tag
+        "name": {               <- Character's in-game name
+          "zh": "女孩"            <- Name for each language tag
         },
-        "form": {                                               <- Set form tags, i.e., character's forms/styles
-          "校服": "./res/character/girl/uniform.png"              <- e.g., if the character wears a school uniform, the tag is set to "校服", then set the image file path for this tag.
+        "form": {                                               <- Define form tags (outfits/styles)
+          "校服": "./res/character/girl/uniform.png"              <- E.g., school uniform labeled "校服", with image path
         },
-        "face": {                                               <- Set expression tags, i.e., character's expressions
-          "平常": "./res/character/girl/normal.png",              <- e.g., the character's normal expression, tag "平常", set the image path.
-          "脸红": "./res/character/girl/shy.png",                 <- e.g., the character's blushing expression, tag "脸红", set the image path.
+        "face": {                                               <- Define expression tags
+          "平常": "./res/character/girl/normal.png",              <- Neutral expression labeled "平常"
+          "脸红": "./res/character/girl/shy.png",                 <- Blushing expression labeled "脸红"
           "惊讶": "./res/character/girl/surprise.png",
           "脸红及微笑": "./res/character/girl/smile_shy.png"
         }
       }
     },
-    "backgrounds": {                <- Set background tags and their corresponding images
-      "公园": "./res/bg/park.png",    <- e.g., background is a park, tag "公园", set the image path.
+    "backgrounds": {                <- Background labels and image paths
+      "公园": "./res/bg/park.png",    <- E.g., park background labeled "公园"
       "天空": "./res/bg/sky.png"
     },
-    "story": {                                                          <- Story content and page scene settings
-      "1": [{                                                           <- Key is the page number, starting from 1. Note: key type is string.
-        "clear_all": true,                                              <- Whether to clear all content from the previous page. true for yes, false for no.
-        "change": "gradient",                                           <- Set transition effect, here "gradient" means fade effect.
-        "bg": "天空",                                                     <- Set background, use a tag defined above. Defined tags are "公园", "天空". Here "天空" is used.
-        "content": {                                                    <- Set dialog content
-          "speaking": {                                                 <- Set speaker's name
-            "zh": ""                                                    <- Set the name for each language tag. Since "settings" -> "language" only has "zh", only set for "zh". If multiple language tags exist, set for each.
+    "storyline_id": {
+      "main": 1.0
+    },
+    "story": {                                                            <- Story content, storylines, pages, scenes
+      "main": {
+        "1": [{                                                           <- Page number (string type, starts at "1")
+          "clear_all": true,                                              <- Clear all previous content? true = yes, false = no
+          "change": "gradient",                                           <- Transition effect: "gradient" = fade
+          "bg": "天空",                                                     <- Background: use label from "backgrounds" ("公园", "天空")
+          "content": {                                                    <- Dialogue content
+            "speaking": {                                                 <- Speaker name
+              "zh": ""                                                    <- Must define for every language in "settings" → "language". Only "zh" here.
+            },
+            "words": {                                                    <- Subtitle text
+              "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）"         <- Must define for every language. Only "zh" here.
+            }
+          }
+        }],
+        "2": [{                                                           <- Page 2
+          "clear_all": false,
+          "content": {
+            "speaking_name": "girl",                                      <- Use character tag from "character_and_motion"
+            "words": {
+              "zh": "你好，这里有人坐吗？"
+            }
+          }
+        }],
+        "3": [{
+          "clear_all": false,
+          "content": {
+            "speaking": {
+              "zh": "主角"
+            },
+            "words": {
+              "zh": "啊，没有，请坐吧。"
+            }
+          }
+        }],
+        "4": [{
+          "clear_all": false,
+          "content": {
+            "speaking": {
+              "zh": ""
+            },
+            "words": {
+              "zh": "一个温暖的春日午后，阳光透过树叶洒在公园的长椅上。"
+            }
+          }
+        }],
+        "5": [{                               <- Page 5
+          "clear_all": true,
+          "change": "gradient",
+          "bg": "公园",                         <- Background set to "公园" (defined in "backgrounds")
+          "characters": {                     <- Characters appearing
+            "girl": {                         <- Character tag from "character_and_motion"
+              "form": "校服",                   <- Form label from this character's "form"
+              "pos": [320,80],                <- Position on background: [x,y] from top-left (0,0)
+              "face": ["平常",[0,0]],           <- Expression label + offset on form image
+              "zoom": 1.5                     <- Scale: 1.5x enlargement
+            }
           },
-          "words": {                                                    <- Set dialog content, i.e., subtitles
-            "zh": "（This is a test story, for program testing purposes only, story content is AI-generated）"         <- Set subtitles for each language tag. Only set for "zh" here.
+          "content": {
+            "speaking_name": "girl",
+            "words": {
+              "zh": "谢谢。我经常看到你一个人坐在这里，是在想什么事情吗？"
+            }
           }
-        }
-      }],
-      "2": [{                                                           <- Page 2
-        "clear_all": false,
-        "content": {
-          "speaking_name": "girl",                                      <- Speaker setting. If the character is defined in "character_and_motion", use "speaking_name" and fill in the character tag.
-          "words": {
-            "zh": "Hello, is this seat taken?"
+        }],
+        "6": [{                               <- Page 6
+          "clear_all": false,                 <- No "bg" or "characters" defined, so previous (Page 5) remain
+          "content": {
+            "speaking": {
+              "zh": "主角"
+            },
+            "words": {
+              "zh": "嗯，只是喜欢这里的安静。你呢？为什么今天来公园？"
+            }
           }
-        }
-      }],
-      "3": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": "Protagonist"
+        }],
+        "7": [{
+          "clear_all": false,
+          "content": {
+            "speaking": {
+              "zh": ""
+            },
+            "words": {
+              "zh": "一位陌生女孩的搭讪，让我的心跳加速。"
+            }
+          }
+        }],
+        "8": [{
+          "clear_all": false,
+          "content": {
+            "speaking_name": "girl",
+            "words": {
+              "zh": "我来散散心。最近学业有点忙，需要放松一下。"
+            }
+          }
+        }],
+        "9": [{                                               <- Page 9
+          "clear_all": false,                                 <- Scene 1: doesn't clear previous content
+          "content": {
+            "speaking": {
+              "zh": "主角"
+            },
+            "words": {
+              "zh": "我懂那种感觉。要不……一起去那边的咖啡馆坐坐？"
+            }
+          }
+          }, 
+          {
+          "clear_all": false,                                 <- Scene 2: doesn't clear Scene 1
+          "characters": {                                     <- But redefines "characters", so previous characters are replaced
+            "girl": {
+              "form": "校服",
+              "pos": [320,80],
+              "face": ["脸红",[0,0]],                           <- Expression changed to blushing
+              "zoom": 1.5,                                    <- Initial zoom for this scene: 1.5x
+              "animate": [                                    <- Animation sequence
+                [{                                            <- Animation group 1 (all actions in group play simultaneously)
+                  "time": 0.2,                                <- Duration: 0.2 seconds
+                  "zoom": 1.4                                 <- Zoom from 1.5 → 1.4 over 0.2s
+                }],
+                [{                                            <- Animation group 2 (plays after group 1)
+                  "time": 0.2,                                <- Duration: 0.2 seconds
+                  "move": [[0,-10],[0,10],[0,-10],[0,10]]     <- Move: up 10, down 10, up 10, down 10 (like two small jumps)
+                }]
+              ]
+            }
+          }
+        }],
+        "10": [{
+          "clear_all": false,
+          "content": {
+            "speaking": {
+              "zh": ""
+            },
+            "words": {
+              "zh": "我的突然邀请，让女孩顿时红了脸。"
+            }
+          }
+        }],
+        "11": [{
+          "clear_all": false,
+          "bg": "公园",
+          "characters": {
+            "girl": {
+              "form": "校服",
+              "pos": [320,80],
+              "face": ["脸红及微笑",[0,0]],
+              "zoom": 1.4,
+              "animate": [
+                [{
+                  "time": 0.2,
+                  "move": [[0,-10],[0,10],[0,-10],[0,10]]
+                }]
+              ]
+            }
           },
-          "words": {
-            "zh": "Ah, no, please have a seat."
+          "content": {
+            "speaking_name": "girl",
+            "words": {
+              "zh": "好啊，我很乐意！"
+            }
           }
-        }
-      }],
-      "4": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "A warm spring afternoon, sunlight filtering through the leaves onto a park bench."
+        }],
+        "12": [{
+          "clear_all": false,
+          "content": {
+            "speaking": {
+              "zh": "主角"
+            },
+            "words": {
+              "zh": "那走吧，我请客。"
+            }
           }
-        }
-      }],
-      "5": [{                               <- Page 5
-        "clear_all": true,
-        "change": "gradient",
-        "bg": "公园",                         <- Background set to "公园", a tag defined in "backgrounds".
-        "characters": {                     <- Set characters appearing on stage
-          "girl": {                         <- Key is the character tag defined in "character_and_motion"
-            "form": "校服",                   <- Set form, use a form tag defined for this character.
-            "pos": [320,80],                <- Set the position of the form image on the background. List contains x and y coordinates on the background image (top-left is 0,0). Here, place at (320, 80).
-            "face": ["平常",[0,0]],           <- Set expression and its position. First element is the expression tag ("平常"). Second element is the coordinates [x,y] for placing the expression image on the form image (top-left of form is 0,0). Here, place at (0,0).
-            "zoom": 1.5                     <- Set zoom, here enlarged to 1.5 times.
+        }],
+        "13": [{
+          "clear_all": true,
+          "change": "gradient",
+          "bg": "天空",
+          "content": {
+            "speaking": {
+              "zh": ""
+            },
+            "words": {
+              "zh": "就这样，我们的相遇，开启了一段可能的故事。"
+            }
           }
-        },
-        "content": {
-          "speaking_name": "girl",
-          "words": {
-            "zh": "Thank you. I often see you sitting here alone. Are you thinking about something?"
-          }
-        }
-      }],
-      "6": [{                               <- Page 6
-        "clear_all": false,                 <- Here, "bg" and "characters" are not set, but those from the previous page (Page 5) will remain because "clear_all" is false.
-        "content": {
-          "speaking": {
-            "zh": "Protagonist"
-          },
-          "words": {
-            "zh": "Well, I just like the quiet here. How about you? Why are you at the park today?"
-          }
-        }
-      }],
-      "7": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "A stranger's approach made my heart beat faster."
-          }
-        }
-      }],
-      "8": [{
-        "clear_all": false,
-        "content": {
-          "speaking_name": "girl",
-          "words": {
-            "zh": "I came to relax. Schoolwork has been busy lately, I needed to unwind."
-          }
-        }
-      }],
-      "9": [{                                               <- Page 9
-        "clear_all": false,                                 <- First scene, "clear_all" is false, won't clear previous scene's content.
-        "content": {
-          "speaking": {
-            "zh": "Protagonist"
-          },
-          "words": {
-            "zh": "I know that feeling. How about... we go to the café over there?"
-          }
-        }
-        }, 
-        {
-        "clear_all": false,                                 <- Second scene, "clear_all" is false, won't clear the first scene's content.
-        "characters": {                                     <- But here "characters" is set, so all currently on-stage characters will be cleared and re-set according to these settings.
-          "girl": {
-            "form": "校服",
-            "pos": [320,80],
-            "face": ["脸红",[0,0]],                           <- Expression set to "脸红" (blush).
-            "zoom": 1.5,                                    <- Sets the initial zoom value for the character in this scene, 1.5x.
-            "animate": [                                    <- Set animations
-              [{                                            <- First animation group. One group can contain multiple animation segments that play simultaneously. Here only one segment.
-                "time": 0.2,                                <- Set animation duration, 0.2 seconds.
-                "zoom": 1.4                                 <- Animation effect, here zoom. This animation will change the zoom from the scene's initial zoom (1.5x, because it's the first group) to 1.4x over 0.2 seconds.
-              }],
-              [{                                            <- Second animation group, plays after the first finishes.
-                "time": 0.2,                                <- Duration 0.2 seconds.
-                "move": [[0,-10],[0,10],[0,-10],[0,10]]     <- Animation effect, here movement. The character will move relative to its current position: up 10, down 10, up 10, down 10 over 0.2 seconds, making it look like the character jumps twice.
-              }]
-            ]
-          }
-        }
-      }],
-      "10": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "My sudden invitation made the girl blush instantly."
-          }
-        }
-      }],
-      "11": [{
-        "clear_all": false,
-        "bg": "公园",
-        "characters": {
-          "girl": {
-            "form": "校服",
-            "pos": [320,80],
-            "face": ["脸红及微笑",[0,0]], // Blush and Smile
-            "zoom": 1.4,
-            "animate": [
-              [{
-                "time": 0.2,
-                "move": [[0,-10],[0,10],[0,-10],[0,10]]
-              }]
-            ]
-          }
-        },
-        "content": {
-          "speaking_name": "girl",
-          "words": {
-            "zh": "Sure, I'd love to!"
-          }
-        }
-      }],
-      "12": [{
-        "clear_all": false,
-        "content": {
-          "speaking": {
-            "zh": "Protagonist"
-          },
-          "words": {
-            "zh": "Let's go then, my treat."
-          }
-        }
-      }],
-      "13": [{
-        "clear_all": true,
-        "change": "gradient",
-        "bg": "天空",
-        "content": {
-          "speaking": {
-            "zh": ""
-          },
-          "words": {
-            "zh": "And so, our meeting began a potential story."
-          }
-        }
-      }]
+        }]
+      }
     }
   }
 }
@@ -390,4 +421,4 @@ Top-level keys: "settings", "ui", "story_and_position" (all are required unless 
 
 
 
-(AI translation with Deepseek-R1)
+(AI translation with Qwen3-Max)

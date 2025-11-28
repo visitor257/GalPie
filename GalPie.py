@@ -406,6 +406,7 @@ class GalGameWindow(QMainWindow):
         self.story_data = None
         self.current_page = 0
         self.current_scene_index = 0
+        self.current_storyline_id = None
         self.loaded_resources = {}
         self.base_path = Path(".")
         self.current_page_data = []
@@ -677,17 +678,25 @@ class GalGameWindow(QMainWindow):
 
     def start_story(self):
         """开始故事"""
+        self.goto_storyline_by_check_value()
+        self.play_current_page()
+    
+    def goto_storyline_by_check_value(self):
+        """根据storyline_id的值，回去最大值的故事线"""
         self.current_page = 1
         self.current_scene_index = 0
-        self.play_current_page()
+        if self.story_data.get("story_and_position",{}).get("storyline_id", None):
+            self.current_storyline_id=max(self.story_data.get("story_and_position",{}).get("storyline_id",{}), key=self.story_data.get("story_and_position",{}).get("storyline_id",{}).get)
+            self.current_page=int(next(iter(self.story_data.get("story_and_position",{}).get("story",{}).get(self.current_storyline_id,{}))))
+            self.current_scene_index=0
 
-    def play_current_page(self):
+    def play_current_page(self, specify_scene=None):
         """播放当前页"""
         if "story_and_position" not in self.story_data:
             print("JSON格式错误：缺少story_and_position")
             return
 
-        story = self.story_data["story_and_position"].get("story", {})
+        story = self.story_data["story_and_position"].get("story", {}).get(self.current_storyline_id,{})
         page_key = str(self.current_page)
 
         print(f"尝试播放页面: {page_key}")  # 调试信息
@@ -703,9 +712,9 @@ class GalGameWindow(QMainWindow):
         self.is_waiting_for_next_page = False  # 重置等待标志
 
         # 立即播放场景序列，不添加任何延迟
-        self.play_scene_sequence()
+        self.play_scene_sequence(specify_scene)
 
-    def play_scene_sequence(self):
+    def play_scene_sequence(self, specify_scene=None):
         """播放场景序列"""
         print(f"播放场景序列，当前场景索引: {self.current_scene_index}, 总场景数: {len(self.current_page_data)}")  # 调试信息
 
@@ -725,7 +734,9 @@ class GalGameWindow(QMainWindow):
                 print("自动播放已关闭，等待用户点击进入下一页")
             return
 
-        scene = self.current_page_data[self.current_scene_index]
+        scene = specify_scene
+        if scene==None:
+            scene = self.current_page_data[self.current_scene_index]
         self.execute_scene(scene)
 
     def execute_scene(self, scene: Dict):
@@ -933,8 +944,8 @@ class GalGameWindow(QMainWindow):
         """存档"""
         settings=self.story_data.get("settings",{"window_title": "GalPie","identify_code": ""})
         
-        # 数据结构：[窗口名, 识别码, 图片数据QPixmap->QByteArray, 页数, 说话人, 字幕, 日期, 时间]
-        data=[settings.get("window_title", "GalPie").replace(" ","-").replace("_","+"), settings.get("identify_code", "").replace(" ","-").replace("_","+"), None, str(self.current_page-1), None, None, QDateTime.currentDateTime().toString("yyyy-MM-dd"), QDateTime.currentDateTime().toString("HH-mm-ss")]
+        # 数据结构：[窗口名, 识别码, 图片数据QPixmap->QByteArray, 当前storyline_id的各个值, storylineID, 页数, 说话人, 字幕, 日期, 时间]
+        data=[settings.get("window_title", "GalPie").replace(" ","-").replace("_","+"), settings.get("identify_code", "").replace(" ","-").replace("_","+"), None, self.story_data.get("story_and_position",{}).get("storyline_id", None), self.current_storyline_id, str(self.current_page-1), None, None, QDateTime.currentDateTime().toString("yyyy-MM-dd"), QDateTime.currentDateTime().toString("HH-mm-ss")]
         
         # 截取窗口画面，并以二进制数据保存
         img=self.grab()
@@ -947,13 +958,13 @@ class GalGameWindow(QMainWindow):
         
         # 获取读取页的说话人和字幕
         page=self.current_page-1
-        page_content=self.story_data.get("story_and_position",{}).get("story",{}).get(str(page),None)[0].get("content",None)
+        page_content=self.story_data.get("story_and_position",{}).get("story",{}).get(self.current_storyline_id,{}).get(str(page),None)[0].get("content",None)
         if page_content:
             if "speaking" in page_content:
-                data[4]=page_content.get("speaking",None)
+                data[6]=page_content.get("speaking",None)
             else:
-                data[4]=page_content.get("speaking_name",None)
-            data[5]=page_content.get("words",None)
+                data[6]=page_content.get("speaking_name",None)
+            data[7]=page_content.get("words",None)
         
         # 保存存档文件
         if not os.path.exists("saves"):
@@ -968,7 +979,11 @@ class GalGameWindow(QMainWindow):
             save_files=self.get_this_story_saves_new_to_old()
             with open("./saves/"+save_files[0],"rb") as f:
                 data=pickle.load(f)
-            self.current_page=int(data[3])
+            if data[3]:
+                self.story_data["story_and_position"]["storyline_id"]=data[3]
+            self.current_storyline_id=data[4]
+            self.current_page=int(data[5])
+            self.current_scene_index=0
             self.play_current_page()
             return
     
