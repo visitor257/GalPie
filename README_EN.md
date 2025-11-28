@@ -29,3 +29,6 @@ Hotkeys in the game:  <br>
 <td>Quick load (load the newest save)</td>  
 </tr>  
 </table>
+<br><br>
+Known bugs: <br>
+1. Scene does not match the loaded save. (Fixing)
