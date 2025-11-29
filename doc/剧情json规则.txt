@@ -227,9 +227,9 @@
       "main": 1.0
     },
     "story": {                                                            <-故事剧情，以及各故事线、页、场景的设置
-      "main": {
+      "main": {                                                           <-上面"storyline_id"中设置的故事线标签，此为上面"storyline_id"中的"main"，并设置此故事线的剧情
         "1": [{                                                           <-key为页数，从1开始。注意，key的类型为字符串。
-          "clear_all": true,                                              <-是否清空上一页的所有内容，true为是，false为否
+          "clear_all": true,                                              <-是否清空上一页的所有内容，true为是，false为否。每一个故事线的第一页的"clear_all"都必须为true。
           "change": "gradient",                                           <-设置转场效果，这里的"gradient"代表效果为渐变
           "bg": "天空",                                                     <-设置背景，填入上面设置的背景标签。上面设置的背景标签有"公园"、"天空"，这里填入了"天空"。
           "content": {                                                    <-设置对话内容

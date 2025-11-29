@@ -227,9 +227,9 @@ Top-level keys: "settings", "ui", "story_and_position"
       "main": 1.0
     },
     "story": {                                                            <- Story content, storylines, pages, scenes
-      "main": {
+      "main": {                                                           <- Storyline ID: use label from "storyline_id"
         "1": [{                                                           <- Page number (string type, starts at "1")
-          "clear_all": true,                                              <- Clear all previous content? true = yes, false = no
+          "clear_all": true,                                              <- Clear all previous content? true = yes, false = no. The "clear_all" on the first page of each storyline must be true.
           "change": "gradient",                                           <- Transition effect: "gradient" = fade
           "bg": "天空",                                                     <- Background: use label from "backgrounds" ("公园", "天空")
           "content": {                                                    <- Dialogue content
