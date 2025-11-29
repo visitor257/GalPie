@@ -31,4 +31,4 @@ Hotkeys in the game:  <br>
 </table>
 <br><br>
 Known bugs: <br>
-1. Scene does not match the loaded save. (Fixing)
+1. Scene does not match the loaded save. (Fixed)
