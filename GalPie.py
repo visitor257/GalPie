@@ -984,8 +984,69 @@ class GalGameWindow(QMainWindow):
             self.current_storyline_id=data[4]
             self.current_page=int(data[5])
             self.current_scene_index=0
+            scene=self.build_last_scene()
+            self.play_current_page(specify_scene=scene)
             self.play_current_page()
             return
+    
+    def build_last_scene(self):
+        """场景回溯"""
+        page=self.current_page
+        scene=None
+        first_page=next(iter(self.story_data.get("story_and_position",{}).get("story",{}).get(self.current_storyline_id,None)))
+        if not first_page:
+            first_page=str(page)
+        current_storyline_story=self.story_data.get("story_and_position",{}).get("story",{}).get(self.current_storyline_id,None)
+
+        # 获取上一个clear_all=true的场景
+        now_scene=current_storyline_story.get(str(page),{})
+        now_scene_clear_all=False
+        while scene==None and str(page)!=first_page and not now_scene_clear_all:
+            page-=1
+            now_scene=current_storyline_story.get(str(page),{})
+            for i in now_scene:
+                if i.get("clear_all",False):
+                    scene=now_scene
+        
+        # 若非本页，计算最终背景和角色状态
+        if page!=self.current_page:
+            page-=1
+        while page!=self.current_page:
+            page+=1
+            now_scene=current_storyline_story.get(str(page),{})
+            for i in now_scene:
+                if i.get("bg",None):
+                    scene[0]["bg"]=i.get("bg",None)
+                if i.get("characters",None):
+                    scene[0]["characters"]=i.get("characters",None)
+                    for j in i.get("characters",None):
+                        if i["characters"][j].get("animate",None):
+                            for k in i["characters"][j].get("animate",None):
+                                for l in k:
+                                    if l.get("zoom",None):
+                                        scene[0]["characters"][j]["zoom"]=l.get("zoom",None)
+                                    if l.get("move",None):
+                                        now_pos=scene[0]["characters"][j]["pos"]
+                                        animate_pos=l.get("move",[[0,0]])+[now_pos]
+                                        scene[0]["characters"][j]["pos"]=list(map(lambda *args: sum(args), *animate_pos))
+        
+        # 去除多余的场景内容
+        if scene:
+            scene=scene[0]
+            if not current_storyline_story.get(str(self.current_page), {})[0].get("change",None):
+                del scene["change"]
+            if "characters" in scene:
+                for i in scene["characters"]:
+                    if "animate" in scene["characters"][i]:
+                        del scene["characters"][i]["animate"]
+            scene["content"]={}
+            scene["content"]["speaking"]={}
+            scene["content"]["words"]={}
+            for i in self.story_data["settings"]["language"]:
+                scene["content"]["speaking"][i]=""
+                scene["content"]["words"][i]=""
+        
+        return scene
     
     def get_this_story_saves_new_to_old(self, save_dir="./saves", content_check=False):
         """获取当前剧情的存档列表，从新至旧"""
