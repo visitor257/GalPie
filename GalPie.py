@@ -1033,7 +1033,8 @@ class GalGameWindow(QMainWindow):
         # 去除多余的场景内容
         if scene:
             scene=scene[0]
-            if not current_storyline_story.get(str(self.current_page), {})[0].get("change",None):
+            scene["clear_all"]=True
+            if not current_storyline_story.get(str(self.current_page), {})[0].get("change",None) and scene.get("change",None):
                 del scene["change"]
             if "characters" in scene:
                 for i in scene["characters"]:
