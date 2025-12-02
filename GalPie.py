@@ -488,11 +488,12 @@ class GalGameWindow(QMainWindow):
         self.base_path = Path(".")
         self.current_page_data = []
     
-        # 新增：开始菜单相关
+        # 状态相关
         self.is_in_menu = False  # 初始化为False，加载JSON后根据配置设置
         self.start_button = None
         self.title_item = None
         self.menu_bg_item = None
+        self.is_in_game = False
     
         # 播放状态控制
         self.is_text_finished = False
@@ -649,7 +650,7 @@ class GalGameWindow(QMainWindow):
         text_x = button_pos[0] + button_pixmap.width() // 2
         text_y = button_pos[1] + button_pixmap.height() // 2
     
-        text_item = QGraphicsTextItem("开始游戏")
+        text_item = QGraphicsTextItem(button_data[1][self.language])
         text_item.setDefaultTextColor(text_color)
         text_item.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
     
@@ -700,6 +701,7 @@ class GalGameWindow(QMainWindow):
         self.current_page = 1
         self.current_scene_index = 0
         self.play_current_page()
+        self.is_in_game=True
 
     def setup_dialog_area(self):
         """设置对话框区域 - 在加载JSON后调用"""
@@ -1374,7 +1376,7 @@ class GalGameWindow(QMainWindow):
             if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
                 self.on_start_button_clicked()
             return
-        else:
+        elif self.is_in_game:
             if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
                 print("空格键或回车键按下")  # 调试信息
                 self.handle_click()
@@ -1399,28 +1401,29 @@ class GalGameWindow(QMainWindow):
 
     def handle_click(self):
         """处理点击事件"""
-        print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")  # 调试信息
-        print(f"等待下一页: {self.is_waiting_for_next_page}")  # 调试信息
-
-        # 检查是否在等待进入下一页
-        if self.is_waiting_for_next_page:
-            print("正在等待进入下一页，立即进入下一页")
-            self.is_waiting_for_next_page = False
-            self.play_current_page()
-            return
-
-        if not self.is_text_finished:
-            # 如果文本没有显示完，立即完成显示
-            print("文本未完成，立即完成显示")
-            self.text_display.complete_display()
-        elif not self.is_audio_finished:
-            # 如果文本已完成但音频未完成，立即完成音频
-            print("文本已完成，音频未完成，立即完成音频")
-            self.on_audio_finished()
-        else:
-            # 文本和音频都已完成，进入下一个场景
-            print("文本和音频都已完成，进入下一个场景")
-            self.advance_to_next_scene()
+        if self.is_in_game:
+            print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")  # 调试信息
+            print(f"等待下一页: {self.is_waiting_for_next_page}")  # 调试信息
+    
+            # 检查是否在等待进入下一页
+            if self.is_waiting_for_next_page:
+                print("正在等待进入下一页，立即进入下一页")
+                self.is_waiting_for_next_page = False
+                self.play_current_page()
+                return
+    
+            if not self.is_text_finished:
+                # 如果文本没有显示完，立即完成显示
+                print("文本未完成，立即完成显示")
+                self.text_display.complete_display()
+            elif not self.is_audio_finished:
+                # 如果文本已完成但音频未完成，立即完成音频
+                print("文本已完成，音频未完成，立即完成音频")
+                self.on_audio_finished()
+            else:
+                # 文本和音频都已完成，进入下一个场景
+                print("文本和音频都已完成，进入下一个场景")
+                self.advance_to_next_scene()
 
 
 def main():
