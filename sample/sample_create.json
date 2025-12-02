@@ -13,8 +13,22 @@
     }
   },
   "menu": {
-    "bg": {
-      "初始": "./res/menu/bg.png"
+    "bg": "./res/menu/bg.png",
+    "change": [[255,255,255],"gradient"],
+    "title": {
+      "zh": "./res/menu/title.png"
+    },
+    "button": "./res/menu/button.png",
+    "button_touched": "./res/menu/button_touched.png",
+    "text_rgb": [255,255,255],
+    "menu_pos": {
+      "title": [54,48],
+      "start": [
+        [115,230],
+        {
+          "zh": "开始游戏"
+        }
+      ]
     }
   },
   "story_and_position": {
