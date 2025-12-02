@@ -31,4 +31,5 @@ Hotkeys in the game:  <br>
 </table>
 <br><br>
 Known bugs: <br>
-1. Scene does not match the loaded save. (Fixed)
+1. Scene does not match the loaded save. (Fixed)<br>
+2. The development of the start screen is not yet complete.<br>
