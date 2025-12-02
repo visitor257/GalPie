@@ -9,7 +9,7 @@ import pickle
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QPushButton, QFileDialog,
                                QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-                               QTextEdit, QFrame, QGraphicsRectItem)
+                               QTextEdit, QFrame, QGraphicsRectItem, QGraphicsTextItem)
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QPoint, QPointF, QDateTime, QByteArray, QBuffer
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush, QTextCursor, QTransform
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
@@ -267,9 +267,41 @@ class GraphicsView(QGraphicsView):
         self.bg_pos = background_pos
         self.pending_animations = []  # 临时存储待启动的动画
         self.active_animations = []  # 存储正在进行的动画，防止被GC回收
+        
+        self.itemList=[]
+
+        # 启用鼠标交互
+        self.setMouseTracking(True)
+        self.setInteractive(True)
+
+    def mousePressEvent(self, event):
+        """传递鼠标事件到父窗口"""
+        self.parent().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """传递鼠标移动事件"""
+        # 这里可以处理鼠标悬停效果
+        super().mouseMoveEvent(event)
 
     def update_bg_pos(self, bg_pos=[0,0]):
         self.bg_pos = bg_pos
+
+    def add_item(self,pixmap,pos=List[int]):
+        item=pixmap
+        if type(pixmap)==QPixmap:
+            item=AnimatedPixmapItem(pixmap)
+            item.set_original_position(QPointF(pos[0],pos[1]))
+        self.itemList.append(item)
+    
+    def show_items(self,changeEffect=None):
+        for i in self.itemList:
+            self.scene.addItem(i)
+        self.prepare_change_effect(None,changeEffect,"add",self.itemList)
+    
+    def clear_items(self):
+        for i in self.itemList:
+            self.scene.removeItem(i)
+        self.itemList=[]
 
     def set_background(self, pixmap: QPixmap, changeEffect=None):
         """设置背景图片"""
@@ -321,48 +353,57 @@ class GraphicsView(QGraphicsView):
             if item == "character":
                 if char_id not in self.character_items:
                     return
-                target_item = self.character_items[char_id]
+                target_items = [self.character_items[char_id]]
             elif item == "bg":
                 if not self.background_item:
                     return
-                target_item = self.background_item
+                target_items = [self.background_item]
+            elif type(item)==list:
+                target_items=item
             else:
                 return
 
-            # 创建或获取 opacity effect
-            effect = target_item.graphicsEffect()
-            if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
-                effect = QGraphicsOpacityEffect()
-                target_item.setGraphicsEffect(effect)
-
-            # 设置初始值
-            start_value = 1.0 if mode == "remove" else 0.0
-            end_value = 0.0 if mode == "remove" else 1.0
-
-            # 创建动画，但不启动
-            animate = QPropertyAnimation(effect, b"opacity")
-            animate.setDuration(1000)
-            animate.setStartValue(start_value)
-            animate.setEndValue(end_value)
-            animate.setEasingCurve(QEasingCurve.InOutQuad)
-
-            if mode == "remove":
-                def on_finished():
-                    if item == "character":
-                        self.remove_character(char_id)
-                    elif item == "bg":
-                        self.clear_bg()
-                animate.finished.connect(on_finished)
-
-            # 将动画添加到待启动列表
-            self.pending_animations.append(animate)
+            for target_item in target_items:
+                # 创建或获取 opacity effect
+                effect = target_item.graphicsEffect()
+                if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
+                    effect = QGraphicsOpacityEffect()
+                    target_item.setGraphicsEffect(effect)
+    
+                # 设置初始值
+                start_value = 1.0 if mode == "remove" else 0.0
+                end_value = 0.0 if mode == "remove" else 1.0
+    
+                # 创建动画，但不启动
+                animate = QPropertyAnimation(effect, b"opacity")
+                animate.setDuration(1000)
+                animate.setStartValue(start_value)
+                animate.setEndValue(end_value)
+                animate.setEasingCurve(QEasingCurve.InOutQuad)
+    
+                if mode == "remove":
+                    def on_finished():
+                        if item == "character":
+                            self.remove_character(char_id)
+                        elif item == "bg":
+                            self.clear_bg()
+                    animate.finished.connect(on_finished)
+    
+                # 将动画添加到待启动列表
+                self.pending_animations.append(animate)
 
     def start_pending_animations(self):
         """启动所有待启动的动画"""
         for animate in self.pending_animations:
+            if animate is None:
+                continue
             self.active_animations.append(animate)
-            animate.finished.connect(lambda a=animate: self.active_animations.remove(a) if a in self.active_animations else None)
-            animate.start()
+            # 添加安全检查
+            try:
+                animate.finished.connect(lambda a=animate: self.active_animations.remove(a) if a in self.active_animations else None)
+                animate.start()
+            except Exception as e:
+                print(f"启动动画失败: {e}")
         self.pending_animations.clear()
 
     def remove_character(self, char_id: str):
@@ -399,6 +440,42 @@ class GraphicsView(QGraphicsView):
         self.fit_background()
 
 
+class MenuButtonItem(QGraphicsPixmapItem):
+    """开始菜单按钮项，支持鼠标悬停效果"""
+    def __init__(self, normal_pixmap, hover_pixmap=None):
+        super().__init__(normal_pixmap)
+        self.normal_pixmap = normal_pixmap
+        self.hover_pixmap = hover_pixmap or normal_pixmap
+        self.is_hovered = False
+        self.click_handler = None  # 明确初始化点击处理器
+
+        # 启用悬停事件
+        self.setAcceptHoverEvents(True)
+
+    def hoverEnterEvent(self, event):
+        """鼠标悬停进入事件"""
+        self.is_hovered = True
+        if self.hover_pixmap:
+            self.setPixmap(self.hover_pixmap)
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        """鼠标悬停离开事件"""
+        self.is_hovered = False
+        self.setPixmap(self.normal_pixmap)
+        super().hoverLeaveEvent(event)
+
+    def mousePressEvent(self, event):
+        """鼠标点击事件"""
+        if event.button() == Qt.LeftButton and self.click_handler:
+            self.click_handler()
+        super().mousePressEvent(event)
+
+    def set_click_handler(self, handler):
+        """设置点击处理函数"""
+        self.click_handler = handler
+
+
 class GalGameWindow(QMainWindow):
     """Galgame 主窗口"""
     def __init__(self):
@@ -410,59 +487,219 @@ class GalGameWindow(QMainWindow):
         self.loaded_resources = {}
         self.base_path = Path(".")
         self.current_page_data = []
-
-        # 新增：播放状态控制
-        self.is_text_finished = False  # 字幕是否播放完成
-        self.is_audio_finished = False  # 音频是否播放完成
-        self.audio_timer = QTimer()  # 模拟音频播放
+    
+        # 新增：开始菜单相关
+        self.is_in_menu = False  # 初始化为False，加载JSON后根据配置设置
+        self.start_button = None
+        self.title_item = None
+        self.menu_bg_item = None
+    
+        # 播放状态控制
+        self.is_text_finished = False
+        self.is_audio_finished = False
+        self.audio_timer = QTimer()
         self.audio_timer.setSingleShot(True)
-        self.audio_timer.timeout.connect(self.on_audio_finished)
-
-        # 新增：自动播放开关
-        self.auto_play = False  # 默认为关闭自动播放
-        self.is_waiting_for_next_page = False  # 标记是否在等待进入下一页
-
-        # 新增：UI设置
+    
+        # 确保audio_timer不为None后再连接信号
+        if self.audio_timer:
+            self.audio_timer.timeout.connect(self.on_audio_finished)
+    
+        # 自动播放开关
+        self.auto_play = False
+        self.is_waiting_for_next_page = False
+    
+        # UI设置
         self.ui_settings = {
-            "chatbox_style": None,  # 字幕框样式图片路径
-            "name_show_region": [[76, 60], [270, 149]],  # 名字显示区域，默认值
-            "words_show_region": [[310, 60], [805, 149]]  # 文本显示区域，默认值
+            "chatbox_style": None,
+            "name_show_region": [[76, 60], [270, 149]],
+            "words_show_region": [[310, 60], [805, 149]]
         }
-
+    
         # UI控件
         self.name_label = None
         self.text_display = None
         self.chatbox_item = None
-
+    
         self.setup_ui()
         self.load_story_file()
-
-        self.window_size=[1280,720]
-        self.background_pos=[0,0]
+    
+        self.window_size = [1280, 720]
+        self.background_pos = [0, 0]
+        
+        self.language=None
 
     def setup_ui(self):
         """设置用户界面"""
         self.setWindowTitle("GalPie")
         self.setGeometry(100, 100, 1280, 720)
-
+    
         # 设置窗口背景为黑色
         self.setStyleSheet("background-color: black;")
-
+    
         # 中央控件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-
+    
         # 主布局
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
-
+    
         # 图形视图
         self.graphics_view = GraphicsView()
         layout.addWidget(self.graphics_view)
-
+    
         # 确保窗口可以接收焦点和鼠标事件
         self.setFocusPolicy(Qt.StrongFocus)
-        self.graphics_view.setFocusPolicy(Qt.NoFocus)  # 防止图形视图抢焦点
+        # 允许图形视图接收鼠标事件
+        self.graphics_view.setFocusPolicy(Qt.StrongFocus)
+        self.graphics_view.setMouseTracking(True)  # 启用鼠标跟踪
+
+    def show_menu(self):
+        """显示开始菜单"""
+        self.is_in_menu = True
+    
+        # 清除场景中的所有项
+        self.graphics_view.scene.clear()
+    
+        # 确保story_data存在
+        if not self.story_data or "menu" not in self.story_data:
+            print("错误：没有找到菜单配置")
+            # 这里不应该直接开始故事，而是应该抛出异常或返回
+            return
+    
+        try:
+            # 加载菜单配置
+            menu_data = self.story_data["menu"]
+    
+            # 设置菜单背景
+            if "bg" in menu_data:
+                bg_data = menu_data["bg"]
+                full_bg_path = self.base_path / bg_data
+                bg_pixmap = self.load_pixmap(str(full_bg_path))
+                if bg_pixmap:
+                    self.graphics_view.add_item(bg_pixmap,[(self.window_size[0]-bg_pixmap.width())//2, 0])
+    
+            # 设置标题（如果有）
+            if "title" in menu_data:
+                title_path = menu_data["title"][self.language]
+                full_title_path = self.base_path / title_path
+                title_pixmap = self.load_pixmap(str(full_title_path))
+                if title_pixmap:
+                    menu_pos = menu_data.get("menu_pos", {})
+                    title_pos = menu_pos.get("title", [54, 48])
+                    self.graphics_view.add_item(title_pixmap,title_pos)
+    
+            # 创建开始按钮
+            self.create_start_button(menu_data)
+            # self.graphics_view.show_items(menu_data.get("change",[[],None])[1])
+            # self.graphics_view.start_pending_animations()
+    
+        except Exception as e:
+            print(f"显示开始菜单失败: {e}")
+            # 菜单显示失败，但不要直接开始故事
+            # 可以显示错误信息或保持当前状态
+            import traceback
+            traceback.print_exc()
+
+    def create_start_button(self, menu_data):
+        """创建开始按钮"""
+        # 加载按钮图片
+        button_path = menu_data["button"]
+        full_button_path = self.base_path / button_path
+        button_pixmap = self.load_pixmap(str(full_button_path))
+    
+        if not button_pixmap:
+            print(f"无法加载按钮图片: {full_button_path}")
+            return
+    
+        # 加载按钮触碰图片（如果有）
+        button_touched_path = menu_data.get("button_touched")
+        touched_pixmap = None
+        if button_touched_path:
+            full_touched_path = self.base_path / button_touched_path
+            touched_pixmap = self.load_pixmap(str(full_touched_path))
+    
+        # 获取按钮位置
+        menu_pos = menu_data.get("menu_pos", {})
+        button_data = menu_pos.get("start", [[115, 230],{self.language:"Game start"}])
+        button_pos=button_data[0]
+    
+        # 创建按钮图形项
+        self.start_button = MenuButtonItem(button_pixmap, touched_pixmap)
+        if not self.start_button:
+            print("创建开始按钮失败")
+            return
+    
+        self.start_button.setPos(button_pos[0], button_pos[1])
+        self.start_button.setZValue(2)
+    
+        # 确保clicked属性存在
+        if not hasattr(self.start_button, 'clicked'):
+            self.start_button.clicked = None
+    
+        # 设置点击处理程序
+        self.start_button.set_click_handler(self.on_start_button_clicked)
+        self.graphics_view.add_item(self.start_button,button_pos)
+    
+        # 添加开始游戏文字
+        text_rgb = menu_data.get("text_rgb", [255, 255, 255])
+        text_color = QColor(text_rgb[0], text_rgb[1], text_rgb[2])
+    
+        # 计算文字位置（居中于按钮）
+        text_x = button_pos[0] + button_pixmap.width() // 2
+        text_y = button_pos[1] + button_pixmap.height() // 2
+    
+        text_item = QGraphicsTextItem("开始游戏")
+        text_item.setDefaultTextColor(text_color)
+        text_item.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
+    
+        # 文字居中
+        text_rect = text_item.boundingRect()
+        text_item.setPos(text_x - text_rect.width() / 2, text_y - text_rect.height() / 2)
+        text_item.setZValue(3)
+
+        self.graphics_view.add_item(text_item)
+        
+        self.graphics_view.show_items(menu_data.get("change",[[],None])[1])
+        self.graphics_view.start_pending_animations()
+
+    def on_start_button_clicked(self):
+        """开始按钮点击事件"""
+        if self.is_in_menu:
+            print("开始按钮被点击，准备淡出菜单")
+            self.fade_out_menu()
+    
+    def fade_out_menu(self):
+        """淡出开始菜单"""
+        self.is_in_menu = False
+        
+        # 设置黑场过渡
+        black=QPixmap(self.window_size[0],self.window_size[1])
+        black.fill(QColor(0,0,0))
+        
+        self.graphics_view.clear_items()
+        
+        self.graphics_view.add_item(black,[0,0])
+        self.graphics_view.show_items("gradient")
+        self.graphics_view.start_pending_animations()
+    
+        # 设置黑场过渡时间，过渡后切换到游戏
+        QTimer.singleShot(1500, self.start_game_after_fade)
+
+    def start_game_after_fade(self):
+        """淡出完成后开始游戏"""
+        # 清除开始菜单的所有项
+        self.graphics_view.clear_items()
+    
+        # 设置对话框区域
+        self.setup_dialog_area()
+    
+        # 开始故事 - 但不要重复调用start_story()
+        # 因为start_story()已经在其他地方被调用
+        # 这里只需要重置状态并播放当前页
+        self.current_page = 1
+        self.current_scene_index = 0
+        self.play_current_page()
 
     def setup_dialog_area(self):
         """设置对话框区域 - 在加载JSON后调用"""
@@ -645,21 +882,28 @@ class GalGameWindow(QMainWindow):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 self.story_data = json.load(f)
-
+    
             # 设置基础路径为JSON文件所在目录
             self.base_path = file_path.parent
-
+    
             # 应用设置
             self.apply_settings()
-
-            # 设置对话框区域（在加载JSON后调用）
-            self.setup_dialog_area()
-
-            # 开始故事
-            self.start_story()
-
+    
+            # 检查是否有开始菜单配置
+            if "menu" in self.story_data:
+                # 显示开始菜单
+                self.show_menu()
+                # 重要：显示开始菜单后直接返回，不要开始故事
+                return
+            else:
+                # 没有开始菜单，直接开始故事
+                self.setup_dialog_area()
+                self.start_story()
+    
         except Exception as e:
             print(f"加载JSON文件失败: {e}")
+            import traceback
+            traceback.print_exc()
             self.show_file_selection_dialog()
 
     def apply_settings(self):
@@ -668,6 +912,8 @@ class GalGameWindow(QMainWindow):
             return
 
         settings = self.story_data.get("settings", {})
+        
+        self.language=settings["language"][0]
 
         if "window_title" in settings:
             self.setWindowTitle(settings["window_title"])
@@ -678,39 +924,64 @@ class GalGameWindow(QMainWindow):
 
     def start_story(self):
         """开始故事"""
+        # 检查是否在开始菜单中
+        if self.is_in_menu:
+            print("警告：在开始菜单中尝试开始故事，已阻止")
+            return
+    
         self.goto_storyline_by_check_value()
         self.play_current_page()
-    
+
     def goto_storyline_by_check_value(self):
-        """根据storyline_id的值，回去最大值的故事线"""
+        """根据storyline_id的值，获取最大值的故事线"""
         self.current_page = 1
         self.current_scene_index = 0
-        if self.story_data.get("story_and_position",{}).get("storyline_id", None):
-            self.current_storyline_id=max(self.story_data.get("story_and_position",{}).get("storyline_id",{}), key=self.story_data.get("story_and_position",{}).get("storyline_id",{}).get)
-            self.current_page=int(next(iter(self.story_data.get("story_and_position",{}).get("story",{}).get(self.current_storyline_id,{}))))
-            self.current_scene_index=0
+    
+        # 检查是否有storyline_id配置
+        storyline_data = self.story_data.get("story_and_position", {}).get("storyline_id", {})
+        if storyline_data:
+            # 获取storyline_id的最大值
+            self.current_storyline_id = max(storyline_data, key=storyline_data.get)
+    
+            # 获取该故事线的第一页
+            story = self.story_data["story_and_position"].get("story", {}).get(self.current_storyline_id, {})
+            if story:
+                first_page = next(iter(story))
+                self.current_page = int(first_page)
+        else:
+            # 如果没有storyline_id配置，使用默认值
+            self.current_storyline_id = "main"
 
     def play_current_page(self, specify_scene=None):
         """播放当前页"""
+        # 检查是否在开始菜单中，如果是则不要开始游戏
+        if self.is_in_menu:
+            print("警告：在开始菜单中尝试播放页面，已阻止")
+            return
+    
         if "story_and_position" not in self.story_data:
             print("JSON格式错误：缺少story_and_position")
             return
-
+    
+        # 获取当前故事线
+        if not self.current_storyline_id:
+            self.goto_storyline_by_check_value()
+    
         story = self.story_data["story_and_position"].get("story", {}).get(self.current_storyline_id,{})
         page_key = str(self.current_page)
-
+    
         print(f"尝试播放页面: {page_key}")  # 调试信息
-
+    
         if page_key not in story:
             # 故事结束
             print("故事结束")
             return
-
+    
         page_data = story[page_key]
         self.current_page_data = page_data  # 保存当前页数据
         self.current_scene_index = 0
         self.is_waiting_for_next_page = False  # 重置等待标志
-
+    
         # 立即播放场景序列，不添加任何延迟
         self.play_scene_sequence(specify_scene)
 
@@ -1086,22 +1357,35 @@ class GalGameWindow(QMainWindow):
     def mousePressEvent(self, event):
         """鼠标点击事件处理"""
         print("鼠标点击事件触发")  # 调试信息
+    
+        if self.is_in_menu:
+            # 在开始菜单中，点击任意位置触发开始游戏
+            if event.button() == Qt.LeftButton:
+                self.on_start_button_clicked()
+            return
+    
         if event.button() == Qt.LeftButton:
             self.handle_click()
 
     def keyPressEvent(self, event):
         """键盘事件处理 - 也支持空格键和回车键"""
-        if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
-            print("空格键或回车键按下")  # 调试信息
-            self.handle_click()
-        elif event.key() == Qt.Key_A:  # 按A键切换自动播放
-            self.toggle_auto_play()
-        elif event.key() == Qt.Key_F2: # F2键保存游戏
-            self.save_game()
-        elif event.key() == Qt.Key_F3: # F3键加载最新存档
-            self.load_save()
+        if self.is_in_menu:
+            # 在开始菜单中，空格键和回车键也触发开始游戏
+            if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
+                self.on_start_button_clicked()
+            return
         else:
-            super().keyPressEvent(event)
+            if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
+                print("空格键或回车键按下")  # 调试信息
+                self.handle_click()
+            elif event.key() == Qt.Key_A:  # 按A键切换自动播放
+                self.toggle_auto_play()
+            elif event.key() == Qt.Key_F2: # F2键保存游戏
+                self.save_game()
+            elif event.key() == Qt.Key_F3: # F3键加载最新存档
+                self.load_save()
+            else:
+                super().keyPressEvent(event)
 
     def toggle_auto_play(self):
         """切换自动播放开关"""
