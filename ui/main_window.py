@@ -4,9 +4,10 @@ from typing import Optional
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
-    QGraphicsTextItem, QFrame, QGraphicsRectItem, QGraphicsPixmapItem, QApplication
+    QGraphicsTextItem, QFrame, QGraphicsRectItem, QGraphicsPixmapItem, QApplication,
+    QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen
 
 from core.game_controller import GameController
@@ -30,6 +31,7 @@ class GalGameWindow(QMainWindow):
         self.name_label = None
         self.text_display = None
         self.chatbox_item = None
+        self.chatbox_widget_proxies = []  # 存储对话框相关的所有代理控件
         self.start_button = None
         self.title_item = None
         self.menu_bg_item = None
@@ -183,12 +185,20 @@ class GalGameWindow(QMainWindow):
         self.controller.is_in_game = True
 
     def setup_dialog_area(self):
+        # 清除旧对话框元素
         if self.chatbox_item:
             self.graphics_view.scene.removeItem(self.chatbox_item)
             self.chatbox_item = None
+        # 清空代理列表
+        for proxy in self.chatbox_widget_proxies:
+            self.graphics_view.scene.removeItem(proxy)
+        self.chatbox_widget_proxies.clear()
+
         load_ui_settings_from_data(self)
         window_width, window_height = self.controller.window_size
         chatbox_pos = [0, 0]
+
+        # 创建对话框背景
         if self.ui_settings["chatbox_style"]:
             chatbox_path = self.controller.base_path / self.ui_settings["chatbox_style"]
             chatbox_pixmap = self.load_pixmap(str(chatbox_path))
@@ -215,6 +225,7 @@ class GalGameWindow(QMainWindow):
         words_pos = words_region[0]
         words_size = [words_region[1][0] - words_region[0][0], words_region[1][1] - words_region[0][1]]
 
+        # 创建名字标签
         if not self.name_label:
             self.name_label = QLabel()
             self.name_label.setStyleSheet("""
@@ -229,25 +240,24 @@ class GalGameWindow(QMainWindow):
             """)
             self.name_label.setAlignment(Qt.AlignCenter)
             self.name_label.setFixedSize(name_size[0], name_size[1])
-            name_widget_proxy = self.graphics_view.scene.addWidget(self.name_label)
-            name_widget_proxy.setZValue(12)
         else:
             self.name_label.setFixedSize(name_size[0], name_size[1])
-        name_widget_proxy = self.name_label.graphicsProxyWidget()
-        if name_widget_proxy:
-            name_widget_proxy.setPos(chatbox_pos[0] + name_pos[0], chatbox_pos[1] + name_pos[1])
+        name_widget_proxy = self.graphics_view.scene.addWidget(self.name_label)
+        name_widget_proxy.setZValue(12)
+        name_widget_proxy.setPos(chatbox_pos[0] + name_pos[0], chatbox_pos[1] + name_pos[1])
+        self.chatbox_widget_proxies.append(name_widget_proxy)
 
+        # 创建文本显示控件
         if not self.text_display:
             self.text_display = TextDisplayWidget()
             self.text_display.setFixedSize(words_size[0], words_size[1])
-            text_widget_proxy = self.graphics_view.scene.addWidget(self.text_display)
-            text_widget_proxy.setZValue(12)
             self.text_display.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         else:
             self.text_display.setFixedSize(words_size[0], words_size[1])
-        text_widget_proxy = self.text_display.graphicsProxyWidget()
-        if text_widget_proxy:
-            text_widget_proxy.setPos(chatbox_pos[0] + words_pos[0], chatbox_pos[1] + words_pos[1])
+        text_widget_proxy = self.graphics_view.scene.addWidget(self.text_display)
+        text_widget_proxy.setZValue(12)
+        text_widget_proxy.setPos(chatbox_pos[0] + words_pos[0], chatbox_pos[1] + words_pos[1])
+        self.chatbox_widget_proxies.append(text_widget_proxy)
 
     def create_default_chatbox(self, window_width: int, window_height: int):
         dialog_bg = QGraphicsRectItem(0, 0, 1280, 220)
@@ -257,12 +267,85 @@ class GalGameWindow(QMainWindow):
         dialog_bg.setZValue(10)
         self.graphics_view.scene.addItem(dialog_bg)
         self.chatbox_item = dialog_bg
+
         name_bg = QGraphicsRectItem(0, 0, 200, 40)
         name_bg.setBrush(QBrush(QColor(0, 0, 0, 150)))
         name_bg.setPen(QPen(Qt.NoPen))
         name_bg.setPos((window_width - 1280) // 2 + 76, window_height - 220 + 20)
         name_bg.setZValue(11)
         self.graphics_view.scene.addItem(name_bg)
+        # 注意：默认样式的名字背景不是独立的 chatbox_item，但为了统一管理，我们只把主背景存为 chatbox_item
+        # 名字背景将随主背景一同控制（如果需要更精细控制，可扩展）
+
+    def set_chatbox_visible(self, visible: bool, change_effect: Optional[str] = None):
+        """
+        设置对话框的可见性，支持转场效果。
+        :param visible: True 显示，False 隐藏
+        :param change_effect: 转场效果名称，如 "gradient"
+        """
+        print(f"[Chatbox] 设置可见性: visible={visible}, effect={change_effect}")
+        items = []
+        if self.chatbox_item and self.chatbox_item.scene():
+            items.append(self.chatbox_item)
+        else:
+            print("[Chatbox] chatbox_item 无效或不在场景中")
+        for proxy in self.chatbox_widget_proxies:
+            if proxy.scene():
+                items.append(proxy)
+            else:
+                print("[Chatbox] 代理控件不在场景中")
+    
+        if not items:
+            print("[Chatbox] 没有可用的对话框项，无法更改可见性")
+            return
+    
+        # 保存动画对象的列表，防止被垃圾回收
+        if not hasattr(self, '_active_chatbox_animations'):
+            self._active_chatbox_animations = []
+    
+        if change_effect == "gradient":
+            for item in items:
+                # 为每个 item 创建或获取 QGraphicsOpacityEffect
+                effect = item.graphicsEffect()
+                if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
+                    effect = QGraphicsOpacityEffect()
+                    item.setGraphicsEffect(effect)
+    
+                start_opacity = 0.0 if visible else 1.0
+                end_opacity = 1.0 if visible else 0.0
+    
+                # 如果当前透明度已经是目标值，跳过动画
+                if abs(effect.opacity() - end_opacity) < 0.01:
+                    print(f"[Chatbox] 透明度已为目标值，跳过: {item}")
+                    if not visible:
+                        item.setVisible(False)
+                    continue
+    
+                # 创建属性动画，作用于 effect 的 opacity 属性
+                anim = QPropertyAnimation(effect, b"opacity")
+                anim.setDuration(1000)
+                anim.setStartValue(start_opacity)
+                anim.setEndValue(end_opacity)
+                anim.setEasingCurve(QEasingCurve.InOutQuad)
+    
+                def on_finished(item=item, vis=visible, anim=anim):
+                    if not vis:
+                        item.setVisible(False)
+                    # 从活动列表中移除动画
+                    if anim in self._active_chatbox_animations:
+                        self._active_chatbox_animations.remove(anim)
+    
+                anim.finished.connect(on_finished)
+                self._active_chatbox_animations.append(anim)
+                anim.start()
+                print(f"[Chatbox] 启动渐变动画: item={item}, start={start_opacity}, end={end_opacity}")
+        else:
+            # 无转场效果，直接设置可见性并清除特效
+            for item in items:
+                item.setGraphicsEffect(None)
+                item.setOpacity(1.0)
+                item.setVisible(visible)
+            print(f"[Chatbox] 直接设置可见性: {visible}")
 
     def display_dialog(self, content: dict):
         speaking_name = ""
