@@ -1,7 +1,7 @@
 # GalPie
 语言： [**中文**] | [[English](./README_EN.md)]
 <br><br>
-# 此为 godclass 分支，此分支已停止开发，请前往 modularization 分支。
+<h3>此为 godclass 分支，此分支已停止开发，请前往 modularization 分支。</h3>
 <br><br>
 基于PySide6的Galgame制作器<br>
 <b>(仍在开发中)</b>
