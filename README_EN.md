@@ -1,6 +1,9 @@
 # GalPie
 Language： [[中文](./README.md)] | [**English**]
 <br><br>
+<h3>The **godclass** branch is deprecated.</h3>​
+<h3>Development has been discontinued on this branch. All active development and new features have moved to the **modularization** branch.</h3>
+<br><br>
 A galgame maker/reader with PySide6<br>
 <b>(Still developing)</b>
 <br><br>
