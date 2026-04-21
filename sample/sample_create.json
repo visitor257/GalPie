@@ -241,6 +241,21 @@
               "zh": "就这样，我们的相遇，开启了一段可能的故事。"
             }
           }
+        }],
+        "14": [{
+          "clear_all": false,
+          "chatbox": {
+            "visible": false,
+            "change": "gradient"
+          },
+          "content": {
+            "speaking": {
+              "zh": ""
+            },
+            "words": {
+              "zh": ""
+            }
+          }
         }]
       }
     }
