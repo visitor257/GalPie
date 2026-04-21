@@ -147,6 +147,14 @@ class GameController:
                 else:
                     print(f"角色未定义: {char_id}")
 
+        # 控制对话框可见性（新增功能）
+        if "chatbox" in scene:
+            chatbox_config = scene["chatbox"]
+            print(f"[Controller] 处理 chatbox 配置: {chatbox_config}")
+            visible = chatbox_config.get("visible", True)
+            change_effect = chatbox_config.get("change", None)
+            self.main_window.set_chatbox_visible(visible, change_effect)
+
         # 启动所有待执行的动画
         self.main_window.graphics_view.start_pending_animations()
 
