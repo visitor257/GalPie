@@ -50,7 +50,8 @@
     },
     "backgrounds": {
       "公园": "./res/bg/park.png",
-      "天空": "./res/bg/sky.png"
+      "天空": "./res/bg/sky.png",
+      "咖啡馆": "./res/bg/cafe.png"
     },
     "storyline_id": {
       "main": 1.0
@@ -230,19 +231,6 @@
           }
         }],
         "13": [{
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "天空",
-          "content": {
-            "speaking": {
-              "zh": ""
-            },
-            "words": {
-              "zh": "就这样，我们的相遇，开启了一段可能的故事。"
-            }
-          }
-        }],
-        "14": [{
           "clear_all": false,
           "chatbox": {
             "visible": false,
@@ -254,6 +242,38 @@
             },
             "words": {
               "zh": ""
+            }
+          }
+        }],
+        "14": [{
+          "clear_all": true,
+          "change": "gradient",
+          "bg": "天空"
+        }],
+        "15": [{
+          "clear_all": true,
+          "change": "gradient",
+          "bg": "咖啡馆"
+        }],
+        "16": [{
+          "clear_all": false,
+          "change": "gradient",
+          "characters": {
+            "girl": {
+              "form": "校服",
+              "pos": [320,80],
+              "face": ["平常",[0,0]],
+              "zoom": 1.5
+            }
+          },
+          "chatbox": {
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你经常来这里吗？"
             }
           }
         }]
