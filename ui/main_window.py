@@ -303,39 +303,39 @@ class GalGameWindow(QMainWindow):
         # 保存动画对象的列表，防止被垃圾回收
         if not hasattr(self, '_active_chatbox_animations'):
             self._active_chatbox_animations = []
-    
+
         if change_effect == "gradient":
             for item in items:
-                # 为每个 item 创建或获取 QGraphicsOpacityEffect
                 effect = item.graphicsEffect()
                 if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
                     effect = QGraphicsOpacityEffect()
                     item.setGraphicsEffect(effect)
-    
+        
+                # 如果是显示操作，先确保item可见（否则透明度动画无法显示）
+                if visible:
+                    item.setVisible(True)
+        
                 start_opacity = 0.0 if visible else 1.0
                 end_opacity = 1.0 if visible else 0.0
-    
-                # 如果当前透明度已经是目标值，跳过动画
+        
                 if abs(effect.opacity() - end_opacity) < 0.01:
                     print(f"[Chatbox] 透明度已为目标值，跳过: {item}")
                     if not visible:
                         item.setVisible(False)
                     continue
-    
-                # 创建属性动画，作用于 effect 的 opacity 属性
+        
                 anim = QPropertyAnimation(effect, b"opacity")
-                anim.setDuration(500)
+                anim.setDuration(500)  # 您的当前时长设置
                 anim.setStartValue(start_opacity)
                 anim.setEndValue(end_opacity)
                 anim.setEasingCurve(QEasingCurve.InOutQuad)
-    
+        
                 def on_finished(item=item, vis=visible, anim=anim):
                     if not vis:
                         item.setVisible(False)
-                    # 从活动列表中移除动画
                     if anim in self._active_chatbox_animations:
                         self._active_chatbox_animations.remove(anim)
-    
+        
                 anim.finished.connect(on_finished)
                 self._active_chatbox_animations.append(anim)
                 anim.start()
