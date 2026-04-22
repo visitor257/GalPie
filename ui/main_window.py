@@ -157,6 +157,7 @@ class GalGameWindow(QMainWindow):
         text_rect = text_item.boundingRect()
         text_item.setPos(text_x - text_rect.width() / 2, text_y - text_rect.height() / 2)
         text_item.setZValue(3)
+        text_item.setAcceptHoverEvents(False)
         self.graphics_view.add_item(text_item)
         self.graphics_view.show_items(menu_data.get("change", [[], None])[1])
         self.graphics_view.start_pending_animations()
@@ -323,7 +324,7 @@ class GalGameWindow(QMainWindow):
     
                 # 创建属性动画，作用于 effect 的 opacity 属性
                 anim = QPropertyAnimation(effect, b"opacity")
-                anim.setDuration(1000)
+                anim.setDuration(500)
                 anim.setStartValue(start_opacity)
                 anim.setEndValue(end_opacity)
                 anim.setEasingCurve(QEasingCurve.InOutQuad)
@@ -365,16 +366,14 @@ class GalGameWindow(QMainWindow):
     def mousePressEvent(self, event):
         print("鼠标点击事件触发")
         if self.controller.is_in_menu:
-            if event.button() == Qt.LeftButton:
-                self.on_start_button_clicked()
+            super().mousePressEvent(event)
             return
         if event.button() == Qt.LeftButton:
             self.controller.handle_click()
 
     def keyPressEvent(self, event):
         if self.controller.is_in_menu:
-            if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
-                self.on_start_button_clicked()
+            super().keyPressEvent(event)
             return
         elif self.controller.is_in_game:
             if event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter):
