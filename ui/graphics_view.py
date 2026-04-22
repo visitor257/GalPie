@@ -162,6 +162,9 @@ class GraphicsView(QGraphicsView):
         self.setInteractive(True)
 
     def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if event.isAccepted():
+            return
         self.parent().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
