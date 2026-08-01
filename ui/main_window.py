@@ -3,18 +3,39 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog,
     QGraphicsTextItem, QFrame, QGraphicsRectItem, QGraphicsPixmapItem, QApplication,
-    QGraphicsOpacityEffect
+    QGraphicsOpacityEffect, QComboBox, QSlider
 )
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF
 from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen
 
 from core.game_controller import GameController
 from ui.graphics_view import GraphicsView, MenuButtonItem
 from ui.widgets import TextDisplayWidget
+from ui.settings_panel import SettingsPanel
 from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
+
+
+# 设置面板的 JSON 自定义配置读取（预留接口，后续开发）
+def load_settings_ui(self):
+    """预留：从 JSON 读取 settings_ui 自定义配置。
+    解析 story_data 中的 settings.ui（或 settings_ui）字段，返回面板配置 dict。
+    当前未实现自定义，返回 None 以使用预设 UI。
+    """
+    story_data = self.controller.story_data
+    if not story_data:
+        return None
+    ui_cfg = story_data.get("settings", {}).get("ui")
+    if not ui_cfg:
+        return None
+    if ui_cfg == "preset" or ui_cfg is True:
+        return None  # 使用预设
+    if isinstance(ui_cfg, dict):
+        # 供后续自定义解析使用，目前仅透传
+        return ui_cfg
+    return None
 
 
 class GalGameWindow(QMainWindow):
@@ -30,12 +51,16 @@ class GalGameWindow(QMainWindow):
         }
         self.name_label = None
         self.text_display = None
+        self.text_speed_delay = 30  # 文字显示延迟(ms/字)，设置对话框可调，创建文本控件时应用
         self.chatbox_item = None
         self.chatbox_widget_proxies = []  # 存储对话框相关的所有代理控件
         self.start_button = None
         self.title_item = None
         self.menu_bg_item = None
         self.graphics_view = None
+        self.settings_panel = None  # 当前设置面板（场景内）
+        self.is_in_settings = False  # 是否正在设置界面中
+        self.menu_button_items = []  # 菜单按钮及其文本 item（打开设置时隐藏）
 
         self.setup_ui()
         self.load_story_file()
@@ -98,7 +123,8 @@ class GalGameWindow(QMainWindow):
 
     def show_menu(self):
         self.controller.is_in_menu = True
-        self.graphics_view.scene.clear()
+        self.graphics_view.clear_items()
+        self.menu_button_items = []  # 重建菜单，清空旧按钮记录
         if not self.controller.story_data or "menu" not in self.controller.story_data:
             print("错误：没有找到菜单配置")
             return
@@ -118,13 +144,14 @@ class GalGameWindow(QMainWindow):
                     menu_pos = menu_data.get("menu_pos", {})
                     title_pos = menu_pos.get("title", [54, 48])
                     self.graphics_view.add_item(title_pixmap, title_pos)
-            self.create_start_button(menu_data)
+            self.create_menu_buttons(menu_data)
         except Exception as e:
             print(f"显示开始菜单失败: {e}")
             import traceback
             traceback.print_exc()
 
-    def create_start_button(self, menu_data):
+    def create_menu_buttons(self, menu_data):
+        """根据 menu_pos 中的按钮定义（start/settings/...）创建菜单按钮"""
         button_path = menu_data["button"]
         full_button_path = self.controller.base_path / button_path
         button_pixmap = self.load_pixmap(str(full_button_path))
@@ -136,33 +163,159 @@ class GalGameWindow(QMainWindow):
         if button_touched_path:
             full_touched_path = self.controller.base_path / button_touched_path
             touched_pixmap = self.load_pixmap(str(full_touched_path))
-        menu_pos = menu_data.get("menu_pos", {})
-        button_data = menu_pos.get("start", [[115, 230], {self.controller.language: "Game start"}])
-        button_pos = button_data[0]
-        self.start_button = MenuButtonItem(button_pixmap, touched_pixmap)
-        if not self.start_button:
-            print("创建开始按钮失败")
-            return
-        self.start_button.setPos(button_pos[0], button_pos[1])
-        self.start_button.setZValue(2)
-        self.start_button.set_click_handler(self.on_start_button_clicked)
-        self.graphics_view.add_item(self.start_button, button_pos)
+
         text_rgb = menu_data.get("text_rgb", [255, 255, 255])
         text_color = QColor(text_rgb[0], text_rgb[1], text_rgb[2])
-        text_x = button_pos[0] + button_pixmap.width() // 2
-        text_y = button_pos[1] + button_pixmap.height() // 2
-        text_item = QGraphicsTextItem(button_data[1][self.controller.language])
-        text_item.setDefaultTextColor(text_color)
-        text_item.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
-        text_rect = text_item.boundingRect()
-        text_item.setPos(text_x - text_rect.width() / 2, text_y - text_rect.height() / 2)
-        text_item.setZValue(3)
-        text_item.setAcceptHoverEvents(False)
-        self.graphics_view.add_item(text_item)
+        menu_pos = menu_data.get("menu_pos", {})
+
+        # 按钮类型 -> 点击处理函数
+        handlers = {
+            "start": self.on_start_button_clicked,
+            "settings": self.open_settings,
+        }
+
+        for key, button_data in menu_pos.items():
+            if key == "title":
+                continue
+            if not isinstance(button_data, list) or len(button_data) < 2:
+                continue
+            button_pos = button_data[0]
+            texts = button_data[1]
+            if not isinstance(texts, dict) or not texts:
+                continue
+
+            button_item = MenuButtonItem(button_pixmap, touched_pixmap)
+            button_item.setPos(button_pos[0], button_pos[1])
+            button_item.setZValue(2)
+            handler = handlers.get(key)
+            if handler:
+                button_item.set_click_handler(handler)
+            self.graphics_view.add_item(button_item, button_pos)
+            self.menu_button_items.append(button_item)
+
+            text = texts.get(self.controller.language, next(iter(texts.values())))
+            text_item = QGraphicsTextItem(text)
+            text_item.setDefaultTextColor(text_color)
+            text_item.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
+            text_rect = text_item.boundingRect()
+            text_item.setPos(
+                button_pos[0] + button_pixmap.width() // 2 - text_rect.width() / 2,
+                button_pos[1] + button_pixmap.height() // 2 - text_rect.height() / 2
+            )
+            text_item.setZValue(3)
+            text_item.setAcceptHoverEvents(False)
+            self.graphics_view.add_item(text_item)
+            self.menu_button_items.append(text_item)
+
         self.graphics_view.show_items(menu_data.get("change", [[], None])[1])
         self.graphics_view.start_pending_animations()
 
+    def _set_menu_buttons_visible(self, visible: bool):
+        """隐藏/显示菜单按钮及其文本。打开设置时隐藏，关闭时恢复。
+        隐藏前重置按钮的悬停状态，避免返回按钮时残留悬停样式（如白框）。
+        """
+        for it in self.menu_button_items:
+            if not visible and isinstance(it, MenuButtonItem):
+                it.reset_hover()
+            if it.scene():
+                it.setVisible(visible)
+
+    def open_settings(self):
+        """在游戏窗口中打开设置面板（同窗口覆盖层，非弹窗）。
+        支持 JSON 自定义配置（预留），缺省时使用预设 UI。
+        """
+        if self.is_in_settings:
+            return
+        # 隐藏背后菜单按钮
+        self._set_menu_buttons_visible(False)
+        # 预留：读取 JSON 自定义配置（当前为 None -> 使用预设 UI）
+        custom_config = load_settings_ui(self)
+        panel = SettingsPanel(self.graphics_view.scene, config=custom_config,
+                              language=self.controller.language)
+        # 居中显示（内部会创建底部按钮）
+        scene_rect = self.graphics_view.sceneRect()
+        if scene_rect.isNull():
+            scene_rect = QRectF(0, 0, self.width(), self.height())
+        panel.center_in_scene(scene_rect)
+        self.graphics_view.scene.addItem(panel)
+        # 绑定底部按钮行为
+        self._bind_settings_buttons(panel)
+        panel.fade_in()
+        self.settings_panel = panel
+        self.is_in_settings = True
+
+    def _bind_settings_buttons(self, panel):
+        """为设置面板底部按钮绑定点击行为。"""
+        btn_reset = panel.button("reset")
+        if btn_reset:
+            btn_reset.set_click_handler(self._reset_settings)
+        btn_back = panel.button("back")
+        if btn_back:
+            btn_back.set_click_handler(self.close_settings_panel)
+        btn_quit = panel.button("quit")
+        if btn_quit:
+            btn_quit.set_click_handler(self._quit_game)
+
+    def _reset_settings(self):
+        """恢复默认设置：文字速度回默认（30ms/字）、语言回第一个。"""
+        self.text_speed_delay = 30
+        if self.text_display is not None:
+            self.text_display.char_delay = 30
+        languages = self.controller.story_data.get("settings", {}).get("language", ["zh"])
+        if languages:
+            self.controller.language = languages[0]
+        print("设置已恢复默认")
+
+    def _quit_game(self):
+        """退出游戏。"""
+        print("退出游戏")
+        QApplication.quit()
+
+    def close_settings_panel(self):
+        """关闭设置面板：设置 UI 先渐变消失（100->0），再让菜单按钮渐变显示。"""
+        if self.is_in_settings and self.settings_panel:
+            panel = self.settings_panel
+            self.settings_panel = None
+            panel.fade_out(on_finished=lambda: self._finish_close_settings(panel))
+            self.is_in_settings = False
+        else:
+            # 理论不可达；兜底直接恢复
+            self._set_menu_buttons_visible(True)
+
+    def _finish_close_settings(self, panel):
+        """面板渐隐完成后：移除面板 + 菜单按钮渐显。"""
+        if panel.scene():
+            self.graphics_view.scene.removeItem(panel)
+        self._set_menu_buttons_fade_in()
+
+    def _set_menu_buttons_fade_in(self, duration=500):
+        """菜单按钮（含文本）渐变显示：透明度 0 -> 100。"""
+        for it in self.menu_button_items:
+            it.setVisible(True)
+            effect = QGraphicsOpacityEffect()
+            effect.setOpacity(0.0)
+            it.setGraphicsEffect(effect)
+            anim = QPropertyAnimation(effect, b"opacity")
+            anim.setDuration(duration)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.InOutQuad)
+            anim.finished.connect(lambda a=anim, i=it: self._clear_menu_fade_effect(a, i))
+            if not hasattr(self, "_menu_fade_anims"):
+                self._menu_fade_anims = []
+            self._menu_fade_anims.append(anim)
+            anim.start()
+
+    def _clear_menu_fade_effect(self, anim, item):
+        """菜单按钮渐显完成后清理效果与动画引用。"""
+        item.setGraphicsEffect(None)
+        if hasattr(self, "_menu_fade_anims") and anim in self._menu_fade_anims:
+            self._menu_fade_anims.remove(anim)
+
     def on_start_button_clicked(self):
+        # 若设置面板打开，点击开始游戏时关闭它
+        if self.is_in_settings:
+            self.close_settings_panel()
         if self.controller.is_in_menu:
             print("开始按钮被点击，准备淡出菜单")
             self.fade_out_menu()
@@ -251,6 +404,7 @@ class GalGameWindow(QMainWindow):
         # 创建文本显示控件
         if not self.text_display:
             self.text_display = TextDisplayWidget()
+            self.text_display.char_delay = self.text_speed_delay
             self.text_display.setFixedSize(words_size[0], words_size[1])
             self.text_display.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         else:
@@ -365,6 +519,16 @@ class GalGameWindow(QMainWindow):
 
     def mousePressEvent(self, event):
         print("鼠标点击事件触发")
+        if self.is_in_settings:
+            # 设置面板打开时：背景菜单按钮已隐藏，仅区分面板内/外点击
+            if self.settings_panel:
+                scene_pos = self.graphics_view.mapToScene(event.position().toPoint())
+                if self.settings_panel.contains(scene_pos):
+                    # 点击面板内部：不关闭（后续供内嵌控件使用）
+                    return
+            # 点击面板外部：关闭设置
+            self.close_settings_panel()
+            return
         if self.controller.is_in_menu:
             super().mousePressEvent(event)
             return
@@ -372,6 +536,12 @@ class GalGameWindow(QMainWindow):
             self.controller.handle_click()
 
     def keyPressEvent(self, event):
+        if self.is_in_settings:
+            # 设置面板打开时：Esc 关闭
+            if event.key() == Qt.Key_Escape:
+                self.close_settings_panel()
+            super().keyPressEvent(event)
+            return
         if self.controller.is_in_menu:
             super().keyPressEvent(event)
             return

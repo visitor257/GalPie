@@ -129,9 +129,16 @@ class MenuButtonItem(QGraphicsPixmapItem):
         self.setPixmap(self.normal_pixmap)
         super().hoverLeaveEvent(event)
 
+    def reset_hover(self):
+        """重置悬停状态（退出设置界面等场景调用，避免返回时残留白框）。"""
+        self.is_hovered = False
+        self.setPixmap(self.normal_pixmap)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self.click_handler:
             self.click_handler()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def set_click_handler(self, handler):
