@@ -13,20 +13,34 @@ from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen
 from core.game_controller import GameController
 from ui.graphics_view import GraphicsView, MenuButtonItem
 from ui.widgets import TextDisplayWidget
-from ui.settings_panel import SettingsPanel
+from ui.settings_panel import SettingsPanel, FULLSCREEN_KEY
 from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
 
 
 # 设置面板的 JSON 自定义配置读取（预留接口，后续开发）
 def load_settings_ui(self):
-    """预留：从 JSON 读取 settings_ui 自定义配置。
-    解析 story_data 中的 settings.ui（或 settings_ui）字段，返回面板配置 dict。
-    当前未实现自定义，返回 None 以使用预设 UI。
+    """读取设置界面配置，返回面板配置 dict。
+    优先读 menu_pos.settings 第 3 项（ui_mode / resolution 等）；
+    兼容旧字段 settings.ui（或 settings_ui）。
+    ui_mode: "default"=预设界面（当前开发中的面板）；"custom"=JSON 自定义（规划中，暂未实现，同样回落预设）。
     """
     story_data = self.controller.story_data
     if not story_data:
         return None
+    # 1) menu_pos.settings 第 3 项（新配置入口）
+    menu = story_data.get("menu", {})
+    menu_pos = menu.get("menu_pos", {})
+    settings_btn = menu_pos.get("settings")
+    if isinstance(settings_btn, list) and len(settings_btn) >= 3 and isinstance(settings_btn[2], dict):
+        cfg = settings_btn[2]
+        ui_mode = cfg.get("ui_mode", "default")
+        if ui_mode == "custom":
+            # 自定义界面：规划中，暂未实现 -> 回落预设（后续在此返回解析后的配置 dict）
+            print("设置界面 ui_mode=custom：自定义解析暂未实现，使用预设界面")
+            return None
+        return None  # default 预设界面；配置（如 resolution）由 open_settings 直接读取
+    # 2) 旧字段 settings.ui / settings_ui
     ui_cfg = story_data.get("settings", {}).get("ui")
     if not ui_cfg:
         return None
@@ -61,6 +75,7 @@ class GalGameWindow(QMainWindow):
         self.settings_panel = None  # 当前设置面板（场景内）
         self.is_in_settings = False  # 是否正在设置界面中
         self.menu_button_items = []  # 菜单按钮及其文本 item（打开设置时隐藏）
+        self.settings_ui_config = {}  # 设置界面配置（menu_pos.settings 第 3 项：ui_mode/resolution 等）
 
         self.setup_ui()
         self.load_story_file()
@@ -152,6 +167,12 @@ class GalGameWindow(QMainWindow):
 
     def create_menu_buttons(self, menu_data):
         """根据 menu_pos 中的按钮定义（start/settings/...）创建菜单按钮"""
+        # 先解析 settings 按钮的附加配置（第 3 项），独立于图片加载，保证总能读取
+        menu_pos = menu_data.get("menu_pos", {})
+        settings_btn = menu_pos.get("settings")
+        if isinstance(settings_btn, list) and len(settings_btn) >= 3 and isinstance(settings_btn[2], dict):
+            self.settings_ui_config = dict(settings_btn[2])
+
         button_path = menu_data["button"]
         full_button_path = self.controller.base_path / button_path
         button_pixmap = self.load_pixmap(str(full_button_path))
@@ -166,7 +187,6 @@ class GalGameWindow(QMainWindow):
 
         text_rgb = menu_data.get("text_rgb", [255, 255, 255])
         text_color = QColor(text_rgb[0], text_rgb[1], text_rgb[2])
-        menu_pos = menu_data.get("menu_pos", {})
 
         # 按钮类型 -> 点击处理函数
         handlers = {
@@ -230,10 +250,17 @@ class GalGameWindow(QMainWindow):
         self._set_menu_buttons_visible(False)
         # 预留：读取 JSON 自定义配置（当前为 None -> 使用预设 UI）
         custom_config = load_settings_ui(self)
-        cur_res = "{}x{}".format(self.controller.window_size[0], self.controller.window_size[1])
+        # 从 menu_pos.settings 第 3 项配置读取分辨率选项（默认 None -> 面板用内置列表）
+        res_options = self.settings_ui_config.get("resolution") if self.settings_ui_config else None
+        # 当前分辨率：全屏时用"全屏"标记，否则 WxH 字符串
+        if self.isFullScreen():
+            cur_res = FULLSCREEN_KEY
+        else:
+            cur_res = "{}x{}".format(self.controller.window_size[0], self.controller.window_size[1])
         panel = SettingsPanel(self.graphics_view.scene, config=custom_config,
                               language=self.controller.language,
-                              current_resolution=cur_res)
+                              current_resolution=cur_res,
+                              resolution_options=res_options)
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
@@ -275,15 +302,25 @@ class GalGameWindow(QMainWindow):
         QApplication.quit()
 
     def _on_resolution_changed(self, resolution):
-        """分辨率变更：更新 controller.window_size 并缩放窗口。
-        resolution: 形如 "1280x720" 的字符串。
+        """分辨率变更：全屏标记 -> 全屏模式；"WxH" -> 窗口化并缩放。
+        resolution: FULLSCREEN_KEY（全屏）或形如 "1280x720" 的字符串。
         """
+        if resolution == FULLSCREEN_KEY:
+            self.showFullScreen()
+            print("已切换为全屏模式")
+            return
         try:
             w, h = map(int, resolution.split("x"))
         except (ValueError, AttributeError):
             return
         self.controller.window_size = [w, h]
-        self.resize(w, h)
+        if self.isFullScreen():
+            # 从全屏退出：先恢复窗口，再延迟 resize（等 showNormal 生效）
+            self.showNormal()
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self.resize(w, h))
+        else:
+            self.resize(w, h)
         print(f"分辨率已切换: {resolution}")
 
     def close_settings_panel(self):

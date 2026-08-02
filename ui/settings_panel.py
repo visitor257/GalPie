@@ -56,20 +56,27 @@ BUTTON_TEXTS = {
 # 面板标题（多语言）
 TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings"}
 
-# 分辨率选项（多语言，切换时循环）
+# 分辨率选项（多语言，切换时循环；实际可选项由 JSON 配置，末尾自动追加"全屏"）
 RESOLUTIONS = ["1280x720", "1366x768", "1600x900", "1920x1080"]
 RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution"}
+FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen"}
+FULLSCREEN_KEY = "fullscreen"  # 内部标记：全屏选项（显示时用语言化文本）
 
 
 class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
-    def __init__(self, scene, config=None, language="zh", current_resolution="1280x720", parent=None):
+    def __init__(self, scene, config=None, language="zh", current_resolution="1280x720",
+                 resolution_options=None, parent=None):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         self.language = language
         self.buttons = []   # 底部按钮列表
-        self.current_resolution = current_resolution if current_resolution in RESOLUTIONS else RESOLUTIONS[0]
+        # 分辨率选项：JSON 提供的分辨率列表 + 末尾"全屏"；无 JSON 时用默认列表
+        base_opts = list(resolution_options) if resolution_options else list(RESOLUTIONS)
+        self._res_options = base_opts + [FULLSCREEN_KEY]
+        # 当前选项：先尝试原样匹配，再按显示文本匹配（"全屏" vs 语言化）
+        self.current_resolution = self._normalize_res(current_resolution)
         self._resolution_handler = None  # 分辨率变更回调
         self._resolution_label = None    # "分辨率" 标签
         self._resolution_value = None    # 当前分辨率值文本
@@ -95,6 +102,26 @@ class SettingsPanel(QGraphicsPathItem):
         # 白色内边框：距边缘 border_offset，宽 border_width（作为面板子项，随面板移动）
         self._border_item = None
         self._rebuild_border()
+
+    def _normalize_res(self, value):
+        """把当前分辨率值归一化到选项列表：
+        - 已是选项值（如 "1280x720"）直接返回
+        - 语言化的"全屏"（zh/en）映射为 FULLSCREEN_KEY
+        - 其它不匹配时回落到选项第一个
+        """
+        if value in self._res_options:
+            return value
+        # 语言化全屏文本 -> 内部标记
+        for key, label in FULLSCREEN_LABEL.items():
+            if value == label:
+                return FULLSCREEN_KEY
+        return self._res_options[0]
+
+    def _res_display_text(self):
+        """当前选项的显示文本：全屏用语言化文本，窗口分辨率原样。"""
+        if self.current_resolution == FULLSCREEN_KEY:
+            return FULLSCREEN_LABEL.get(self.language, FULLSCREEN_LABEL["zh"])
+        return self.current_resolution
 
     def _rebuild_border(self):
         """重建白色内边框：距面板边缘 border_offset 处，宽 border_width 的白色框。
@@ -225,7 +252,7 @@ class SettingsPanel(QGraphicsPathItem):
 
         # 当前值（幼圆常规 16pt）
         self._resolution_value = QGraphicsTextItem()
-        self._resolution_value.setPlainText(self.current_resolution)
+        self._resolution_value.setPlainText(self._res_display_text())
         self._resolution_value.setDefaultTextColor(QColor(255, 255, 255))
         vf = QFont("YouYuan")
         vf.setPointSize(self.config.get("res_value_size", 16))
@@ -257,25 +284,31 @@ class SettingsPanel(QGraphicsPathItem):
                               [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
 
     def _on_res_prev(self):
-        idx = RESOLUTIONS.index(self.current_resolution)
-        self.current_resolution = RESOLUTIONS[(idx - 1) % len(RESOLUTIONS)]
+        idx = self._res_options.index(self.current_resolution)
+        self.current_resolution = self._res_options[(idx - 1) % len(self._res_options)]
         self._update_resolution_display()
 
     def _on_res_next(self):
-        idx = RESOLUTIONS.index(self.current_resolution)
-        self.current_resolution = RESOLUTIONS[(idx + 1) % len(RESOLUTIONS)]
+        idx = self._res_options.index(self.current_resolution)
+        self.current_resolution = self._res_options[(idx + 1) % len(self._res_options)]
         self._update_resolution_display()
 
     def _update_resolution_display(self):
         if self._resolution_value is not None:
-            self._resolution_value.setPlainText(self.current_resolution)
+            self._resolution_value.setPlainText(self._res_display_text())
             self._resolution_value.setTextWidth(-1)
         if self._resolution_handler:
+            # 回调传原始选项值（FULLSCREEN_KEY 或 "WxH"），由 main_window 决定全屏/窗口
             self._resolution_handler(self.current_resolution)
 
     def set_resolution_handler(self, handler):
         """绑定分辨率变更回调（main_window 中调用，实际执行窗口缩放）。"""
         self._resolution_handler = handler
+
+    @property
+    def res_options(self):
+        """当前分辨率选项列表（含全屏，内部标记）。"""
+        return list(self._res_options)
 
     def _clear_resolution_items(self):
         """移除分辨率设置项的文本与按钮（尺寸变化/关闭时调用）。"""
