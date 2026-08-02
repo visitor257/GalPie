@@ -432,6 +432,24 @@ class GalGameWindow(QMainWindow):
         # 注意：默认样式的名字背景不是独立的 chatbox_item，但为了统一管理，我们只把主背景存为 chatbox_item
         # 名字背景将随主背景一同控制（如果需要更精细控制，可扩展）
 
+    def _stop_chatbox_animations_for(self, item):
+        """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
+        避免旧动画在新动画启动后继续改变透明度，导致显示/隐藏状态错乱。
+        """
+        if not hasattr(self, '_active_chatbox_animations'):
+            self._active_chatbox_animations = []
+            return
+        keep = []
+        for anim in self._active_chatbox_animations:
+            target = anim.targetObject()
+            # 动画作用于 item 的 graphicsEffect，target 是 effect；需比对 item 的 effect
+            effect = item.graphicsEffect()
+            if target is effect:
+                anim.stop()
+            else:
+                keep.append(anim)
+        self._active_chatbox_animations = keep
+
     def set_chatbox_visible(self, visible: bool, change_effect: Optional[str] = None):
         """
         设置对话框的可见性，支持转场效果。
@@ -460,23 +478,23 @@ class GalGameWindow(QMainWindow):
 
         if change_effect == "gradient":
             for item in items:
+                # 先停止该 item 上所有进行中的 chatbox 动画，避免旧动画继续改变透明度
+                self._stop_chatbox_animations_for(item)
+
                 effect = item.graphicsEffect()
                 if effect is None or not isinstance(effect, QGraphicsOpacityEffect):
                     effect = QGraphicsOpacityEffect()
                     item.setGraphicsEffect(effect)
         
-                # 如果是显示操作，先确保item可见（否则透明度动画无法显示）
+                # 如果是显示操作，先确保 item 可见（否则透明度动画无法显示）
                 if visible:
                     item.setVisible(True)
         
                 start_opacity = 0.0 if visible else 1.0
                 end_opacity = 1.0 if visible else 0.0
         
-                if abs(effect.opacity() - end_opacity) < 0.01:
-                    print(f"[Chatbox] 透明度已为目标值，跳过: {item}")
-                    if not visible:
-                        item.setVisible(False)
-                    continue
+                # 直接跳到起始透明度，再启动动画（保证从明确状态开始，不受旧动画残留值影响）
+                effect.setOpacity(start_opacity)
         
                 anim = QPropertyAnimation(effect, b"opacity")
                 anim.setDuration(500)  # 您的当前时长设置
