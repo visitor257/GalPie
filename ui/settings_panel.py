@@ -469,7 +469,7 @@ class SettingsPanel(QGraphicsPathItem):
         label.setTextWidth(-1)
         r = label.boundingRect()
         label.setPos(btn_center.x() - r.width() / 2, btn_center.y() - r.height() / 2)
-        self.buttons[-1]._text_label = label  # 记录，便于后续调整
+        btn._text_label = label  # 记录，便于后续调整（注意：必须挂到传入的 btn，而非 self.buttons[-1]）
         return label
 
     def button(self, key):
