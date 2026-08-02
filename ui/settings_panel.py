@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QGraphicsPathItem, QGraphicsOpacityEffect, QGraphicsTextItem
 )
 from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF
-from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath
+from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath, QPainterPathStroker
 
 # 预设默认配置（木色圆角矩形）
 DEFAULT_PRESET = {
@@ -35,6 +35,7 @@ DEFAULT_PRESET = {
     "title_top_margin": 15,       # 标题顶部距白色圈内边界的间距 (px)
     "title_left_ratio": 0.05,     # 标题左侧距白色圈内边界的比例（白圈内宽的 %）
     "title_size": 26,             # 标题字号 (pt)
+    "title_stroke_width": 2.0,    # 标题描边宽度 (px)，用于幼圆加粗
     "button_color": [0, 0, 0],    # 按钮底色
     "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
@@ -128,25 +129,38 @@ class SettingsPanel(QGraphicsPathItem):
     def _build_title(self):
         """在白色圈内左上角创建标题文本（作为面板子项）。
         顶部距白框内边界 title_top_margin，左侧距白框内边界 title_left_ratio * 内宽。
+        使用 QGraphicsPathItem + 描边实现真正加粗（幼圆无粗体字重，Qt 伪粗体效果有限）。
         """
         inner = self.config["border_offset"] + self.config["border_width"]
         top = self.config.get("title_top_margin", 15)
         left_ratio = self.config.get("title_left_ratio", 0.05)
         left = inner + (self._size[0] - 2 * inner) * left_ratio
         text = TITLE_TEXTS.get(self.language, TITLE_TEXTS["zh"])
-        self._title_item = QGraphicsTextItem()
-        self._title_item.setPlainText(text)
-        self._title_item.setDefaultTextColor(QColor(255, 255, 255))
+
         # 幼圆 + 加粗（圆润字体，已安装系统字体）
         font = QFont("YouYuan")
         font.setBold(True)
         font.setPointSize(self.config.get("title_size", 26))
-        self._title_item.setFont(font)
+
+        # 生成文字路径 + 描边加粗（描边宽 title_stroke_width，默认 2.0）
+        stroke_w = self.config.get("title_stroke_width", 2.0)
+        path = QPainterPath()
+        path.addText(QPointF(0, 0), font, text)
+        if stroke_w > 0:
+            stroker = QPainterPathStroker()
+            stroker.setWidth(stroke_w)
+            stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+            path = stroker.createStroke(path).united(path)
+
+        self._title_item = QGraphicsPathItem(path)
+        self._title_item.setBrush(QBrush(QColor(255, 255, 255)))
+        self._title_item.setPen(QPen(Qt.NoPen))
         self._title_item.setAcceptHoverEvents(False)
         self._title_item.setParentItem(self)
-        self._title_item.setTextWidth(-1)
+        # 路径以 (0,0) 为基线起点，需按 boundingRect 重新定位
         r = self._title_item.boundingRect()
-        self._title_item.setPos(left, inner + top)
+        self._title_item.setPos(left - r.x(), inner + top - r.y())
         return self._title_item
 
     def _build_buttons(self):
