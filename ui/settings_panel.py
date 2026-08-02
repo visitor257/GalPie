@@ -29,7 +29,8 @@ DEFAULT_PRESET = {
     "border_color": [255, 255, 255],  # 白色边框颜色
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
-    "button_margin": 24,          # 按钮与面板底部/侧边的间距
+    "button_margin": 24,          # 按钮与面板侧边的间距
+    "button_bottom_margin": 10,   # 按钮底边距白色圈底部的间距
     "button_gap": 24,             # 按钮之间的间距
     "button_color": [0, 0, 0],    # 按钮底色
     "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
@@ -137,8 +138,8 @@ class SettingsPanel(QGraphicsPathItem):
         cell_w = avail_w / 4.0
         btn_w = cell_w - margin   # 每个格子内留一点边距
         btn_w = max(20, btn_w)
-        # 按钮底边距白色框内边缘 margin
-        y = h - inner - btn_h - margin
+        # 按钮底边距白色框内边缘 button_bottom_margin
+        y = h - inner - btn_h - self.config["button_bottom_margin"]
 
         # (key, 所在格子索引 0~3)
         placements = [("reset", 0), ("back", 2), ("quit", 3)]
