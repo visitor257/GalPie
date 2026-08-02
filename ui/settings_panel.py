@@ -119,7 +119,8 @@ class SettingsPanel(QGraphicsPathItem):
 
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
-        布局：将面板宽按 25% 分成 4 格——
+        布局基准从"木色大框"改为"白色圈内空间"：
+          白色框内边界 = border_offset + border_width，按钮在此区域内 4 等分——
           恢复默认 占第 1 格、返回 占第 3 格、退出游戏 占第 4 格（第 2 格留空）。
         文本直接作为面板子项（与按钮平级），定位在按钮中心上方，
         避免嵌套子项在父项未入 scene 时的偏移问题。
@@ -128,18 +129,22 @@ class SettingsPanel(QGraphicsPathItem):
         btn_h = self.config["button_height"]
         margin = self.config["button_margin"]
         opacity = self.config["button_opacity"]
+        # 白色框内边界（面板局部坐标）
+        inner = self.config["border_offset"] + self.config["border_width"]
 
-        # 4 等分格子，按钮宽 = 25% * 面板宽（各留 margin 内边距）
-        cell_w = w / 4.0
-        btn_w = cell_w - margin   # 每个格子内留一点边距，按钮宽度约 25%-margin
+        # 白色框内可用宽，4 等分格子，按钮宽 = 25% * 内宽（各留 margin 内边距）
+        avail_w = w - 2 * inner
+        cell_w = avail_w / 4.0
+        btn_w = cell_w - margin   # 每个格子内留一点边距
         btn_w = max(20, btn_w)
-        y = h - btn_h - margin
+        # 按钮底边距白色框内边缘 margin
+        y = h - inner - btn_h - margin
 
         # (key, 所在格子索引 0~3)
         placements = [("reset", 0), ("back", 2), ("quit", 3)]
 
         for key, cell_idx in placements:
-            x = cell_idx * cell_w + margin / 2
+            x = inner + cell_idx * cell_w + margin / 2
             rect = QRectF(x, y, btn_w, btn_h)
             btn = SettingsButtonItem(rect, key, self, opacity=opacity)
             self.buttons.append(btn)
