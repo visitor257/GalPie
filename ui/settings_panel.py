@@ -137,8 +137,8 @@ class SettingsPanel(QGraphicsPathItem):
         self._title_item = QGraphicsTextItem()
         self._title_item.setPlainText(text)
         self._title_item.setDefaultTextColor(QColor(255, 255, 255))
-        # 圆润 + 加粗：微软雅黑加粗
-        font = QFont("Microsoft YaHei")
+        # 楷体 + 加粗（圆润，系统无幼圆时的替代）
+        font = QFont("KaiTi")
         font.setBold(True)
         font.setPointSize(self.config.get("title_size", 26))
         self._title_item.setFont(font)
