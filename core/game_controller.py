@@ -32,6 +32,8 @@ class GameController:
         self.is_waiting_for_next_page = False
 
         self.window_size = [1280, 720]
+        # 逻辑分辨率：场景坐标定位基准（默认 1280x720，可由 JSON settings.window_size 覆盖）
+        self.logical_size = [1280, 720]
         self.background_pos = [0, 0]
         self.language = None
 
@@ -47,8 +49,12 @@ class GameController:
         if "window_title" in settings:
             self.main_window.setWindowTitle(settings["window_title"])
         if "window_size" in settings:
-            self.window_size = list(map(int, settings["window_size"].split('x')))
-            self.main_window.resize(self.window_size[0], self.window_size[1])
+            self.logical_size = list(map(int, settings["window_size"].split('x')))
+            # 初始物理窗口 = 逻辑分辨率；后续可经设置面板调整
+            self.window_size = list(self.logical_size)
+            self.main_window.graphics_view.set_logical_size(
+                self.logical_size[0], self.logical_size[1])
+            self.main_window.resize(self.logical_size[0], self.logical_size[1])
 
     def start_story(self):
         if self.is_in_menu:
@@ -129,7 +135,7 @@ class GameController:
                 full_bg_path = self.base_path / bg_path
                 bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
                 if bg_pixmap:
-                    self.background_pos = [(self.window_size[0] - bg_pixmap.width()) // 2, 0]
+                    self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
                     self.main_window.graphics_view.update_bg_pos(self.background_pos)
                     self.main_window.graphics_view.set_background(bg_pixmap, scene.get("change", None))
                 else:

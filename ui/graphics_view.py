@@ -146,8 +146,12 @@ class MenuButtonItem(QGraphicsPixmapItem):
 
 
 class GraphicsView(QGraphicsView):
-    """支持GPU加速的图形视图"""
-    def __init__(self, parent=None, background_pos=[0, 0]):
+    """支持GPU加速的图形视图。
+
+    场景使用固定逻辑分辨率（logical_size，默认 1280x720），所有场景元素
+    按逻辑坐标定位；窗口实际尺寸变化时通过 fitInView 等比缩放填满视口。
+    """
+    def __init__(self, parent=None, background_pos=[0, 0], logical_size=[1280, 720]):
         super().__init__(parent)
         self.setViewport(QOpenGLWidget())
         self.setRenderHint(QPainter.Antialiasing)
@@ -158,6 +162,9 @@ class GraphicsView(QGraphicsView):
         self.setFrameStyle(0)
         self.setStyleSheet("background-color: black;")
         self.scene = QGraphicsScene()
+        self.logical_size = list(logical_size)
+        # 固定逻辑场景矩形：所有元素按此坐标定位
+        self.scene.setSceneRect(0, 0, self.logical_size[0], self.logical_size[1])
         self.setScene(self.scene)
         self.background_item = None
         self.character_items = {}
@@ -167,6 +174,19 @@ class GraphicsView(QGraphicsView):
         self.itemList = []
         self.setMouseTracking(True)
         self.setInteractive(True)
+        # 初始适配窗口
+        self.fit_logical_rect()
+
+    def fit_logical_rect(self):
+        """将逻辑场景矩形等比缩放填满当前视口（超出部分裁切）。"""
+        self.fitInView(0, 0, self.logical_size[0], self.logical_size[1],
+                       Qt.KeepAspectRatioByExpanding)
+
+    def set_logical_size(self, w, h):
+        """更新逻辑分辨率并重建场景矩形。"""
+        self.logical_size = [w, h]
+        self.scene.setSceneRect(0, 0, w, h)
+        self.fit_logical_rect()
 
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
@@ -207,9 +227,10 @@ class GraphicsView(QGraphicsView):
             self.prepare_change_effect(None, changeEffect, "add", "bg")
 
     def fit_background(self):
-        if self.background_item and self.sceneRect().isValid():
-            view_size = self.size()
-            self.background_item.resize_to_fit_window(view_size.width(), view_size.height(), self.bg_pos)
+        # 背景按逻辑分辨率缩放（与场景坐标一致），窗口缩放由 fitInView 统一处理
+        if self.background_item and self.scene.sceneRect().isValid():
+            self.background_item.resize_to_fit_window(
+                self.logical_size[0], self.logical_size[1], self.bg_pos)
 
     def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None, changeEffect=None):
         if char_id in self.character_items:
@@ -297,4 +318,6 @@ class GraphicsView(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # 窗口尺寸变化：等比缩放逻辑场景填满视口
+        self.fit_logical_rect()
         self.fit_background()

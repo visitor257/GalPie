@@ -150,7 +150,8 @@ class GalGameWindow(QMainWindow):
                 full_bg_path = self.controller.base_path / bg_data
                 bg_pixmap = self.load_pixmap(str(full_bg_path))
                 if bg_pixmap:
-                    self.graphics_view.add_item(bg_pixmap, [(self.controller.window_size[0] - bg_pixmap.width()) // 2, 0])
+                    ls = self.controller.logical_size
+                    self.graphics_view.add_item(bg_pixmap, [(ls[0] - bg_pixmap.width()) // 2, 0])
             if "title" in menu_data:
                 title_path = menu_data["title"][self.controller.language]
                 full_title_path = self.controller.base_path / title_path
@@ -374,7 +375,7 @@ class GalGameWindow(QMainWindow):
 
     def fade_out_menu(self):
         self.controller.is_in_menu = False
-        black = QPixmap(self.controller.window_size[0], self.controller.window_size[1])
+        black = QPixmap(self.controller.logical_size[0], self.controller.logical_size[1])
         black.fill(QColor(0, 0, 0))
         self.graphics_view.clear_items()
         self.graphics_view.add_item(black, [0, 0])
@@ -401,7 +402,7 @@ class GalGameWindow(QMainWindow):
         self.chatbox_widget_proxies.clear()
 
         load_ui_settings_from_data(self)
-        window_width, window_height = self.controller.window_size
+        window_width, window_height = self.controller.logical_size
         chatbox_pos = [0, 0]
 
         # 创建对话框背景
