@@ -36,6 +36,11 @@ DEFAULT_PRESET = {
     "title_left_ratio": 0.05,     # 标题左侧距白色圈内边界的比例（白圈内宽的 %）
     "title_size": 26,             # 标题字号 (pt)
     "title_stroke_width": 2.0,    # 标题描边宽度 (px)，用于幼圆加粗
+    "column_gap": 20,             # 左右两列之间的间距 (px)
+    "item_gap": 24,               # 设置项之间的垂直间距 (px)
+    "res_label_size": 18,         # 设置项标签字号 (pt)
+    "res_value_size": 16,         # 设置项值字号 (pt)
+    "res_arrow_size": 14,         # 设置项切换箭头字号 (pt)
     "button_color": [0, 0, 0],    # 按钮底色
     "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
@@ -51,15 +56,25 @@ BUTTON_TEXTS = {
 # 面板标题（多语言）
 TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings"}
 
+# 分辨率选项（多语言，切换时循环）
+RESOLUTIONS = ["1280x720", "1366x768", "1600x900", "1920x1080"]
+RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution"}
+
 
 class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
-    def __init__(self, scene, config=None, language="zh", parent=None):
+    def __init__(self, scene, config=None, language="zh", current_resolution="1280x720", parent=None):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         self.language = language
         self.buttons = []   # 底部按钮列表
+        self.current_resolution = current_resolution if current_resolution in RESOLUTIONS else RESOLUTIONS[0]
+        self._resolution_handler = None  # 分辨率变更回调
+        self._resolution_label = None    # "分辨率" 标签
+        self._resolution_value = None    # 当前分辨率值文本
+        self._resolution_prev = None     # 上一个分辨率按钮
+        self._resolution_next = None     # 下一个分辨率按钮
 
         # 初始占位尺寸（后续 center_in_scene 会按场景重新计算）
         self._size = [100, 100]
@@ -126,15 +141,28 @@ class SettingsPanel(QGraphicsPathItem):
         # 同步重建白色内边框
         self._rebuild_border()
 
+    def _column_rects(self):
+        """计算左右两列几何（白圈内空间，各 50%）。
+        返回 (left_rect, right_rect) —— 面板局部坐标。
+        """
+        inner = self.config["border_offset"] + self.config["border_width"]
+        gap = self.config.get("column_gap", 20)
+        avail_w = self._size[0] - 2 * inner
+        col_w = (avail_w - gap) / 2.0
+        left = QRectF(inner, inner, col_w, self._size[1] - 2 * inner)
+        right = QRectF(inner + col_w + gap, inner, col_w, self._size[1] - 2 * inner)
+        return left, right
+
     def _build_title(self):
-        """在白色圈内左上角创建标题文本（作为面板子项）。
-        顶部距白框内边界 title_top_margin，左侧距白框内边界 title_left_ratio * 内宽。
+        """在左列顶部创建标题文本（左列第 1 个设置项）。
+        顶部距白框内边界 title_top_margin，左侧距左列内边界 title_left_ratio * 列宽。
         使用 QGraphicsPathItem + 描边实现真正加粗（幼圆无粗体字重，Qt 伪粗体效果有限）。
         """
         inner = self.config["border_offset"] + self.config["border_width"]
         top = self.config.get("title_top_margin", 15)
         left_ratio = self.config.get("title_left_ratio", 0.05)
-        left = inner + (self._size[0] - 2 * inner) * left_ratio
+        left_rect, _ = self._column_rects()
+        left = left_rect.left() + left_rect.width() * left_ratio
         text = TITLE_TEXTS.get(self.language, TITLE_TEXTS["zh"])
 
         # 幼圆 + 加粗（圆润字体，已安装系统字体）
@@ -162,6 +190,109 @@ class SettingsPanel(QGraphicsPathItem):
         r = self._title_item.boundingRect()
         self._title_item.setPos(left - r.x(), inner + top - r.y())
         return self._title_item
+
+    def _build_resolution(self):
+        """在左列创建分辨率设置项（左列第 2 个设置项）。
+        布局：
+          - 标签"分辨率"（幼圆加粗）在左列内左侧
+          - 当前值文本（幼圆常规）紧随标签
+          - 左右两个小按钮（◀ ▶）用于切换分辨率
+        """
+        left_rect, _ = self._column_rects()
+        inner = self.config["border_offset"] + self.config["border_width"]
+        top = self.config.get("title_top_margin", 15)
+        item_gap = self.config.get("item_gap", 24)
+
+        # 第 1 项（标题）底部位置：inner+top + 标题高度
+        title_h = self._title_item.boundingRect().height() if self._title_item else 0
+        row_y = inner + top + title_h + item_gap
+        row_h = 32
+
+        label_text = RESOLUTION_LABEL.get(self.language, RESOLUTION_LABEL["zh"])
+        # 标签（幼圆加粗 18pt）
+        self._resolution_label = QGraphicsTextItem()
+        self._resolution_label.setPlainText(label_text)
+        self._resolution_label.setDefaultTextColor(QColor(255, 255, 255))
+        lf = QFont("YouYuan")
+        lf.setBold(True)
+        lf.setPointSize(self.config.get("res_label_size", 18))
+        self._resolution_label.setFont(lf)
+        self._resolution_label.setAcceptHoverEvents(False)
+        self._resolution_label.setParentItem(self)
+        self._resolution_label.setTextWidth(-1)
+        rl = self._resolution_label.boundingRect()
+        self._resolution_label.setPos(left_rect.left(), row_y + (row_h - rl.height()) / 2)
+
+        # 当前值（幼圆常规 16pt）
+        self._resolution_value = QGraphicsTextItem()
+        self._resolution_value.setPlainText(self.current_resolution)
+        self._resolution_value.setDefaultTextColor(QColor(255, 255, 255))
+        vf = QFont("YouYuan")
+        vf.setPointSize(self.config.get("res_value_size", 16))
+        self._resolution_value.setFont(vf)
+        self._resolution_value.setAcceptHoverEvents(False)
+        self._resolution_value.setParentItem(self)
+        self._resolution_value.setTextWidth(-1)
+        rv = self._resolution_value.boundingRect()
+        # 值放在标签右侧
+        val_x = left_rect.left() + rl.width() + 16
+        self._resolution_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
+
+        # 左右切换按钮（◀ ▶）放在左列右侧
+        btn_w = 28
+        btn_h = row_h
+        btn_y = row_y
+        prev_x = left_rect.right() - 2 * btn_w - 8
+        next_x = left_rect.right() - btn_w
+        self._resolution_prev = SettingsButtonItem(
+            QRectF(prev_x, btn_y, btn_w, btn_h), "res_prev", self, opacity=80)
+        self._resolution_next = SettingsButtonItem(
+            QRectF(next_x, btn_y, btn_w, btn_h), "res_next", self, opacity=80)
+        self._resolution_prev.set_click_handler(self._on_res_prev)
+        self._resolution_next.set_click_handler(self._on_res_next)
+        # 按钮文本（作为面板子项）
+        self._add_button_text("◀", self._resolution_prev,
+                              [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
+        self._add_button_text("▶", self._resolution_next,
+                              [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
+
+    def _on_res_prev(self):
+        idx = RESOLUTIONS.index(self.current_resolution)
+        self.current_resolution = RESOLUTIONS[(idx - 1) % len(RESOLUTIONS)]
+        self._update_resolution_display()
+
+    def _on_res_next(self):
+        idx = RESOLUTIONS.index(self.current_resolution)
+        self.current_resolution = RESOLUTIONS[(idx + 1) % len(RESOLUTIONS)]
+        self._update_resolution_display()
+
+    def _update_resolution_display(self):
+        if self._resolution_value is not None:
+            self._resolution_value.setPlainText(self.current_resolution)
+            self._resolution_value.setTextWidth(-1)
+        if self._resolution_handler:
+            self._resolution_handler(self.current_resolution)
+
+    def set_resolution_handler(self, handler):
+        """绑定分辨率变更回调（main_window 中调用，实际执行窗口缩放）。"""
+        self._resolution_handler = handler
+
+    def _clear_resolution_items(self):
+        """移除分辨率设置项的文本与按钮（尺寸变化/关闭时调用）。"""
+        for item in (self._resolution_label, self._resolution_value,
+                     self._resolution_prev, self._resolution_next):
+            if item is not None and item.scene():
+                self._scene.removeItem(item)
+        # 按钮文本（_text_label 是面板子项，需一并移除）
+        for b in (self._resolution_prev, self._resolution_next):
+            if b is not None:
+                label = getattr(b, "_text_label", None)
+                if label is not None and label.scene():
+                    self._scene.removeItem(label)
+        self._resolution_label = None
+        self._resolution_value = None
+        self._resolution_prev = None
+        self._resolution_next = None
 
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
@@ -222,8 +353,10 @@ class SettingsPanel(QGraphicsPathItem):
         if self._title_item is not None and self._title_item.scene():
             self._scene.removeItem(self._title_item)
         self._title_item = None
+        self._clear_resolution_items()
         self._build_buttons()
         self._build_title()
+        self._build_resolution()
         x = scene_rect.left() + (w_avail - w) / 2
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
@@ -274,6 +407,7 @@ class SettingsPanel(QGraphicsPathItem):
         if self._title_item is not None and self._title_item.scene():
             scene.removeItem(self._title_item)
             self._title_item = None
+        self._clear_resolution_items()
         if self.scene() == scene:
             scene.removeItem(self)
 

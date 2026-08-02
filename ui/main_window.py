@@ -230,16 +230,19 @@ class GalGameWindow(QMainWindow):
         self._set_menu_buttons_visible(False)
         # 预留：读取 JSON 自定义配置（当前为 None -> 使用预设 UI）
         custom_config = load_settings_ui(self)
+        cur_res = "{}x{}".format(self.controller.window_size[0], self.controller.window_size[1])
         panel = SettingsPanel(self.graphics_view.scene, config=custom_config,
-                              language=self.controller.language)
+                              language=self.controller.language,
+                              current_resolution=cur_res)
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
             scene_rect = QRectF(0, 0, self.width(), self.height())
         panel.center_in_scene(scene_rect)
         self.graphics_view.scene.addItem(panel)
-        # 绑定底部按钮行为
+        # 绑定底部按钮行为 + 分辨率变更
         self._bind_settings_buttons(panel)
+        panel.set_resolution_handler(self._on_resolution_changed)
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
@@ -270,6 +273,18 @@ class GalGameWindow(QMainWindow):
         """退出游戏。"""
         print("退出游戏")
         QApplication.quit()
+
+    def _on_resolution_changed(self, resolution):
+        """分辨率变更：更新 controller.window_size 并缩放窗口。
+        resolution: 形如 "1280x720" 的字符串。
+        """
+        try:
+            w, h = map(int, resolution.split("x"))
+        except (ValueError, AttributeError):
+            return
+        self.controller.window_size = [w, h]
+        self.resize(w, h)
+        print(f"分辨率已切换: {resolution}")
 
     def close_settings_panel(self):
         """关闭设置面板：设置 UI 先渐变消失（100->0），再让菜单按钮渐变显示。"""
