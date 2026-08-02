@@ -32,7 +32,8 @@ DEFAULT_PRESET = {
     "button_margin": 24,          # 按钮与面板侧边的间距
     "button_bottom_margin": 10,   # 按钮底边距白色圈底部的间距
     "button_gap": 24,             # 按钮之间的间距
-    "title_margin": 20,           # 标题距白色框内边界的间距
+    "title_top_margin": 15,       # 标题顶部距白色圈内边界的间距 (px)
+    "title_left_ratio": 0.05,     # 标题左侧距白色圈内边界的比例（白圈内宽的 %）
     "title_size": 26,             # 标题字号 (pt)
     "button_color": [0, 0, 0],    # 按钮底色
     "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
@@ -126,10 +127,12 @@ class SettingsPanel(QGraphicsPathItem):
 
     def _build_title(self):
         """在白色圈内左上角创建标题文本（作为面板子项）。
-        标题左侧/顶部距白色框内边界 title_margin。
+        顶部距白框内边界 title_top_margin，左侧距白框内边界 title_left_ratio * 内宽。
         """
         inner = self.config["border_offset"] + self.config["border_width"]
-        title_margin = self.config.get("title_margin", 20)
+        top = self.config.get("title_top_margin", 15)
+        left_ratio = self.config.get("title_left_ratio", 0.05)
+        left = inner + (self._size[0] - 2 * inner) * left_ratio
         text = TITLE_TEXTS.get(self.language, TITLE_TEXTS["zh"])
         self._title_item = QGraphicsTextItem()
         self._title_item.setPlainText(text)
@@ -143,7 +146,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._title_item.setParentItem(self)
         self._title_item.setTextWidth(-1)
         r = self._title_item.boundingRect()
-        self._title_item.setPos(inner + title_margin, inner + title_margin)
+        self._title_item.setPos(left, inner + top)
         return self._title_item
 
     def _build_buttons(self):
