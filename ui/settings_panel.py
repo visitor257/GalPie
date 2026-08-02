@@ -32,6 +32,8 @@ DEFAULT_PRESET = {
     "button_margin": 24,          # 按钮与面板侧边的间距
     "button_bottom_margin": 10,   # 按钮底边距白色圈底部的间距
     "button_gap": 24,             # 按钮之间的间距
+    "title_margin": 20,           # 标题距白色框内边界的间距
+    "title_size": 26,             # 标题字号 (pt)
     "button_color": [0, 0, 0],    # 按钮底色
     "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
@@ -43,6 +45,9 @@ BUTTON_TEXTS = {
     "back": {"zh": "返回", "en": "Back"},
     "quit": {"zh": "退出游戏", "en": "Quit"},
 }
+
+# 面板标题（多语言）
+TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings"}
 
 
 class SettingsPanel(QGraphicsPathItem):
@@ -68,6 +73,7 @@ class SettingsPanel(QGraphicsPathItem):
         self.setZValue(self.config["z"])
         self._scene = scene
         self._anim = None
+        self._title_item = None   # 标题文本（_build_title 创建）
 
         # 白色内边框：距边缘 border_offset，宽 border_width（作为面板子项，随面板移动）
         self._border_item = None
@@ -117,6 +123,28 @@ class SettingsPanel(QGraphicsPathItem):
         self.setPath(path)
         # 同步重建白色内边框
         self._rebuild_border()
+
+    def _build_title(self):
+        """在白色圈内左上角创建标题文本（作为面板子项）。
+        标题左侧/顶部距白色框内边界 title_margin。
+        """
+        inner = self.config["border_offset"] + self.config["border_width"]
+        title_margin = self.config.get("title_margin", 20)
+        text = TITLE_TEXTS.get(self.language, TITLE_TEXTS["zh"])
+        self._title_item = QGraphicsTextItem()
+        self._title_item.setPlainText(text)
+        self._title_item.setDefaultTextColor(QColor(255, 255, 255))
+        # 圆润 + 加粗：微软雅黑加粗
+        font = QFont("Microsoft YaHei")
+        font.setBold(True)
+        font.setPointSize(self.config.get("title_size", 26))
+        self._title_item.setFont(font)
+        self._title_item.setAcceptHoverEvents(False)
+        self._title_item.setParentItem(self)
+        self._title_item.setTextWidth(-1)
+        r = self._title_item.boundingRect()
+        self._title_item.setPos(inner + title_margin, inner + title_margin)
+        return self._title_item
 
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
@@ -173,7 +201,12 @@ class SettingsPanel(QGraphicsPathItem):
             if b.scene():
                 self._scene.removeItem(b)
         self.buttons = []
+        # 移除旧标题（尺寸变化时重建）
+        if self._title_item is not None and self._title_item.scene():
+            self._scene.removeItem(self._title_item)
+        self._title_item = None
         self._build_buttons()
+        self._build_title()
         x = scene_rect.left() + (w_avail - w) / 2
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
@@ -221,6 +254,9 @@ class SettingsPanel(QGraphicsPathItem):
         if self._border_item is not None and self._border_item.scene():
             scene.removeItem(self._border_item)
             self._border_item = None
+        if self._title_item is not None and self._title_item.scene():
+            scene.removeItem(self._title_item)
+            self._title_item = None
         if self.scene() == scene:
             scene.removeItem(self)
 
