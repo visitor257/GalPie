@@ -231,54 +231,18 @@ class GalGameWindow(QMainWindow):
         # 预留：读取 JSON 自定义配置（当前为 None -> 使用预设 UI）
         custom_config = load_settings_ui(self)
         panel = SettingsPanel(self.graphics_view.scene, config=custom_config,
-                              language=self.controller.language,
-                              current_language=self.controller.language,
-                              current_delay=self.text_speed_delay)
+                              language=self.controller.language)
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
             scene_rect = QRectF(0, 0, self.width(), self.height())
         panel.center_in_scene(scene_rect)
         self.graphics_view.scene.addItem(panel)
-        # 构建设置项（语言/文字速度）
-        panel.setup_items(self.controller.story_data)
-        # 绑定设置项变更
-        self._bind_settings_items(panel)
         # 绑定底部按钮行为
         self._bind_settings_buttons(panel)
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
-
-    def _bind_settings_items(self, panel):
-        """绑定设置面板内设置项的变更应用到游戏。"""
-        combo = getattr(panel, "_lang_combo", None)
-        if combo is not None:
-            combo.currentTextChanged.connect(self._on_language_changed)
-        slider = getattr(panel, "_speed_slider", None)
-        if slider is not None:
-            slider.valueChanged.connect(self._on_speed_changed)
-
-    def _on_language_changed(self, lang):
-        """设置面板中切换语言。"""
-        if lang:
-            self.controller.language = lang
-            print(f"语言切换为: {lang}")
-            # 若正在游戏中，重绘当前对话文本
-            self._refresh_current_dialog()
-
-    def _on_speed_changed(self, value):
-        """设置面板中调整文字速度。"""
-        delay = {1: 60, 2: 30, 3: 10}.get(value, 30)
-        self.text_speed_delay = delay
-        if self.text_display is not None:
-            self.text_display.char_delay = delay
-        print(f"文字速度调整为: {delay}ms/字")
-
-    def _refresh_current_dialog(self):
-        """切换语言后刷新当前对话文本。如果正在显示对话，重新设置文本。"""
-        # 简单起见：记录当前值，由游戏推进时自然使用新语言
-        pass
 
     def _bind_settings_buttons(self, panel):
         """为设置面板底部按钮绑定点击行为。"""
@@ -321,12 +285,7 @@ class GalGameWindow(QMainWindow):
     def _finish_close_settings(self, panel):
         """面板渐隐完成后：移除面板 + 菜单按钮渐显。"""
         if panel.scene():
-            panel.close_panel(self.graphics_view.scene)
-        # 清理 proxy widget（防泄漏）
-        for proxy in getattr(panel, "_proxy_widgets", []):
-            w = proxy.widget()
-            if w is not None:
-                w.deleteLater()
+            self.graphics_view.scene.removeItem(panel)
         self._set_menu_buttons_fade_in()
 
     def _set_menu_buttons_fade_in(self, duration=500):

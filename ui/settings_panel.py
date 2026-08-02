@@ -13,10 +13,9 @@
 本模块负责"面板容器 + 渐变显示 + 底部按钮"，具体设置项控件后续逐步加入。
 """
 from PySide6.QtWidgets import (
-    QGraphicsPathItem, QGraphicsOpacityEffect, QGraphicsTextItem,
-    QGraphicsProxyWidget, QComboBox, QSlider, QLabel, QWidget, QHBoxLayout
+    QGraphicsPathItem, QGraphicsOpacityEffect, QGraphicsTextItem
 )
-from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF, QSizeF
+from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF
 from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath
 
 # 预设默认配置（木色圆角矩形）
@@ -25,6 +24,9 @@ DEFAULT_PRESET = {
     "corner_radius": 24,          # 面板圆角半径
     "fill_color": [139, 90, 43],  # 木色 (木棕)
     "fade_duration": 500,         # 渐变显示时长 ms
+    "border_offset": 10,          # 白色边框距面板边缘的距离 (px)
+    "border_width": 10,           # 白色边框宽度 (px)
+    "border_color": [255, 255, 255],  # 白色边框颜色
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
     "button_margin": 24,          # 按钮与面板底部/侧边的间距
@@ -45,16 +47,11 @@ BUTTON_TEXTS = {
 class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
-    def __init__(self, scene, config=None, language="zh", parent=None,
-                 current_language=None, current_delay=30):
+    def __init__(self, scene, config=None, language="zh", parent=None):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         self.language = language
         self.buttons = []   # 底部按钮列表
-        self._items = []    # 设置项控件列表
-        self._proxy_widgets = []  # proxy 防 GC
-        self._current_language = current_language or language
-        self._current_delay = current_delay
 
         # 初始占位尺寸（后续 center_in_scene 会按场景重新计算）
         self._size = [100, 100]
@@ -71,12 +68,54 @@ class SettingsPanel(QGraphicsPathItem):
         self._scene = scene
         self._anim = None
 
+        # 白色内边框：距边缘 border_offset，宽 border_width（作为面板子项，随面板移动）
+        self._border_item = None
+        self._rebuild_border()
+
+    def _rebuild_border(self):
+        """重建白色内边框：距面板边缘 border_offset 处，宽 border_width 的白色框。
+        用 10px 宽白色 pen 描边一个 inset 矩形：
+        笔宽 border_width，笔中心在 inset 矩形上，向两侧各扩展 border_width/2，
+        因此白色带从 inset - bw/2 到 inset + bw/2。
+        要求白色框内侧距面板边缘 border_offset：即 inset - bw/2 = offset -> inset = offset + bw/2。
+        这样白色框距面板边缘最近处为 offset（内侧），总宽 bw。
+        """
+        w, h = self._size
+        offset = self.config["border_offset"]
+        width = self.config["border_width"]
+        # 面板尺寸过小时跳过
+        if w < 2 * (offset + width) or h < 2 * (offset + width):
+            if self._border_item is not None:
+                if self._border_item.scene():
+                    self._scene.removeItem(self._border_item)
+                self._border_item = None
+            return
+        # 笔中心线位置：inset = offset + width/2，使白色带内侧恰好在 offset 处
+        inset = offset + width / 2.0
+        radius = max(2, self.config["corner_radius"] - offset)
+        path = QPainterPath()
+        rect = QRectF(inset, inset, w - 2 * inset, h - 2 * inset)
+        path.addRoundedRect(rect, radius, radius)
+        if self._border_item is None:
+            self._border_item = QGraphicsPathItem(path, self)
+            bc = self.config["border_color"]
+            self._border_item.setBrush(QBrush(Qt.NoBrush))
+            pen = QPen(QColor(bc[0], bc[1], bc[2]))
+            pen.setWidthF(width)
+            self._border_item.setPen(pen)
+            # 边框略高于面板本体
+            self._border_item.setZValue(1)
+        else:
+            self._border_item.setPath(path)
+
     def _rebuild_path(self):
         """按当前 _size 重建圆角路径。"""
         radius = self.config["corner_radius"]
         path = QPainterPath()
         path.addRoundedRect(QRectF(0, 0, self._size[0], self._size[1]), radius, radius)
         self.setPath(path)
+        # 同步重建白色内边框
+        self._rebuild_border()
 
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
@@ -133,123 +172,6 @@ class SettingsPanel(QGraphicsPathItem):
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
 
-    # ---------- 设置项控件 ----------
-
-    def setup_items(self, story_data):
-        """构建面板内的设置项控件（语言选择、文字速度）。
-        story_data: 剧情 JSON，用于读取语言列表。
-        """
-        self._items = []  # 记录所有设置项（重建时清理）
-        self._proxy_widgets = []  # 记录 QGraphicsProxyWidget，防 GC
-        w, h = self._size
-        # 中间区域：底部按钮上方留出空间
-        btn_h = self.config["button_height"]
-        margin = self.config["button_margin"]
-        # 设置项区域：顶部 8% 到 按钮上方 8%
-        top = h * 0.08
-        bottom = h - btn_h - margin * 3
-        item_w = w * 0.6
-        item_h = 40
-        x = (w - item_w) / 2
-
-        # --- 语言选择 ---
-        lang_label = QGraphicsTextItem("语言 / Language")
-        lang_label.setDefaultTextColor(QColor(255, 255, 255))
-        lang_label.setFont(QFont("Microsoft YaHei", 13))
-        lang_label.setParentItem(self)
-        lang_label.setPos(x, top)
-        self._items.append(lang_label)
-
-        langs = []
-        if story_data:
-            langs = story_data.get("settings", {}).get("language", [])
-        if not langs:
-            langs = ["zh"]
-        combo = QComboBox()
-        for lang in langs:
-            combo.addItem(lang)
-        # 当前语言
-        cur = getattr(self, "_current_language", langs[0])
-        idx = combo.findText(cur)
-        combo.setCurrentIndex(max(0, idx))
-        combo.setFixedSize(int(item_w), 32)
-        combo.setStyleSheet("QComboBox{background:#fff;color:#222;border:1px solid #888;border-radius:6px;padding:2px 8px;font-size:13px;}"
-                            "QComboBox::drop-down{border:none;width:22px;}")
-        self._lang_combo = combo
-        proxy = QGraphicsProxyWidget()
-        proxy.setWidget(combo)
-        proxy.setParentItem(self)
-        proxy.setPos(x, top + 46)
-        self._items.append(proxy)
-        self._proxy_widgets.append(proxy)
-
-        # --- 文字速度 ---
-        speed_y = top + 46 + 32 + 46
-        speed_label = QGraphicsTextItem("文字速度 / Text Speed")
-        speed_label.setDefaultTextColor(QColor(255, 255, 255))
-        speed_label.setFont(QFont("Microsoft YaHei", 13))
-        speed_label.setParentItem(self)
-        speed_label.setPos(x, speed_y)
-        self._items.append(speed_label)
-
-        # 速度值标签（右对齐显示 慢/中/快）
-        val_label = QGraphicsTextItem()
-        val_label.setDefaultTextColor(QColor(255, 255, 255))
-        val_label.setFont(QFont("Microsoft YaHei", 13))
-        val_label.setParentItem(self)
-        self._speed_val_label = val_label
-        self._items.append(val_label)
-
-        slider = QSlider(Qt.Horizontal)
-        slider.setRange(1, 3)
-        slider.setFixedSize(int(item_w), 24)
-        # 映射：1=慢(60ms) 2=中(30ms) 3=快(10ms)
-        cur_delay = getattr(self, "_current_delay", 30)
-        slider.setValue(2 if cur_delay == 30 else (1 if cur_delay > 30 else 3))
-        slider.setStyleSheet("QSlider::groove:horizontal{height:6px;background:#666;border-radius:3px;}"
-                             "QSlider::handle:horizontal{width:18px;height:18px;margin:-6px 0;border-radius:9px;background:#fff;}")
-        self._speed_slider = slider
-        slider.valueChanged.connect(self._on_speed_changed)
-        proxy2 = QGraphicsProxyWidget()
-        proxy2.setWidget(slider)
-        proxy2.setParentItem(self)
-        proxy2.setPos(x, speed_y + 36)
-        self._speed_proxy = proxy2  # 记录，供标签定位
-        self._items.append(proxy2)
-        self._proxy_widgets.append(proxy2)
-        self._update_speed_label()
-
-        # 底部按钮再往下压一点，避免被设置项遮挡（按钮已由 _build_buttons 放好，此处只记录）
-
-    def _update_speed_label(self):
-        """更新文字速度值标签。"""
-        v = self._speed_slider.value()
-        texts = {1: "慢 / Slow", 2: "中 / Normal", 3: "快 / Fast"}
-        self._speed_val_label.setPlainText(texts[v])
-        self._speed_val_label.setTextWidth(-1)
-        r = self._speed_val_label.boundingRect()
-        # 放在滑杆 proxy 右侧（用 proxy 的面板局部坐标）
-        self._speed_val_label.setPos(self._speed_proxy.x() + self._speed_slider.width() + 16,
-                                     self._speed_proxy.y() + 2)
-
-    def _on_speed_changed(self, value):
-        self._update_speed_label()
-
-    def current_values(self):
-        """返回当前设置项的值 dict。"""
-        v = self._speed_slider.value()
-        delay = {1: 60, 2: 30, 3: 10}[v]
-        return {"language": self._lang_combo.currentText(),
-                "text_speed_delay": delay}
-
-    def clear_items(self):
-        """移除所有设置项（关闭面板/重建时清理）。"""
-        for it in list(self._items):
-            if it.scene():
-                self._scene.removeItem(it)
-        self._items = []
-        self._proxy_widgets = []
-
     def fade_in(self, duration=None):
         """渐变显示：透明度 0 -> 100。面板及子按钮一起渐显。"""
         if duration is None:
@@ -287,10 +209,12 @@ class SettingsPanel(QGraphicsPathItem):
             on_finished()
 
     def close_panel(self, scene=None):
-        """从场景中移除面板（含子按钮、设置项控件）。"""
+        """从场景中移除面板（含子按钮、白色边框）。"""
         if scene is None:
             scene = self._scene
-        self.clear_items()
+        if self._border_item is not None and self._border_item.scene():
+            scene.removeItem(self._border_item)
+            self._border_item = None
         if self.scene() == scene:
             scene.removeItem(self)
 
