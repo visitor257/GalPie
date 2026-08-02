@@ -34,6 +34,7 @@ DEFAULT_PRESET = {
     "button_gap": 24,             # 按钮之间的间距
     "title_top_margin": 15,       # 标题顶部距白色圈内边界的间距 (px)
     "title_left_ratio": 0.05,     # 标题左侧距白色圈内边界的比例（白圈内宽的 %）
+    "item_left_margin": 10,       # 设置项左侧距白圈内边界的间距 (px)
     "title_size": 26,             # 标题字号 (pt)
     "title_stroke_width": 2.0,    # 标题描边宽度 (px)，用于幼圆加粗
     "column_gap": 20,             # 左右两列之间的间距 (px)
@@ -229,6 +230,8 @@ class SettingsPanel(QGraphicsPathItem):
         inner = self.config["border_offset"] + self.config["border_width"]
         top = self.config.get("title_top_margin", 15)
         item_gap = self.config.get("item_gap", 24)
+        # 设置项左侧距白圈内边界的间距
+        item_left_margin = self.config.get("item_left_margin", 10)
 
         # 第 1 项（标题）底部位置：inner+top + 标题高度
         title_h = self._title_item.boundingRect().height() if self._title_item else 0
@@ -236,7 +239,7 @@ class SettingsPanel(QGraphicsPathItem):
         row_h = 32
 
         label_text = RESOLUTION_LABEL.get(self.language, RESOLUTION_LABEL["zh"])
-        # 标签（幼圆加粗 18pt）
+        # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
         self._resolution_label = QGraphicsTextItem()
         self._resolution_label.setPlainText(label_text)
         self._resolution_label.setDefaultTextColor(QColor(255, 255, 255))
@@ -248,22 +251,8 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_label.setParentItem(self)
         self._resolution_label.setTextWidth(-1)
         rl = self._resolution_label.boundingRect()
-        self._resolution_label.setPos(left_rect.left(), row_y + (row_h - rl.height()) / 2)
-
-        # 当前值（幼圆常规 16pt）
-        self._resolution_value = QGraphicsTextItem()
-        self._resolution_value.setPlainText(self._res_display_text())
-        self._resolution_value.setDefaultTextColor(QColor(255, 255, 255))
-        vf = QFont("YouYuan")
-        vf.setPointSize(self.config.get("res_value_size", 16))
-        self._resolution_value.setFont(vf)
-        self._resolution_value.setAcceptHoverEvents(False)
-        self._resolution_value.setParentItem(self)
-        self._resolution_value.setTextWidth(-1)
-        rv = self._resolution_value.boundingRect()
-        # 值放在标签右侧
-        val_x = left_rect.left() + rl.width() + 16
-        self._resolution_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
+        label_x = left_rect.left() + item_left_margin
+        self._resolution_label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
 
         # 左右切换按钮（◀ ▶）放在左列右侧
         btn_w = 28
@@ -282,6 +271,22 @@ class SettingsPanel(QGraphicsPathItem):
                               [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
         self._add_button_text("▶", self._resolution_next,
                               [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
+
+        # 当前值（幼圆常规 16pt）：居中于 标签右边缘 与 左箭头左边缘 之间
+        self._resolution_value = QGraphicsTextItem()
+        self._resolution_value.setPlainText(self._res_display_text())
+        self._resolution_value.setDefaultTextColor(QColor(255, 255, 255))
+        vf = QFont("YouYuan")
+        vf.setPointSize(self.config.get("res_value_size", 16))
+        self._resolution_value.setFont(vf)
+        self._resolution_value.setAcceptHoverEvents(False)
+        self._resolution_value.setParentItem(self)
+        self._resolution_value.setTextWidth(-1)
+        rv = self._resolution_value.boundingRect()
+        label_right = label_x + rl.width()
+        gap_mid = (label_right + prev_x) / 2.0
+        val_x = gap_mid - rv.width() / 2.0
+        self._resolution_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
 
     def _on_res_prev(self):
         idx = self._res_options.index(self.current_resolution)
