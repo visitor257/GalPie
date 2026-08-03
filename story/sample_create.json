@@ -37,6 +37,10 @@
           149
         ]
       ]
+    },
+    "bottom_menu": {
+      "mode": "default",
+      "color": [0,0,0,200]
     }
   },
   "menu": {

@@ -15,3 +15,9 @@ def load_ui_settings_from_data(main_window):
         if "words_show_region" in chatbox_data:
             main_window.ui_settings["words_show_region"] = chatbox_data["words_show_region"]
             print(f"加载文本显示区域: {main_window.ui_settings['words_show_region']}")
+    # ui.bottom_menu：底部菜单（剧情中对话框下方紧贴窗口底部的菜单条）
+    if "bottom_menu" in ui_data:
+        main_window.ui_settings["bottom_menu"] = ui_data["bottom_menu"]
+        print(f"加载底部菜单配置: {main_window.ui_settings['bottom_menu']}")
+    else:
+        main_window.ui_settings["bottom_menu"] = None

@@ -61,13 +61,15 @@ class GalGameWindow(QMainWindow):
         self.ui_settings = {
             "chatbox_style": None,
             "name_show_region": [[76, 60], [270, 149]],
-            "words_show_region": [[310, 60], [805, 149]]
+            "words_show_region": [[310, 60], [805, 149]],
+            "bottom_menu": None,   # ui.bottom_menu 配置（mode/color 等），None=不显示底部菜单
         }
         self.name_label = None
         self.text_display = None
         self.text_speed_delay = 30  # 文字显示延迟(ms/字)，设置对话框可调，创建文本控件时应用
         self.chatbox_item = None
         self.chatbox_widget_proxies = []  # 存储对话框相关的所有代理控件
+        self.bottom_menu_item = None  # 剧情中底部菜单条（ui.bottom_menu 预设模式）
         self.start_button = None
         self.title_item = None
         self.menu_bg_item = None
@@ -435,10 +437,18 @@ class GalGameWindow(QMainWindow):
         for proxy in self.chatbox_widget_proxies:
             self.graphics_view.scene.removeItem(proxy)
         self.chatbox_widget_proxies.clear()
+        # 清除旧底部菜单条
+        if self.bottom_menu_item:
+            self.graphics_view.scene.removeItem(self.bottom_menu_item)
+            self.bottom_menu_item = None
 
         load_ui_settings_from_data(self)
         window_width, window_height = self.controller.logical_size
         chatbox_pos = [0, 0]
+
+        # 底部菜单（default 预设）：对话框下方、紧贴窗口底部的色带；
+        # 有底部菜单时对话框整体上移 menu_h，避免重叠
+        menu_h = self._create_bottom_menu(window_width, window_height)
 
         # 创建对话框背景
         if self.ui_settings["chatbox_style"]:
@@ -448,7 +458,7 @@ class GalGameWindow(QMainWindow):
                 self.chatbox_item = QGraphicsPixmapItem(chatbox_pixmap)
                 chatbox_pos = [
                     (window_width - chatbox_pixmap.width()) // 2,
-                    window_height - chatbox_pixmap.height()
+                    window_height - menu_h - chatbox_pixmap.height()
                 ]
                 self.chatbox_item.setPos(chatbox_pos[0], chatbox_pos[1])
                 self.chatbox_item.setZValue(10)
@@ -456,9 +466,9 @@ class GalGameWindow(QMainWindow):
                 print(f"使用自定义字幕框样式: {self.ui_settings['chatbox_style']}")
             else:
                 print(f"无法加载自定义字幕框样式，使用默认样式")
-                self.create_default_chatbox(window_width, window_height)
+                self.create_default_chatbox(window_width, window_height, menu_h)
         else:
-            self.create_default_chatbox(window_width, window_height)
+            self.create_default_chatbox(window_width, window_height, menu_h)
 
         name_region = self.ui_settings["name_show_region"]
         name_pos = name_region[0]
@@ -502,11 +512,11 @@ class GalGameWindow(QMainWindow):
         text_widget_proxy.setPos(chatbox_pos[0] + words_pos[0], chatbox_pos[1] + words_pos[1])
         self.chatbox_widget_proxies.append(text_widget_proxy)
 
-    def create_default_chatbox(self, window_width: int, window_height: int):
+    def create_default_chatbox(self, window_width: int, window_height: int, menu_h: int = 0):
         dialog_bg = QGraphicsRectItem(0, 0, 1280, 220)
         dialog_bg.setBrush(QBrush(QColor(0, 0, 0, 180)))
         dialog_bg.setPen(QPen(Qt.NoPen))
-        dialog_bg.setPos((window_width - 1280) // 2, window_height - 220)
+        dialog_bg.setPos((window_width - 1280) // 2, window_height - menu_h - 220)
         dialog_bg.setZValue(10)
         self.graphics_view.scene.addItem(dialog_bg)
         self.chatbox_item = dialog_bg
@@ -514,11 +524,41 @@ class GalGameWindow(QMainWindow):
         name_bg = QGraphicsRectItem(0, 0, 200, 40)
         name_bg.setBrush(QBrush(QColor(0, 0, 0, 150)))
         name_bg.setPen(QPen(Qt.NoPen))
-        name_bg.setPos((window_width - 1280) // 2 + 76, window_height - 220 + 20)
+        name_bg.setPos((window_width - 1280) // 2 + 76, window_height - menu_h - 220 + 20)
         name_bg.setZValue(11)
         self.graphics_view.scene.addItem(name_bg)
         # 注意：默认样式的名字背景不是独立的 chatbox_item，但为了统一管理，我们只把主背景存为 chatbox_item
         # 名字背景将随主背景一同控制（如果需要更精细控制，可扩展）
+
+    def _create_bottom_menu(self, window_width: int, window_height: int) -> int:
+        """创建剧情底部菜单条（ui.bottom_menu 预设 default 模式）。
+        宽度 100%，高度 = 逻辑高度 × bottom_menu.height_ratio（默认 0.03），
+        填充色 = color（RGBA，默认 [0,0,0,255]）。紧贴窗口底部。
+        返回菜单条高度（px）；未配置时返回 0。
+        """
+        bm = self.ui_settings.get("bottom_menu")
+        if not bm or not isinstance(bm, dict):
+            return 0
+        if bm.get("mode", "default") != "default":
+            return 0
+        # 高度：默认 3% 逻辑高度；支持自定义比例
+        ratio = float(bm.get("height_ratio", 0.03))
+        menu_h = max(1, int(round(window_height * ratio)))
+        # 颜色：默认 [0,0,0,255]（不透明黑）；RGBA 四元素
+        color = bm.get("color", [0, 0, 0, 255])
+        if len(color) < 3:
+            color = [0, 0, 0, 255]
+        r, g, b = color[0], color[1], color[2]
+        a = color[3] if len(color) > 3 else 255
+        item = QGraphicsRectItem(0, 0, window_width, menu_h)
+        item.setBrush(QBrush(QColor(r, g, b, a)))
+        item.setPen(QPen(Qt.NoPen))
+        item.setPos(0, window_height - menu_h)
+        item.setZValue(9)  # 低于对话框(z=10)，紧贴窗口底部
+        self.graphics_view.scene.addItem(item)
+        self.bottom_menu_item = item
+        print(f"底部菜单(default): 高 {menu_h}px (ratio={ratio})，颜色 rgba({r},{g},{b},{a})")
+        return menu_h
 
     def _stop_chatbox_animations_for(self, item):
         """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
