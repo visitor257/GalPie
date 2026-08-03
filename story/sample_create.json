@@ -1,6 +1,6 @@
 {
   "settings": {
-    "language": ["zh"],
+    "language": {"zh": "中文"},
     "window_size": ["1280x720", "1600x900", "1920x1080"],
     "window_title": "Sample story",
     "identify_code": "sample_identify"

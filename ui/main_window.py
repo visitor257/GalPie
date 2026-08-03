@@ -253,9 +253,10 @@ class GalGameWindow(QMainWindow):
         custom_config = load_settings_ui(self)
         # 分辨率选项：来自 JSON settings.window_size 列表（controller 已解析，index=0 为初始）；空则面板用内置列表
         res_options = list(self.controller.resolution_options) if self.controller.resolution_options else None
-        # 语言选项：JSON settings.language 列表（面板仅支持其中 zh/en/ja，其余回落 en）
-        languages = self.controller.story_data.get("settings", {}).get("language", ["zh"]) if self.controller.story_data else ["zh"]
-        lang_options = list(languages) if languages else ["zh"]
+        # 语言选项：JSON settings.language 字典 {语言id: 语言名称}（兼容旧列表）
+        # 面板仅支持其中 zh/en/ja，其余回落 en；名称用于面板显示（如"中文"）
+        lang_cfg = self.controller.story_data.get("settings", {}).get("language", {"zh": "中文"}) if self.controller.story_data else {"zh": "中文"}
+        lang_options = lang_cfg if isinstance(lang_cfg, dict) else list(lang_cfg)
         # 当前分辨率：全屏时用"全屏"标记，否则 WxH 字符串
         if self.isFullScreen():
             cur_res = FULLSCREEN_KEY
@@ -297,9 +298,10 @@ class GalGameWindow(QMainWindow):
         self.text_speed_delay = 30
         if self.text_display is not None:
             self.text_display.char_delay = 30
-        languages = self.controller.story_data.get("settings", {}).get("language", ["zh"])
-        if languages:
-            self.controller.language = languages[0]
+        lang_cfg = self.controller.story_data.get("settings", {}).get("language", {"zh": "中文"})
+        if lang_cfg:
+            default_lang = next(iter(lang_cfg)) if isinstance(lang_cfg, dict) else lang_cfg[0]
+            self.controller.language = default_lang
             # 面板 UI 同步回默认语言
             if self.settings_panel is not None:
                 self.settings_panel.set_language(self.controller.language)

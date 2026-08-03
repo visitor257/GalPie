@@ -47,7 +47,13 @@ class GameController:
         if not self.story_data:
             return
         settings = self.story_data.get("settings", {})
-        self.language = settings["language"][0]
+        lang_cfg = settings.get("language", {})
+        if isinstance(lang_cfg, dict):
+            # 新格式：{语言id: 语言名称}，取第一个 id 为当前语言
+            self.language = next(iter(lang_cfg)) if lang_cfg else "zh"
+        else:
+            # 兼容旧格式：列表 [id, ...]
+            self.language = lang_cfg[0] if lang_cfg else "zh"
         if "window_title" in settings:
             self.main_window.setWindowTitle(settings["window_title"])
         if "window_size" in settings:

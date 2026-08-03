@@ -85,8 +85,17 @@ class SettingsPanel(QGraphicsPathItem):
         self._res_options = base_opts + [FULLSCREEN_KEY]
         # 当前选项：先尝试原样匹配，再按显示文本匹配（"全屏" vs 语言化）
         self.current_resolution = self._normalize_res(current_resolution)
-        # 语言选项：JSON settings.language 列表（预设 UI 仅支持其中 zh/en/ja，其余回落 en）
-        self._lang_options = list(language_options) if language_options else ["zh"]
+        # 语言选项：JSON settings.language 字典 {语言id: 语言名称}（兼容旧列表 [id,...]）
+        # 面板仅支持其中 zh/en/ja，其余回落 en；名称用于面板值显示（如"中文"）
+        if isinstance(language_options, dict):
+            self._lang_names = dict(language_options)      # id -> 显示名称
+            self._lang_options = list(language_options)     # id 列表
+        elif language_options:
+            self._lang_names = {}
+            self._lang_options = list(language_options)
+        else:
+            self._lang_names = {}
+            self._lang_options = ["zh"]
         self._normalize_lang_options()
         self.current_language = self._normalize_lang(self.language)
         self._language_handler = None  # 语言变更回调
@@ -130,6 +139,8 @@ class SettingsPanel(QGraphicsPathItem):
             if lang not in seen and lang in SUPPORTED_LANGS:
                 seen.append(lang)
         self._lang_options = seen if seen else ["zh"]
+        # 名称映射同步过滤（仅保留可选项；无自定义名时回落内置 LANG_NAMES）
+        self._lang_names = {k: v for k, v in self._lang_names.items() if k in self._lang_options}
 
     def _normalize_lang(self, value):
         """当前语言值归一化：在选项中直接返回；否则回落选项第一个。"""
@@ -138,8 +149,10 @@ class SettingsPanel(QGraphicsPathItem):
         return self._lang_options[0]
 
     def _lang_display_text(self):
-        """当前语言的显示文本（语言自称，不随面板语言变）。"""
-        return LANG_NAMES.get(self.current_language, self.current_language)
+        """当前语言的显示文本：优先 JSON settings.language 自定义名称，
+        否则内置 LANG_NAMES（语言自称，不随面板语言变），最后回落 id 本身。"""
+        return (self._lang_names.get(self.current_language)
+                or LANG_NAMES.get(self.current_language, self.current_language))
 
     def _normalize_res(self, value):
         """把当前分辨率值归一化到选项列表：
