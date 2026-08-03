@@ -49,28 +49,28 @@ DEFAULT_PRESET = {
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
 }
 
-# 底部按钮文本（多语言；预设 UI 支持 zh/en/ja）
+# 底部按钮文本（多语言；预设 UI 支持 zh/en/ja/ru）
 BUTTON_TEXTS = {
-    "reset": {"zh": "恢复默认", "en": "Reset", "ja": "リセット"},
-    "back": {"zh": "返回", "en": "Back", "ja": "戻る"},
-    "quit": {"zh": "退出游戏", "en": "Quit", "ja": "ゲーム終了"},
+    "reset": {"zh": "恢复默认", "en": "Reset", "ja": "リセット", "ru": "Сброс"},
+    "back": {"zh": "返回", "en": "Back", "ja": "戻る", "ru": "Назад"},
+    "quit": {"zh": "退出游戏", "en": "Quit", "ja": "ゲーム終了", "ru": "Выход"},
 }
 
 # 面板标题（多语言）
-TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings", "ja": "ゲーム設定"}
+TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings", "ja": "ゲーム設定", "ru": "Настройки"}
 
-# 语言选择器可选项（JSON settings.language 中可被选中的语言；ru 等也可选）
+# 语言选择器可选项（JSON settings.language 中可被选中的语言）
 SUPPORTED_LANGS = ["zh", "en", "ja", "ru"]
-# 预设 UI 界面显示语言（超出此范围的语言界面回落 en，但语言选择器仍可选中它们）
-UI_LANGS = ["zh", "en", "ja"]
+# 预设 UI 界面显示语言（超出此范围的语言界面回落 en）
+UI_LANGS = ["zh", "en", "ja", "ru"]
 # 语言选择器中的语言自称（不随面板语言变）
 LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語", "ru": "Русский"}
 
 # 分辨率选项（多语言，切换时循环；实际可选项由 JSON 配置，末尾自动追加"全屏"）
 RESOLUTIONS = ["1280x720", "1366x768", "1600x900", "1920x1080"]
-RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution", "ja": "解像度"}
-LANGUAGE_LABEL = {"zh": "语言", "en": "Language", "ja": "言語"}
-FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen", "ja": "全画面"}
+RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution", "ja": "解像度", "ru": "Разрешение"}
+LANGUAGE_LABEL = {"zh": "语言", "en": "Language", "ja": "言語", "ru": "Язык"}
+FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen", "ja": "全画面", "ru": "Во весь экран"}
 FULLSCREEN_KEY = "fullscreen"  # 内部标记：全屏选项（显示时用语言化文本）
 
 
@@ -101,7 +101,9 @@ class SettingsPanel(QGraphicsPathItem):
             self._lang_names = {}
             self._lang_options = ["zh"]
         self._normalize_lang_options()
-        self.current_language = self._normalize_lang(self.language)
+        # 语言选择器当前值：用原始传入语言归一化（勿用回落后的 self.language，
+        # 否则 ru 等支持语言重开面板时会丢失选择值显示）
+        self.current_language = self._normalize_lang(language)
         self._language_handler = None  # 语言变更回调
         self._language_label = None    # "语言"标签
         self._language_value = None    # 当前语言值文本
