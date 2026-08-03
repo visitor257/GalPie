@@ -23,12 +23,12 @@ DEFAULT_PRESET = {
     "margin_ratio": 0.1,          # 面板距窗口边缘的比例（四边各留 10%），面板宽高 = 0.8 * 窗口
     "corner_radius": 24,          # 面板圆角半径
     "fill_color": [255, 255, 255],  # 面板填充色（白）
-    "fill_alpha": 191,            # 面板填充不透明度 (0-255)，191 ≈ 3/4
+    "fill_alpha": 217,            # 面板填充不透明度 (0-255)，217 ≈ 8.5/10
     "fade_duration": 500,         # 渐变显示时长 ms
     "border_offset": 10,          # 白色边框距面板边缘的距离 (px)
     "border_width": 10,           # 白色边框宽度 (px)
     "border_color": [255, 255, 255],  # 白色边框颜色
-    "border_alpha": 191,          # 边框不透明度 (0-255)，191 ≈ 3/4
+    "border_alpha": 217,          # 边框不透明度 (0-255)，217 ≈ 8.5/10
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
     "button_margin": 24,          # 按钮与面板侧边的间距
@@ -45,7 +45,7 @@ DEFAULT_PRESET = {
     "res_value_size": 16,         # 设置项值字号 (pt)
     "res_arrow_size": 14,         # 设置项切换箭头字号 (pt)
     "button_color": [0, 0, 0],    # 按钮底色
-    "button_opacity": 90,         # 按钮底色透明度 (0-255)，较低透明度
+    "button_opacity": 255,        # 按钮底色不透明度 (0-255)，255 = 不透明
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
 }
 
@@ -312,9 +312,9 @@ class SettingsPanel(QGraphicsPathItem):
         prev_x = right_rect.right() - item_left_margin - 2 * btn_w - 8
         next_x = right_rect.right() - item_left_margin - btn_w
         self._language_prev = SettingsButtonItem(
-            QRectF(prev_x, btn_y, btn_w, btn_h), "lang_prev", self, opacity=80)
+            QRectF(prev_x, btn_y, btn_w, btn_h), "lang_prev", self, opacity=255)
         self._language_next = SettingsButtonItem(
-            QRectF(next_x, btn_y, btn_w, btn_h), "lang_next", self, opacity=80)
+            QRectF(next_x, btn_y, btn_w, btn_h), "lang_next", self, opacity=255)
         self._language_prev.set_click_handler(self._on_lang_prev)
         self._language_next.set_click_handler(self._on_lang_next)
         self._add_button_text("◀", self._language_prev,
@@ -423,9 +423,9 @@ class SettingsPanel(QGraphicsPathItem):
         prev_x = left_rect.right() - 2 * btn_w - 8
         next_x = left_rect.right() - btn_w
         self._resolution_prev = SettingsButtonItem(
-            QRectF(prev_x, btn_y, btn_w, btn_h), "res_prev", self, opacity=80)
+            QRectF(prev_x, btn_y, btn_w, btn_h), "res_prev", self, opacity=255)
         self._resolution_next = SettingsButtonItem(
-            QRectF(next_x, btn_y, btn_w, btn_h), "res_next", self, opacity=80)
+            QRectF(next_x, btn_y, btn_w, btn_h), "res_next", self, opacity=255)
         self._resolution_prev.set_click_handler(self._on_res_prev)
         self._resolution_next.set_click_handler(self._on_res_next)
         # 按钮文本（作为面板子项）
