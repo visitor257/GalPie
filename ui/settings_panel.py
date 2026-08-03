@@ -25,10 +25,10 @@ DEFAULT_PRESET = {
     "fill_color": [255, 255, 255],  # 面板填充色（白）
     "fill_alpha": 217,            # 面板填充不透明度 (0-255)，217 ≈ 8.5/10
     "fade_duration": 500,         # 渐变显示时长 ms
-    "border_offset": 10,          # 白色边框距面板边缘的距离 (px)
-    "border_width": 10,           # 白色边框宽度 (px)
-    "border_color": [255, 255, 255],  # 白色边框颜色
-    "border_alpha": 217,          # 边框不透明度 (0-255)，217 ≈ 8.5/10
+    "border_offset": 10,          # [废弃-白圈已去掉] 原白色边框距面板边缘距离，现仅作为元素内边距 (px)
+    "border_width": 10,           # [废弃-白圈已去掉] 原白色边框宽度，现仅参与 inner 计算 (px)
+    "border_color": [255, 255, 255],  # [废弃-白圈已去掉] 原白色边框颜色
+    "border_alpha": 217,          # [废弃-白圈已去掉] 原边框不透明度
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
     "button_margin": 24,          # 按钮与面板侧边的间距
@@ -180,41 +180,14 @@ class SettingsPanel(QGraphicsPathItem):
         return self.current_resolution
 
     def _rebuild_border(self):
-        """重建白色内边框：距面板边缘 border_offset 处，宽 border_width 的白色框。
-        用 10px 宽白色 pen 描边一个 inset 矩形：
-        笔宽 border_width，笔中心在 inset 矩形上，向两侧各扩展 border_width/2，
-        因此白色带从 inset - bw/2 到 inset + bw/2。
-        要求白色框内侧距面板边缘 border_offset：即 inset - bw/2 = offset -> inset = offset + bw/2。
-        这样白色框距面板边缘最近处为 offset（内侧），总宽 bw。
+        """白色内边框已废弃（用户要求去掉）：不再绘制。
+        保留方法与配置项，避免破坏依赖 inner=border_offset+border_width 的布局几何；
+        仅负责清理已存在的边框项。
         """
-        w, h = self._size
-        offset = self.config["border_offset"]
-        width = self.config["border_width"]
-        # 面板尺寸过小时跳过
-        if w < 2 * (offset + width) or h < 2 * (offset + width):
-            if self._border_item is not None:
-                if self._border_item.scene():
-                    self._scene.removeItem(self._border_item)
-                self._border_item = None
-            return
-        # 笔中心线位置：inset = offset + width/2，使白色带内侧恰好在 offset 处
-        inset = offset + width / 2.0
-        radius = max(2, self.config["corner_radius"] - offset)
-        path = QPainterPath()
-        rect = QRectF(inset, inset, w - 2 * inset, h - 2 * inset)
-        path.addRoundedRect(rect, radius, radius)
-        if self._border_item is None:
-            self._border_item = QGraphicsPathItem(path, self)
-            bc = self.config["border_color"]
-            bc_a = self.config.get("border_alpha", 255)
-            self._border_item.setBrush(QBrush(Qt.NoBrush))
-            pen = QPen(QColor(bc[0], bc[1], bc[2], bc_a))
-            pen.setWidthF(width)
-            self._border_item.setPen(pen)
-            # 边框略高于面板本体
-            self._border_item.setZValue(1)
-        else:
-            self._border_item.setPath(path)
+        if self._border_item is not None:
+            if self._border_item.scene():
+                self._scene.removeItem(self._border_item)
+            self._border_item = None
 
     def _rebuild_path(self):
         """按当前 _size 重建圆角路径。"""
