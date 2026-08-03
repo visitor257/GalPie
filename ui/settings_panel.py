@@ -285,12 +285,13 @@ class SettingsPanel(QGraphicsPathItem):
         label_x = right_rect.left() + item_left_margin
         self._language_label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
 
-        # 左右切换按钮（◀ ▶）放在右列右侧
+        # 左右切换按钮（◀ ▶）放在右列右侧；右箭头右边缘距白圈内边界 item_left_margin
+        # （与左侧“分辨率”标签距白圈的距离一致），避免贴圈太近
         btn_w = 28
         btn_h = row_h
         btn_y = row_y
-        prev_x = right_rect.right() - 2 * btn_w - 8
-        next_x = right_rect.right() - btn_w
+        prev_x = right_rect.right() - item_left_margin - 2 * btn_w - 8
+        next_x = right_rect.right() - item_left_margin - btn_w
         self._language_prev = SettingsButtonItem(
             QRectF(prev_x, btn_y, btn_w, btn_h), "lang_prev", self, opacity=80)
         self._language_next = SettingsButtonItem(
