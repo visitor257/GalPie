@@ -21,7 +21,7 @@ from data_management.story_parser import load_ui_settings_from_data
 # 设置面板的 JSON 自定义配置读取（预留接口，后续开发）
 def load_settings_ui(self):
     """读取设置界面配置，返回面板配置 dict。
-    优先读 menu_pos.settings 第 3 项（ui_mode / resolution 等）；
+    优先读 menu_pos.settings 第 3 项（ui_mode 等）；分辨率选项已迁至 settings.window_size 列表。
     兼容旧字段 settings.ui（或 settings_ui）。
     ui_mode: "default"=预设界面（当前开发中的面板）；"custom"=JSON 自定义（规划中，暂未实现，同样回落预设）。
     """
@@ -39,7 +39,7 @@ def load_settings_ui(self):
             # 自定义界面：规划中，暂未实现 -> 回落预设（后续在此返回解析后的配置 dict）
             print("设置界面 ui_mode=custom：自定义解析暂未实现，使用预设界面")
             return None
-        return None  # default 预设界面；配置（如 resolution）由 open_settings 直接读取
+        return None  # default 预设界面；分辨率选项由 settings.window_size 提供（controller 已解析）
     # 2) 旧字段 settings.ui / settings_ui
     ui_cfg = story_data.get("settings", {}).get("ui")
     if not ui_cfg:
@@ -251,8 +251,8 @@ class GalGameWindow(QMainWindow):
         self._set_menu_buttons_visible(False)
         # 预留：读取 JSON 自定义配置（当前为 None -> 使用预设 UI）
         custom_config = load_settings_ui(self)
-        # 从 menu_pos.settings 第 3 项配置读取分辨率选项（默认 None -> 面板用内置列表）
-        res_options = self.settings_ui_config.get("resolution") if self.settings_ui_config else None
+        # 分辨率选项：来自 JSON settings.window_size 列表（controller 已解析，index=0 为初始）；空则面板用内置列表
+        res_options = list(self.controller.resolution_options) if self.controller.resolution_options else None
         # 当前分辨率：全屏时用"全屏"标记，否则 WxH 字符串
         if self.isFullScreen():
             cur_res = FULLSCREEN_KEY

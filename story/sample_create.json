@@ -1,7 +1,7 @@
 {
   "settings": {
     "language": ["zh"],
-    "window_size": "1280x720",
+    "window_size": ["1280x720", "1600x900", "1920x1080"],
     "window_title": "Sample story",
     "identify_code": "sample_identify"
   },
@@ -35,8 +35,7 @@
           "zh": "设置"
         },
         {
-          "ui_mode": "default",
-          "resolution": ["1280x720", "1600x900", "1920x1080"]
+          "ui_mode": "default"
         }
       ]
     }

@@ -34,6 +34,8 @@ class GameController:
         self.window_size = [1280, 720]
         # 逻辑分辨率：场景坐标定位基准（默认 1280x720，可由 JSON settings.window_size 覆盖）
         self.logical_size = [1280, 720]
+        # 分辨率选项列表（JSON settings.window_size，index=0 为初始分辨率）
+        self.resolution_options = []
         self.background_pos = [0, 0]
         self.language = None
 
@@ -49,9 +51,18 @@ class GameController:
         if "window_title" in settings:
             self.main_window.setWindowTitle(settings["window_title"])
         if "window_size" in settings:
-            self.logical_size = list(map(int, settings["window_size"].split('x')))
-            # 初始物理窗口 = 逻辑分辨率；后续可经设置面板调整
-            self.window_size = list(self.logical_size)
+            ws = settings["window_size"]
+            if isinstance(ws, str):
+                # 兼容旧格式：单个分辨率字符串
+                res_list = [ws]
+            else:
+                # 新格式：列表，index=0 为初始（默认）分辨率
+                res_list = list(ws)
+            self.resolution_options = res_list
+            # 初始分辨率 = 列表第一个；逻辑分辨率 = 初始分辨率（场景坐标基准）
+            init_w, init_h = map(int, res_list[0].split('x'))
+            self.logical_size = [init_w, init_h]
+            self.window_size = [init_w, init_h]
             self.main_window.graphics_view.set_logical_size(
                 self.logical_size[0], self.logical_size[1])
             self.main_window.resize(self.logical_size[0], self.logical_size[1])
