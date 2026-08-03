@@ -22,11 +22,13 @@ from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainterPath, QPainterPat
 DEFAULT_PRESET = {
     "margin_ratio": 0.1,          # 面板距窗口边缘的比例（四边各留 10%），面板宽高 = 0.8 * 窗口
     "corner_radius": 24,          # 面板圆角半径
-    "fill_color": [139, 90, 43],  # 木色 (木棕)
+    "fill_color": [255, 255, 255],  # 面板填充色（白）
+    "fill_alpha": 127,            # 面板填充透明度 (0-255)，127 ≈ 半透明
     "fade_duration": 500,         # 渐变显示时长 ms
     "border_offset": 10,          # 白色边框距面板边缘的距离 (px)
     "border_width": 10,           # 白色边框宽度 (px)
     "border_color": [255, 255, 255],  # 白色边框颜色
+    "border_alpha": 127,          # 边框透明度 (0-255)，127 ≈ 半透明
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
     "button_margin": 24,          # 按钮与面板侧边的间距
@@ -119,9 +121,10 @@ class SettingsPanel(QGraphicsPathItem):
                             self.config["corner_radius"], self.config["corner_radius"])
         super().__init__(path, parent)
 
-        # 木色圆角矩形填充
+        # 面板圆角矩形填充（fill_color + fill_alpha 透明度）
         fill = self.config["fill_color"]
-        self.setBrush(QBrush(QColor(fill[0], fill[1], fill[2])))
+        fill_a = self.config.get("fill_alpha", 255)
+        self.setBrush(QBrush(QColor(fill[0], fill[1], fill[2], fill_a)))
         self.setPen(QPen(Qt.NoPen))
         self.setZValue(self.config["z"])
         self._scene = scene
@@ -203,8 +206,9 @@ class SettingsPanel(QGraphicsPathItem):
         if self._border_item is None:
             self._border_item = QGraphicsPathItem(path, self)
             bc = self.config["border_color"]
+            bc_a = self.config.get("border_alpha", 255)
             self._border_item.setBrush(QBrush(Qt.NoBrush))
-            pen = QPen(QColor(bc[0], bc[1], bc[2]))
+            pen = QPen(QColor(bc[0], bc[1], bc[2], bc_a))
             pen.setWidthF(width)
             self._border_item.setPen(pen)
             # 边框略高于面板本体
@@ -262,7 +266,7 @@ class SettingsPanel(QGraphicsPathItem):
             path = stroker.createStroke(path).united(path)
 
         self._title_item = QGraphicsPathItem(path)
-        self._title_item.setBrush(QBrush(QColor(255, 255, 255)))
+        self._title_item.setBrush(QBrush(QColor(30, 30, 30)))
         self._title_item.setPen(QPen(Qt.NoPen))
         self._title_item.setAcceptHoverEvents(False)
         self._title_item.setParentItem(self)
@@ -288,7 +292,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
         self._language_label = QGraphicsTextItem()
         self._language_label.setPlainText(label_text)
-        self._language_label.setDefaultTextColor(QColor(255, 255, 255))
+        self._language_label.setDefaultTextColor(QColor(30, 30, 30))
         lf = QFont("YouYuan")
         lf.setBold(True)
         lf.setPointSize(self.config.get("res_label_size", 18))
@@ -321,7 +325,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 当前值（幼圆常规 16pt）：居中于 标签右边缘 与 左箭头左边缘 之间
         self._language_value = QGraphicsTextItem()
         self._language_value.setPlainText(self._lang_display_text())
-        self._language_value.setDefaultTextColor(QColor(255, 255, 255))
+        self._language_value.setDefaultTextColor(QColor(30, 30, 30))
         vf = QFont("YouYuan")
         vf.setPointSize(self.config.get("res_value_size", 16))
         self._language_value.setFont(vf)
@@ -400,7 +404,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
         self._resolution_label = QGraphicsTextItem()
         self._resolution_label.setPlainText(label_text)
-        self._resolution_label.setDefaultTextColor(QColor(255, 255, 255))
+        self._resolution_label.setDefaultTextColor(QColor(30, 30, 30))
         lf = QFont("YouYuan")
         lf.setBold(True)
         lf.setPointSize(self.config.get("res_label_size", 18))
@@ -433,7 +437,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 当前值（幼圆常规 16pt）：居中于 标签右边缘 与 左箭头左边缘 之间
         self._resolution_value = QGraphicsTextItem()
         self._resolution_value.setPlainText(self._res_display_text())
-        self._resolution_value.setDefaultTextColor(QColor(255, 255, 255))
+        self._resolution_value.setDefaultTextColor(QColor(30, 30, 30))
         vf = QFont("YouYuan")
         vf.setPointSize(self.config.get("res_value_size", 16))
         self._resolution_value.setFont(vf)
