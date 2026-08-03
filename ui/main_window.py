@@ -533,8 +533,10 @@ class GalGameWindow(QMainWindow):
     def _create_bottom_menu(self, window_width: int, window_height: int) -> int:
         """创建剧情底部菜单条（ui.bottom_menu 预设 default 模式）。
         宽度 100%，高度 = 逻辑高度 × bottom_menu.height_ratio（默认 0.03），
-        填充色 = color（RGBA，默认 [0,0,0,255]）。紧贴窗口底部。
-        返回菜单条高度（px）；未配置时返回 0。
+        填充色 = color（RGBA，默认 [0,0,0,255]）。顶边位于 chatbox 底边处。
+        菜单条向下额外延伸 EXTEND_PX（默认 50px），避免窗口宽高比偏离 16:9 时
+        底部露边/亚像素缝隙；fitInView 仍按 1280x720 适配，延伸部分随场景裁切。
+        返回菜单条顶边到逻辑底边的距离（menu_h，px）；未配置时返回 0。
         """
         bm = self.ui_settings.get("bottom_menu")
         if not bm or not isinstance(bm, dict):
@@ -544,20 +546,26 @@ class GalGameWindow(QMainWindow):
         # 高度：默认 3% 逻辑高度；支持自定义比例
         ratio = float(bm.get("height_ratio", 0.03))
         menu_h = max(1, int(round(window_height * ratio)))
+        # 向下延伸量：默认 50px；配置 extend 可覆盖（0 关闭）
+        extend = int(bm.get("extend", 50))
         # 颜色：默认 [0,0,0,255]（不透明黑）；RGBA 四元素
         color = bm.get("color", [0, 0, 0, 255])
         if len(color) < 3:
             color = [0, 0, 0, 255]
         r, g, b = color[0], color[1], color[2]
         a = color[3] if len(color) > 3 else 255
-        item = QGraphicsRectItem(0, 0, window_width, menu_h)
+        item = QGraphicsRectItem(0, 0, window_width, menu_h + extend)
         item.setBrush(QBrush(QColor(r, g, b, a)))
         item.setPen(QPen(Qt.NoPen))
-        item.setPos(0, window_height - menu_h)
+        item.setPos(0, window_height - menu_h)  # 顶边不变（chatbox 底边处），向下延伸
         item.setZValue(9)  # 低于对话框(z=10)，紧贴窗口底部
         self.graphics_view.scene.addItem(item)
         self.bottom_menu_item = item
-        print(f"底部菜单(default): 高 {menu_h}px (ratio={ratio})，颜色 rgba({r},{g},{b},{a})")
+        # 扩展场景渲染矩形：保证延伸部分可渲染（fitInView 仍按逻辑尺寸适配，不受影响）
+        scene_rect = self.graphics_view.scene.sceneRect()
+        if scene_rect.height() < window_height + extend:
+            self.graphics_view.scene.setSceneRect(0, 0, window_width, window_height + extend)
+        print(f"底部菜单(default): 高 {menu_h}px (ratio={ratio}) 延伸 {extend}px，颜色 rgba({r},{g},{b},{a})")
         return menu_h
 
     def _stop_chatbox_animations_for(self, item):
