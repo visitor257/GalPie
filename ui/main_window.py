@@ -253,6 +253,9 @@ class GalGameWindow(QMainWindow):
         custom_config = load_settings_ui(self)
         # 分辨率选项：来自 JSON settings.window_size 列表（controller 已解析，index=0 为初始）；空则面板用内置列表
         res_options = list(self.controller.resolution_options) if self.controller.resolution_options else None
+        # 语言选项：JSON settings.language 列表（面板仅支持其中 zh/en/ja，其余回落 en）
+        languages = self.controller.story_data.get("settings", {}).get("language", ["zh"]) if self.controller.story_data else ["zh"]
+        lang_options = list(languages) if languages else ["zh"]
         # 当前分辨率：全屏时用"全屏"标记，否则 WxH 字符串
         if self.isFullScreen():
             cur_res = FULLSCREEN_KEY
@@ -261,16 +264,18 @@ class GalGameWindow(QMainWindow):
         panel = SettingsPanel(self.graphics_view.scene, config=custom_config,
                               language=self.controller.language,
                               current_resolution=cur_res,
-                              resolution_options=res_options)
+                              resolution_options=res_options,
+                              language_options=lang_options)
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
             scene_rect = QRectF(0, 0, self.width(), self.height())
         panel.center_in_scene(scene_rect)
         self.graphics_view.scene.addItem(panel)
-        # 绑定底部按钮行为 + 分辨率变更
+        # 绑定底部按钮行为 + 分辨率变更 + 语言变更
         self._bind_settings_buttons(panel)
         panel.set_resolution_handler(self._on_resolution_changed)
+        panel.set_language_handler(self._on_language_changed)
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
@@ -295,6 +300,10 @@ class GalGameWindow(QMainWindow):
         languages = self.controller.story_data.get("settings", {}).get("language", ["zh"])
         if languages:
             self.controller.language = languages[0]
+            # 面板 UI 同步回默认语言
+            if self.settings_panel is not None:
+                self.settings_panel.set_language(self.controller.language)
+            self._menu_language_dirty = True
         print("设置已恢复默认")
 
     def _quit_game(self):
@@ -324,6 +333,21 @@ class GalGameWindow(QMainWindow):
             self.resize(w, h)
         print(f"分辨率已切换: {resolution}")
 
+    def _on_language_changed(self, lang):
+        """语言变更：更新 controller.language，刷新设置面板 UI 文字，
+        并标记菜单需要重建（关闭设置面板后按新语言重建菜单）。
+        对话字幕按语言取词（display_dialog 已按 language 读取）。
+        """
+        if lang == self.controller.language:
+            return
+        self.controller.language = lang
+        print(f"语言已切换: {lang}")
+        # 刷新设置面板 UI（标题/按钮/标签文字随新语言变）
+        if self.settings_panel is not None:
+            self.settings_panel.set_language(lang)
+        # 标记菜单需按新语言重建（关闭面板时执行）
+        self._menu_language_dirty = True
+
     def close_settings_panel(self):
         """关闭设置面板：设置 UI 先渐变消失（100->0），再让菜单按钮渐变显示。"""
         if self.is_in_settings and self.settings_panel:
@@ -339,6 +363,11 @@ class GalGameWindow(QMainWindow):
         """面板渐隐完成后：移除面板 + 菜单按钮渐显。"""
         if panel.scene():
             self.graphics_view.scene.removeItem(panel)
+        if getattr(self, "_menu_language_dirty", False):
+            # 语言已切换：按新语言重建整个菜单（标题图片/按钮文字）
+            self._menu_language_dirty = False
+            self.show_menu()
+            return
         self._set_menu_buttons_fade_in()
 
     def _set_menu_buttons_fade_in(self, duration=500):
@@ -574,15 +603,19 @@ class GalGameWindow(QMainWindow):
             print(f"[Chatbox] 直接设置可见性: {visible}")
 
     def display_dialog(self, content: dict):
+        lang = self.controller.language or "zh"
         speaking_name = ""
         if "speaking_name" in content:
             char_id = content["speaking_name"]
             char_data = self.controller.story_data["story_and_position"]["character_and_motion"].get(char_id, {})
-            speaking_name = char_data.get("name", {}).get("zh", "")
+            names = char_data.get("name", {})
+            speaking_name = names.get(lang) or names.get("zh", "")
         elif "speaking" in content:
-            speaking_name = content["speaking"].get("zh", "")
+            speak_map = content["speaking"]
+            speaking_name = speak_map.get(lang) or speak_map.get("zh", "")
         self.name_label.setText(speaking_name)
-        words = content["words"].get("zh", "")
+        words_map = content["words"]
+        words = words_map.get(lang) or words_map.get("zh", "")
         self.text_display.set_text(words, self.controller.on_text_display_complete)
 
     def load_pixmap(self, path: str) -> Optional[QPixmap]:

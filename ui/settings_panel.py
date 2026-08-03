@@ -47,20 +47,26 @@ DEFAULT_PRESET = {
     "z": 20,                      # 面板 Z 值（高于菜单按钮）
 }
 
-# 底部按钮文本（多语言）
+# 底部按钮文本（多语言；预设 UI 支持 zh/en/ja）
 BUTTON_TEXTS = {
-    "reset": {"zh": "恢复默认", "en": "Reset"},
-    "back": {"zh": "返回", "en": "Back"},
-    "quit": {"zh": "退出游戏", "en": "Quit"},
+    "reset": {"zh": "恢复默认", "en": "Reset", "ja": "リセット"},
+    "back": {"zh": "返回", "en": "Back", "ja": "戻る"},
+    "quit": {"zh": "退出游戏", "en": "Quit", "ja": "ゲーム終了"},
 }
 
 # 面板标题（多语言）
-TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings"}
+TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings", "ja": "ゲーム設定"}
+
+# 预设 UI 支持的语言（超出此范围的语言界面回落 en）
+SUPPORTED_LANGS = ["zh", "en", "ja"]
+# 语言选择器中的语言自称（不随面板语言变）
+LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語"}
 
 # 分辨率选项（多语言，切换时循环；实际可选项由 JSON 配置，末尾自动追加"全屏"）
 RESOLUTIONS = ["1280x720", "1366x768", "1600x900", "1920x1080"]
-RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution"}
-FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen"}
+RESOLUTION_LABEL = {"zh": "分辨率", "en": "Resolution", "ja": "解像度"}
+LANGUAGE_LABEL = {"zh": "语言", "en": "Language", "ja": "言語"}
+FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen", "ja": "全画面"}
 FULLSCREEN_KEY = "fullscreen"  # 内部标记：全屏选项（显示时用语言化文本）
 
 
@@ -68,16 +74,27 @@ class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
     def __init__(self, scene, config=None, language="zh", current_resolution="1280x720",
-                 resolution_options=None, parent=None):
+                 resolution_options=None, language_options=None, parent=None):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
-        self.language = language
+        # 预设 UI 显示语言：仅支持 zh/en/ja，超出回落 en
+        self.language = language if language in SUPPORTED_LANGS else "en"
         self.buttons = []   # 底部按钮列表
         # 分辨率选项：JSON 提供的分辨率列表 + 末尾"全屏"；无 JSON 时用默认列表
         base_opts = list(resolution_options) if resolution_options else list(RESOLUTIONS)
         self._res_options = base_opts + [FULLSCREEN_KEY]
         # 当前选项：先尝试原样匹配，再按显示文本匹配（"全屏" vs 语言化）
         self.current_resolution = self._normalize_res(current_resolution)
+        # 语言选项：JSON settings.language 列表（预设 UI 仅支持其中 zh/en/ja，其余回落 en）
+        self._lang_options = list(language_options) if language_options else ["zh"]
+        self._normalize_lang_options()
+        self.current_language = self._normalize_lang(self.language)
+        self._language_handler = None  # 语言变更回调
+        self._language_label = None    # "语言"标签
+        self._language_value = None    # 当前语言值文本
+        self._language_prev = None     # 上一个语言按钮
+        self._language_next = None     # 下一个语言按钮
+
         self._resolution_handler = None  # 分辨率变更回调
         self._resolution_label = None    # "分辨率" 标签
         self._resolution_value = None    # 当前分辨率值文本
@@ -103,6 +120,26 @@ class SettingsPanel(QGraphicsPathItem):
         # 白色内边框：距边缘 border_offset，宽 border_width（作为面板子项，随面板移动）
         self._border_item = None
         self._rebuild_border()
+
+    def _normalize_lang_options(self):
+        """归一化语言选项列表：去重、保留顺序；仅保留预设 UI 支持的语言（zh/en/ja）。
+        其余语言（如 ru）不在可选项中——用户无法在面板中选到它们（选了界面也只能回落 en）。
+        """
+        seen = []
+        for lang in self._lang_options:
+            if lang not in seen and lang in SUPPORTED_LANGS:
+                seen.append(lang)
+        self._lang_options = seen if seen else ["zh"]
+
+    def _normalize_lang(self, value):
+        """当前语言值归一化：在选项中直接返回；否则回落选项第一个。"""
+        if value in self._lang_options:
+            return value
+        return self._lang_options[0]
+
+    def _lang_display_text(self):
+        """当前语言的显示文本（语言自称，不随面板语言变）。"""
+        return LANG_NAMES.get(self.current_language, self.current_language)
 
     def _normalize_res(self, value):
         """把当前分辨率值归一化到选项列表：
@@ -218,6 +255,111 @@ class SettingsPanel(QGraphicsPathItem):
         r = self._title_item.boundingRect()
         self._title_item.setPos(left - r.x(), inner + top - r.y())
         return self._title_item
+
+    def _build_language(self):
+        """在右列创建语言设置项（右列第 1 个设置项）。
+        布局与分辨率项一致：标签"语言"（幼圆加粗）+ 左右切换按钮 + 当前值。
+        语言选项 = JSON settings.language 中预设 UI 支持的部分（zh/en/ja）。
+        """
+        _, right_rect = self._column_rects()
+        inner = self.config["border_offset"] + self.config["border_width"]
+        top = self.config.get("title_top_margin", 15)
+        # 右列第 1 项与左列标题同高区域对齐（顶部同一行）
+        row_y = inner + top
+        row_h = 32
+        item_left_margin = self.config.get("item_left_margin", 10)
+
+        label_text = LANGUAGE_LABEL.get(self.language, LANGUAGE_LABEL["en"])
+        # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
+        self._language_label = QGraphicsTextItem()
+        self._language_label.setPlainText(label_text)
+        self._language_label.setDefaultTextColor(QColor(255, 255, 255))
+        lf = QFont("YouYuan")
+        lf.setBold(True)
+        lf.setPointSize(self.config.get("res_label_size", 18))
+        self._language_label.setFont(lf)
+        self._language_label.setAcceptHoverEvents(False)
+        self._language_label.setParentItem(self)
+        self._language_label.setTextWidth(-1)
+        rl = self._language_label.boundingRect()
+        label_x = right_rect.left() + item_left_margin
+        self._language_label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
+
+        # 左右切换按钮（◀ ▶）放在右列右侧
+        btn_w = 28
+        btn_h = row_h
+        btn_y = row_y
+        prev_x = right_rect.right() - 2 * btn_w - 8
+        next_x = right_rect.right() - btn_w
+        self._language_prev = SettingsButtonItem(
+            QRectF(prev_x, btn_y, btn_w, btn_h), "lang_prev", self, opacity=80)
+        self._language_next = SettingsButtonItem(
+            QRectF(next_x, btn_y, btn_w, btn_h), "lang_next", self, opacity=80)
+        self._language_prev.set_click_handler(self._on_lang_prev)
+        self._language_next.set_click_handler(self._on_lang_next)
+        self._add_button_text("◀", self._language_prev,
+                              [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
+        self._add_button_text("▶", self._language_next,
+                              [255, 255, 255], QFont("Microsoft YaHei", 12, QFont.Bold))
+
+        # 当前值（幼圆常规 16pt）：居中于 标签右边缘 与 左箭头左边缘 之间
+        self._language_value = QGraphicsTextItem()
+        self._language_value.setPlainText(self._lang_display_text())
+        self._language_value.setDefaultTextColor(QColor(255, 255, 255))
+        vf = QFont("YouYuan")
+        vf.setPointSize(self.config.get("res_value_size", 16))
+        self._language_value.setFont(vf)
+        self._language_value.setAcceptHoverEvents(False)
+        self._language_value.setParentItem(self)
+        self._language_value.setTextWidth(-1)
+        rv = self._language_value.boundingRect()
+        label_right = label_x + rl.width()
+        gap_mid = (label_right + prev_x) / 2.0
+        val_x = gap_mid - rv.width() / 2.0
+        self._language_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
+
+    def _on_lang_prev(self):
+        idx = self._lang_options.index(self.current_language)
+        self.current_language = self._lang_options[(idx - 1) % len(self._lang_options)]
+        self._update_language_display()
+
+    def _on_lang_next(self):
+        idx = self._lang_options.index(self.current_language)
+        self.current_language = self._lang_options[(idx + 1) % len(self._lang_options)]
+        self._update_language_display()
+
+    def _update_language_display(self):
+        if self._language_value is not None:
+            self._language_value.setPlainText(self._lang_display_text())
+            self._language_value.setTextWidth(-1)
+        if self._language_handler:
+            # 回调传语言代码（如 zh/en/ja），由 main_window 更新 controller.language 并刷新面板
+            self._language_handler(self.current_language)
+
+    def set_language_handler(self, handler):
+        """绑定语言变更回调（main_window 中调用，实际切换游戏语言并刷新面板 UI）。"""
+        self._language_handler = handler
+
+    @property
+    def lang_options(self):
+        """当前语言选项列表（预设 UI 支持的部分）。"""
+        return list(self._lang_options)
+
+    def _clear_language_items(self):
+        """移除语言设置项的文本与按钮（尺寸变化/关闭/语言切换重建时调用）。"""
+        for item in (self._language_label, self._language_value,
+                     self._language_prev, self._language_next):
+            if item is not None and item.scene():
+                self._scene.removeItem(item)
+        for b in (self._language_prev, self._language_next):
+            if b is not None:
+                label = getattr(b, "_text_label", None)
+                if label is not None and label.scene():
+                    self._scene.removeItem(label)
+        self._language_label = None
+        self._language_value = None
+        self._language_prev = None
+        self._language_next = None
 
     def _build_resolution(self):
         """在左列创建分辨率设置项（左列第 2 个设置项）。
@@ -392,9 +534,11 @@ class SettingsPanel(QGraphicsPathItem):
             self._scene.removeItem(self._title_item)
         self._title_item = None
         self._clear_resolution_items()
+        self._clear_language_items()
         self._build_buttons()
         self._build_title()
         self._build_resolution()
+        self._build_language()
         x = scene_rect.left() + (w_avail - w) / 2
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
@@ -446,8 +590,38 @@ class SettingsPanel(QGraphicsPathItem):
             scene.removeItem(self._title_item)
             self._title_item = None
         self._clear_resolution_items()
+        self._clear_language_items()
         if self.scene() == scene:
             scene.removeItem(self)
+
+    def set_language(self, lang):
+        """切换设置面板显示语言并重建全部 UI 文字。
+        预设 UI 仅支持 zh/en/ja；超出范围的语言界面回落 en（但语言选择器值仍显示该语言自称）。
+        由 main_window 的语言回调调用（controller.language 已更新）。
+        """
+        # 实际显示语言：预设 UI 支持才用，否则回落 en
+        ui_lang = lang if lang in SUPPORTED_LANGS else "en"
+        self.language = ui_lang
+        # 语言选择器当前值：仅在选项内时更新（选中的语言一定是选项内）
+        self.current_language = self._normalize_lang(lang)
+        # 重建全部 UI 文字（标题、底部按钮、分辨率项、语言项）
+        if self._title_item is not None and self._title_item.scene():
+            self._scene.removeItem(self._title_item)
+        self._title_item = None
+        self._clear_resolution_items()
+        self._clear_language_items()
+        # 重建底部按钮（文字随语言变）
+        for b in list(self.buttons):
+            label = getattr(b, "_text_label", None)
+            if label is not None and label.scene():
+                self._scene.removeItem(label)
+            if b.scene():
+                self._scene.removeItem(b)
+        self.buttons = []
+        self._build_buttons()
+        self._build_title()
+        self._build_resolution()
+        self._build_language()
 
     def _add_button_text(self, text, btn, rgb, font):
         """在按钮中心上方叠加文本。文本作为面板子项（与按钮平级），
