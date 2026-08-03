@@ -23,12 +23,12 @@ DEFAULT_PRESET = {
     "margin_ratio": 0.1,          # 面板距窗口边缘的比例（四边各留 10%），面板宽高 = 0.8 * 窗口
     "corner_radius": 24,          # 面板圆角半径
     "fill_color": [255, 255, 255],  # 面板填充色（白）
-    "fill_alpha": 127,            # 面板填充透明度 (0-255)，127 ≈ 半透明
+    "fill_alpha": 191,            # 面板填充不透明度 (0-255)，191 ≈ 3/4
     "fade_duration": 500,         # 渐变显示时长 ms
     "border_offset": 10,          # 白色边框距面板边缘的距离 (px)
     "border_width": 10,           # 白色边框宽度 (px)
     "border_color": [255, 255, 255],  # 白色边框颜色
-    "border_alpha": 127,          # 边框透明度 (0-255)，127 ≈ 半透明
+    "border_alpha": 191,          # 边框不透明度 (0-255)，191 ≈ 3/4
     "button_radius": 12,          # 底部按钮圆角半径
     "button_height": 48,          # 底部按钮高度
     "button_margin": 24,          # 按钮与面板侧边的间距
