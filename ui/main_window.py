@@ -153,7 +153,11 @@ class GalGameWindow(QMainWindow):
                     ls = self.controller.logical_size
                     self.graphics_view.add_item(bg_pixmap, [(ls[0] - bg_pixmap.width()) // 2, 0])
             if "title" in menu_data:
-                title_path = menu_data["title"][self.controller.language]
+                # 标题图按语言取；无对应语言图时回退 zh（多语言共用一张标题图）
+                title_dict = menu_data["title"]
+                title_path = title_dict.get(self.controller.language) or title_dict.get("zh")
+                if not title_path:
+                    title_path = next(iter(title_dict.values()))
                 full_title_path = self.controller.base_path / title_path
                 title_pixmap = self.load_pixmap(str(full_title_path))
                 if title_pixmap:

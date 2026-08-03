@@ -1,38 +1,91 @@
 {
   "settings": {
-    "language": {"zh": "中文"},
-    "window_size": ["1280x720", "1600x900", "1920x1080"],
+    "language": {
+      "zh": "中文",
+      "en": "English",
+      "ja": "日本語",
+      "ru": "Русский"
+    },
+    "window_size": [
+      "1280x720",
+      "1600x900",
+      "1920x1080"
+    ],
     "window_title": "Sample story",
     "identify_code": "sample_identify"
   },
   "ui": {
     "chatbox_and_words_position": {
       "chatbox": "./res/ui/chatbox.png",
-      "name_show_region": [[76,60],[270,149]],
-      "words_show_region": [[310,60],[805,149]]
+      "name_show_region": [
+        [
+          76,
+          60
+        ],
+        [
+          270,
+          149
+        ]
+      ],
+      "words_show_region": [
+        [
+          310,
+          60
+        ],
+        [
+          805,
+          149
+        ]
+      ]
     }
   },
   "menu": {
     "bg": "./res/menu/bg.png",
-    "change": [[255,255,255],"gradient"],
+    "change": [
+      [
+        255,
+        255,
+        255
+      ],
+      "gradient"
+    ],
     "title": {
       "zh": "./res/menu/title.png"
     },
     "button": "./res/menu/button.png",
     "button_touched": "./res/menu/button_touched.png",
-    "text_rgb": [255,255,255],
+    "text_rgb": [
+      255,
+      255,
+      255
+    ],
     "menu_pos": {
-      "title": [54,48],
+      "title": [
+        54,
+        48
+      ],
       "start": [
-        [115,230],
+        [
+          115,
+          230
+        ],
         {
-          "zh": "开始游戏"
+          "zh": "开始游戏",
+          "en": "Start Game",
+          "ja": "ゲーム開始",
+          "ru": "Начать игру"
         }
       ],
       "settings": [
-        [115,310],
+        [
+          115,
+          310
+        ],
         {
-          "zh": "设置"
+          "zh": "设置",
+          "en": "Settings",
+          "ja": "設定",
+          "ru": "Настройки"
         },
         {
           "ui_mode": "default"
@@ -44,7 +97,10 @@
     "character_and_motion": {
       "girl": {
         "name": {
-          "zh": "女孩"
+          "zh": "女孩",
+          "en": "Girl",
+          "ja": "少女",
+          "ru": "Девушка"
         },
         "form": {
           "校服": "./res/character/girl/uniform.png"
@@ -67,225 +123,402 @@
     },
     "story": {
       "main": {
-        "1": [{
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "天空",
-          "content": {
-            "speaking": {
-              "zh": ""
+        "1": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "天空",
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）",
+                "en": "(This is a test story, used only for program testing. The story content is AI-generated.)",
+                "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
+                "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
+              }
+            }
+          }
+        ],
+        "2": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你好，这里有人坐吗？",
+                "en": "Hello, is this seat taken?",
+                "ja": "こんにちは、ここに誰か座っていますか？",
+                "ru": "Здравствуйте, это место занято?"
+              }
+            }
+          }
+        ],
+        "3": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "啊，没有，请坐吧。",
+                "en": "Oh, no, please have a seat.",
+                "ja": "あ、空いてますよ。どうぞ座ってください。",
+                "ru": "А, нет, садитесь, пожалуйста."
+              }
+            }
+          }
+        ],
+        "4": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "一个温暖的春日午后，阳光透过树叶洒在公园的长椅上。",
+                "en": "On a warm spring afternoon, sunlight filtered through the leaves onto a park bench.",
+                "ja": "暖かい春の午後、木漏れ日が公園のベンチに降り注いでいた。",
+                "ru": "Тёплым весенним днём солнечные лучи пробивались сквозь листву на парковую скамейку."
+              }
+            }
+          }
+        ],
+        "5": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "公园",
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
             },
-            "words": {
-              "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）"
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "谢谢。我经常看到你一个人坐在这里，是在想什么事情吗？",
+                "en": "Thanks. I often see you sitting here alone. Are you thinking about something?",
+                "ja": "ありがとう。いつも一人でここに座っているのを見かけますが、何か考えているんですか？",
+                "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
+              }
             }
           }
-        }],
-        "2": [{
-          "clear_all": false,
-          "content": {
-            "speaking_name": "girl",
-            "words": {
-              "zh": "你好，这里有人坐吗？"
+        ],
+        "6": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "嗯，只是喜欢这里的安静。你呢？为什么今天来公园？",
+                "en": "Mm, I just like the quiet here. What about you? Why did you come to the park today?",
+                "ja": "うん、ただこの静けさが好きなんだ。君は？どうして今日公園に来たの？",
+                "ru": "Ммм, просто люблю тишину здесь. А вы? Почему сегодня пришли в парк?"
+              }
             }
           }
-        }],
-        "3": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": "主角"
-            },
-            "words": {
-              "zh": "啊，没有，请坐吧。"
+        ],
+        "7": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "一位陌生女孩的搭讪，让我的心跳加速。",
+                "en": "A stranger girl's approach made my heart beat faster.",
+                "ja": "見知らぬ少女に話しかけられ、心臓の鼓動が速くなった。",
+                "ru": "От знакомства с незнакомой девушкой моё сердце забилось быстрее."
+              }
             }
           }
-        }],
-        "4": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": ""
-            },
-            "words": {
-              "zh": "一个温暖的春日午后，阳光透过树叶洒在公园的长椅上。"
+        ],
+        "8": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "我来散散心。最近学业有点忙，需要放松一下。",
+                "en": "I came to relax. I've been busy with my studies lately, so I need a break.",
+                "ja": "気分転換に来ました。最近勉強が忙しくて、リラックスが必要なんです。",
+                "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
+              }
             }
           }
-        }],
-        "5": [{
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "公园",
-          "characters": {
-            "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["平常",[0,0]],
-              "zoom": 1.5
+        ],
+        "9": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "我懂那种感觉。要不……一起去那边的咖啡馆坐坐？",
+                "en": "I know that feeling. How about... going to that café over there for a bit?",
+                "ja": "その気持ち、分かるよ。よかったら…あそこの喫茶店にでも行かない？",
+                "ru": "Я понимаю это чувство. Может... сходим в то кафе вон там?"
+              }
             }
           },
-          "content": {
-            "speaking_name": "girl",
-            "words": {
-              "zh": "谢谢。我经常看到你一个人坐在这里，是在想什么事情吗？"
-            }
-          }
-        }],
-        "6": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": "主角"
-            },
-            "words": {
-              "zh": "嗯，只是喜欢这里的安静。你呢？为什么今天来公园？"
-            }
-          }
-        }],
-        "7": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": ""
-            },
-            "words": {
-              "zh": "一位陌生女孩的搭讪，让我的心跳加速。"
-            }
-          }
-        }],
-        "8": [{
-          "clear_all": false,
-          "content": {
-            "speaking_name": "girl",
-            "words": {
-              "zh": "我来散散心。最近学业有点忙，需要放松一下。"
-            }
-          }
-        }],
-        "9": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": "主角"
-            },
-            "words": {
-              "zh": "我懂那种感觉。要不……一起去那边的咖啡馆坐坐？"
-            }
-          }
-        },
           {
             "clear_all": false,
             "characters": {
               "girl": {
                 "form": "校服",
-                "pos": [320,80],
-                "face": ["脸红",[0,0]],
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红",
+                  [
+                    0,
+                    0
+                  ]
+                ],
                 "zoom": 1.5,
                 "animate": [
-                  [{
-                    "time": 0.2,
-                    "zoom": 1.4
-                  }],
-                  [{
-                    "time": 0.2,
-                    "move": [[0,-10],[0,10],[0,-10],[0,10]]
-                  }]
+                  [
+                    {
+                      "time": 0.2,
+                      "zoom": 1.4
+                    }
+                  ],
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
                 ]
               }
             }
-          }],
-        "10": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": ""
+          }
+        ],
+        "10": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "我的突然邀请，让女孩顿时红了脸。",
+                "en": "My sudden invitation made the girl blush instantly.",
+                "ja": "突然の誘いに、少女はたちまち顔を赤らめた。",
+                "ru": "От моего внезапного приглашения девушка мгновенно покраснела."
+              }
+            }
+          }
+        ],
+        "11": [
+          {
+            "clear_all": false,
+            "bg": "公园",
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.4,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
             },
-            "words": {
-              "zh": "我的突然邀请，让女孩顿时红了脸。"
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "好啊，我很乐意！",
+                "en": "Sure, I'd love to!",
+                "ja": "いいですね、ぜひ！",
+                "ru": "Хорошо, с удовольствием!"
+              }
             }
           }
-        }],
-        "11": [{
-          "clear_all": false,
-          "bg": "公园",
-          "characters": {
-            "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["脸红及微笑",[0,0]],
-              "zoom": 1.4,
-              "animate": [
-                [{
-                  "time": 0.2,
-                  "move": [[0,-10],[0,10],[0,-10],[0,10]]
-                }]
-              ]
-            }
-          },
-          "content": {
-            "speaking_name": "girl",
-            "words": {
-              "zh": "好啊，我很乐意！"
+        ],
+        "12": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "那走吧，我请客。",
+                "en": "Let's go then, my treat.",
+                "ja": "じゃあ行こう、おごるよ。",
+                "ru": "Тогда пошли, я угощаю."
+              }
             }
           }
-        }],
-        "12": [{
-          "clear_all": false,
-          "content": {
-            "speaking": {
-              "zh": "主角"
+        ],
+        "13": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": false,
+              "change": "gradient"
             },
-            "words": {
-              "zh": "那走吧，我请客。"
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
             }
           }
-        }],
-        "13": [{
-          "clear_all": false,
-          "chatbox": {
-            "visible": false,
-            "change": "gradient"
-          },
-          "content": {
-            "speaking": {
-              "zh": ""
+        ],
+        "14": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "天空"
+          }
+        ],
+        "15": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "咖啡馆"
+          }
+        ],
+        "16": [
+          {
+            "clear_all": false,
+            "change": "gradient",
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
             },
-            "words": {
-              "zh": ""
+            "chatbox": {
+              "visible": true,
+              "change": "gradient"
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你经常来这里吗？",
+                "en": "Do you come here often?",
+                "ja": "よくここに来るんですか？",
+                "ru": "Вы часто сюда приходите?"
+              }
             }
           }
-        }],
-        "14": [{
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "天空"
-        }],
-        "15": [{
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "咖啡馆"
-        }],
-        "16": [{
-          "clear_all": false,
-          "change": "gradient",
-          "characters": {
-            "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["平常",[0,0]],
-              "zoom": 1.5
-            }
-          },
-          "chatbox": {
-            "visible": true,
-            "change": "gradient"
-          },
-          "content": {
-            "speaking_name": "girl",
-            "words": {
-              "zh": "你经常来这里吗？"
-            }
-          }
-        }]
+        ]
       }
     }
   }

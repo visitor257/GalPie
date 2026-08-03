@@ -57,10 +57,12 @@ BUTTON_TEXTS = {
 # 面板标题（多语言）
 TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings", "ja": "ゲーム設定"}
 
-# 预设 UI 支持的语言（超出此范围的语言界面回落 en）
-SUPPORTED_LANGS = ["zh", "en", "ja"]
+# 语言选择器可选项（JSON settings.language 中可被选中的语言；ru 等也可选）
+SUPPORTED_LANGS = ["zh", "en", "ja", "ru"]
+# 预设 UI 界面显示语言（超出此范围的语言界面回落 en，但语言选择器仍可选中它们）
+UI_LANGS = ["zh", "en", "ja"]
 # 语言选择器中的语言自称（不随面板语言变）
-LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語"}
+LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語", "ru": "Русский"}
 
 # 分辨率选项（多语言，切换时循环；实际可选项由 JSON 配置，末尾自动追加"全屏"）
 RESOLUTIONS = ["1280x720", "1366x768", "1600x900", "1920x1080"]
@@ -78,7 +80,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         # 预设 UI 显示语言：仅支持 zh/en/ja，超出回落 en
-        self.language = language if language in SUPPORTED_LANGS else "en"
+        self.language = language if language in UI_LANGS else "en"
         self.buttons = []   # 底部按钮列表
         # 分辨率选项：JSON 提供的分辨率列表 + 末尾"全屏"；无 JSON 时用默认列表
         base_opts = list(resolution_options) if resolution_options else list(RESOLUTIONS)
@@ -614,7 +616,7 @@ class SettingsPanel(QGraphicsPathItem):
         由 main_window 的语言回调调用（controller.language 已更新）。
         """
         # 实际显示语言：预设 UI 支持才用，否则回落 en
-        ui_lang = lang if lang in SUPPORTED_LANGS else "en"
+        ui_lang = lang if lang in UI_LANGS else "en"
         self.language = ui_lang
         # 语言选择器当前值：仅在选项内时更新（选中的语言一定是选项内）
         self.current_language = self._normalize_lang(lang)
