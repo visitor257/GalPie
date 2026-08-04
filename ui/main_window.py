@@ -388,6 +388,12 @@ class GalGameWindow(QMainWindow):
             if getattr(self, "_auto_play_paused", False) and not self.controller.auto_play:
                 self.controller.auto_play = True
                 print("设置关闭：恢复自动播放")
+                # 若正停在等待下一页：立即推进（与 toggle_auto_play 开启时一致）
+                if self.controller.is_waiting_for_next_page:
+                    self.controller.play_current_page()
+                # 若当前场景文本+音频已完成但被设置暂停卡住：恢复后立即推进
+                elif self.controller.is_text_finished and self.controller.is_audio_finished:
+                    self.controller.advance_to_next_scene()
                 self._update_auto_play_icon()
             if getattr(self.controller, "skip_mode", False) and not self.controller.skip_timer.isActive():
                 self.controller.skip_timer.start()

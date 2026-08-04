@@ -259,6 +259,10 @@ class GameController:
         self.check_auto_advance()
 
     def check_auto_advance(self):
+        # 设置面板打开时：暂停自动前进（等关闭设置后由恢复逻辑接手推进）
+        if getattr(self.main_window, "is_in_settings", False):
+            print("设置面板打开中，暂停自动前进")
+            return
         print(f"检查自动前进: 文本完成={self.is_text_finished}, 音频完成={self.is_audio_finished}")
         if self.is_text_finished and self.is_audio_finished:
             print("文本和音频都已完成，自动进入下一个场景")
