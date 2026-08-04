@@ -717,9 +717,30 @@ class GalGameWindow(QMainWindow):
         self.bottom_menu_buttons.append(label)
         btn._text_label = label  # 悬停变色用（_set_text_color 需要）
 
-        # --- 自动播放开关按钮（设置按钮左侧） ---
+        # --- 快进开关按钮（设置按钮左侧，右2）：▷▷ 关闭 / ▶▶ 开启 ---
+        # 先创建图标文字量宽：▷▷ 是双字符，按钮宽需按文字自适应（最小保持方形 btn_h）
+        skip_on = getattr(self.controller, "skip_mode", False)
+        skip_icon = "▶▶" if skip_on else "▷▷"
+        skip_label = make_label(skip_icon, font_size=14)
+        sr = skip_label.boundingRect()
+        skip_btn_w = max(btn_h, sr.width() + 16)
+        skip_rect = QRectF(x - margin - skip_btn_w, y, skip_btn_w, btn_h)
+        skip_btn = SettingsButtonItem(skip_rect, "bottom_skip", opacity=200)
+        skip_btn.setZValue(10)
+        skip_btn.set_click_handler(self.toggle_skip_button)
+        self.graphics_view.scene.addItem(skip_btn)
+        self.bottom_menu_buttons.append(skip_btn)
+
+        skip_label.setPos(skip_rect.center().x() - sr.width() / 2,
+                          skip_rect.center().y() - sr.height() / 2)
+        skip_label.setZValue(11)
+        self.graphics_view.scene.addItem(skip_label)
+        self.bottom_menu_buttons.append(skip_label)
+        skip_btn._text_label = skip_label  # 悬停变色用
+
+        # --- 自动播放开关按钮（快进按钮左侧，右3） ---
         auto_btn_w = btn_h  # 方形图标按钮
-        auto_rect = QRectF(x - margin - auto_btn_w, y, auto_btn_w, btn_h)
+        auto_rect = QRectF(skip_rect.left() - margin - auto_btn_w, y, auto_btn_w, btn_h)
         auto_btn = SettingsButtonItem(auto_rect, "bottom_auto_play", opacity=200)
         auto_btn.setZValue(10)
         auto_btn.set_click_handler(self.toggle_auto_play_button)
@@ -736,27 +757,6 @@ class GalGameWindow(QMainWindow):
         self.graphics_view.scene.addItem(icon_label)
         self.bottom_menu_buttons.append(icon_label)
         auto_btn._text_label = icon_label  # 悬停变色用
-
-        # --- 快进开关按钮（自动播放按钮左侧）：▷▷ 关闭 / ▶▶ 开启 ---
-        # 先创建图标文字量宽：▷▷ 是双字符，按钮宽需按文字自适应（最小保持方形 btn_h）
-        skip_on = getattr(self.controller, "skip_mode", False)
-        skip_icon = "▶▶" if skip_on else "▷▷"
-        skip_label = make_label(skip_icon, font_size=14)
-        sr = skip_label.boundingRect()
-        skip_btn_w = max(btn_h, sr.width() + 16)
-        skip_rect = QRectF(auto_rect.left() - margin - skip_btn_w, y, skip_btn_w, btn_h)
-        skip_btn = SettingsButtonItem(skip_rect, "bottom_skip", opacity=200)
-        skip_btn.setZValue(10)
-        skip_btn.set_click_handler(self.toggle_skip_button)
-        self.graphics_view.scene.addItem(skip_btn)
-        self.bottom_menu_buttons.append(skip_btn)
-
-        skip_label.setPos(skip_rect.center().x() - sr.width() / 2,
-                          skip_rect.center().y() - sr.height() / 2)
-        skip_label.setZValue(11)
-        self.graphics_view.scene.addItem(skip_label)
-        self.bottom_menu_buttons.append(skip_label)
-        skip_btn._text_label = skip_label  # 悬停变色用
 
     def _stop_chatbox_animations_for(self, item):
         """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
