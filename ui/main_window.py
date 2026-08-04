@@ -400,6 +400,19 @@ class GalGameWindow(QMainWindow):
         extend = int(bm.get("extend", 50))
         self._create_bottom_menu_buttons(window_width, window_height, menu_h, extend)
 
+    def toggle_auto_play_button(self):
+        """底部菜单自动播放开关：切换状态并更新图标（关 ▷ / 开 ▶）。"""
+        self.controller.toggle_auto_play()
+        self._update_auto_play_icon()
+
+    def _update_auto_play_icon(self):
+        """按当前 auto_play 状态更新底部菜单自动播放按钮图标。"""
+        icon = "▶" if getattr(self.controller, "auto_play", False) else "▷"
+        for it in self.bottom_menu_buttons:
+            if isinstance(it, QGraphicsTextItem) and it.toPlainText() in ("▷", "▶"):
+                it.setPlainText(icon)
+                return
+
     def _refresh_current_dialog(self):
         """剧情中语言切换后：用当前场景的 content 重新渲染对话（名称/字幕按新语言取词）。
         直接显示新语言全文，不重播逐字动画，不触发自动前进。
@@ -639,7 +652,7 @@ class GalGameWindow(QMainWindow):
     def _create_bottom_menu_buttons(self, window_width: int, window_height: int,
                                     menu_h: int, extend: int = 50):
         """创建底部菜单条上的按钮（预设 default UI）。
-        最右侧第一个按钮 = 设置（点击打开设置面板）。
+        最右侧第一个按钮 = 设置（点击打开设置面板）；左侧 = 自动播放开关（▷/▶）。
         按钮文字随 controller.language 变化（多语言与设置面板一致）。
         """
         # 清除旧按钮及文字
@@ -651,24 +664,29 @@ class GalGameWindow(QMainWindow):
         # 按钮布局：右缘贴菜单条右边缘（留 margin），垂直居中于菜单条可视区
         margin = 12
         btn_h = max(18, menu_h - 2 * margin)
-        # 文字内容随语言变化；预设 UI 仅支持中英日，ru 等其他语言回落 en
+        y = (window_height - menu_h) + (menu_h - btn_h) / 2  # 菜单条顶边 + 垂直居中
+
+        def make_label(text: str, font_size: int = 12) -> "QGraphicsTextItem":
+            label = QGraphicsTextItem(text)
+            label.setDefaultTextColor(QColor(255, 255, 255))
+            label.setFont(QFont("Microsoft YaHei", font_size, QFont.Bold))
+            label.setAcceptHoverEvents(False)
+            label.setTextInteractionFlags(Qt.NoTextInteraction)  # 文字不拦截点击
+            label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
+            label.setTextWidth(-1)
+            return label
+
+        # --- 设置按钮（最右侧） ---
         text = "设置"
         lang = self.controller.language or "zh"
         if lang in ("en", "ja"):
             text = {"en": "Settings", "ja": "設定"}[lang]
         elif lang == "ru":
             text = "Settings"  # 预设 UI 不支持俄语，回落英语
-        label = QGraphicsTextItem(text)
-        label.setDefaultTextColor(QColor(255, 255, 255))
-        label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
-        label.setAcceptHoverEvents(False)
-        label.setTextInteractionFlags(Qt.NoTextInteraction)  # 文字不拦截点击
-        label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
-        label.setTextWidth(-1)
+        label = make_label(text)
         text_rect = label.boundingRect()
         # 按钮宽 = 文字宽 + 左右 padding（至少 40px，保留中文基准宽）
         btn_w = max(40, text_rect.width() + 24)
-        y = (window_height - menu_h) + (menu_h - btn_h) / 2  # 菜单条顶边 + 垂直居中
         x = window_width - margin - btn_w  # 最右侧，贴右边缘
 
         rect = QRectF(x, y, btn_w, btn_h)
@@ -685,6 +703,26 @@ class GalGameWindow(QMainWindow):
         self.graphics_view.scene.addItem(label)
         self.bottom_menu_buttons.append(label)
         btn._text_label = label  # 悬停变色用（_set_text_color 需要）
+
+        # --- 自动播放开关按钮（设置按钮左侧） ---
+        auto_btn_w = btn_h  # 方形图标按钮
+        auto_rect = QRectF(x - margin - auto_btn_w, y, auto_btn_w, btn_h)
+        auto_btn = SettingsButtonItem(auto_rect, "bottom_auto_play", opacity=200)
+        auto_btn.setZValue(10)
+        auto_btn.set_click_handler(self.toggle_auto_play_button)
+        self.graphics_view.scene.addItem(auto_btn)
+        self.bottom_menu_buttons.append(auto_btn)
+
+        # 图标：▷ 关闭（未播放）/ ▶ 开启（播放中），随状态切换
+        icon = "▶" if getattr(self.controller, "auto_play", False) else "▷"
+        icon_label = make_label(icon, font_size=14)
+        ir = icon_label.boundingRect()
+        icon_label.setPos(auto_rect.center().x() - ir.width() / 2,
+                          auto_rect.center().y() - ir.height() / 2)
+        icon_label.setZValue(11)
+        self.graphics_view.scene.addItem(icon_label)
+        self.bottom_menu_buttons.append(icon_label)
+        auto_btn._text_label = icon_label  # 悬停变色用
 
     def _stop_chatbox_animations_for(self, item):
         """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
@@ -827,6 +865,7 @@ class GalGameWindow(QMainWindow):
                 self.controller.handle_click()
             elif event.key() == Qt.Key_A:
                 self.controller.toggle_auto_play()
+                self._update_auto_play_icon()
             elif event.key() == Qt.Key_F2:
                 self.controller.save_game()
             elif event.key() == Qt.Key_F3:
