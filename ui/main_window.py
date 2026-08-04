@@ -607,18 +607,7 @@ class GalGameWindow(QMainWindow):
         # 按钮布局：右缘贴菜单条右边缘（留 margin），垂直居中于菜单条可视区
         margin = 12
         btn_h = max(18, menu_h - 2 * margin)
-        btn_w = max(40, btn_h * 3)  # 容纳“设置”文字
-        y = (window_height - menu_h) + (menu_h - btn_h) / 2  # 菜单条顶边 + 垂直居中
-        x = window_width - margin - btn_w  # 最右侧，贴右边缘
-
-        rect = QRectF(x, y, btn_w, btn_h)
-        btn = SettingsButtonItem(rect, "bottom_settings", opacity=200)
-        btn.setZValue(10)  # 与 chatbox 同层，在菜单条(9)之上
-        btn.set_click_handler(self.open_settings)
-        self.graphics_view.scene.addItem(btn)
-        self.bottom_menu_buttons.append(btn)
-
-        # 文字：挂场景，按钮 _rect 中心定位（SettingsButtonItem pos 恒 (0,0)）
+        # 文字内容随语言变化（中文2字/英文8字/俄语10字），按钮宽度须容纳完整文字
         text = "设置"
         lang = self.controller.language or "zh"
         if lang in ("en", "ja", "ru"):
@@ -630,6 +619,20 @@ class GalGameWindow(QMainWindow):
         label.setTextInteractionFlags(Qt.NoTextInteraction)  # 文字不拦截点击
         label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         label.setTextWidth(-1)
+        text_rect = label.boundingRect()
+        # 按钮宽 = 文字宽 + 左右 padding（至少 40px，保留中文基准宽）
+        btn_w = max(40, text_rect.width() + 24)
+        y = (window_height - menu_h) + (menu_h - btn_h) / 2  # 菜单条顶边 + 垂直居中
+        x = window_width - margin - btn_w  # 最右侧，贴右边缘
+
+        rect = QRectF(x, y, btn_w, btn_h)
+        btn = SettingsButtonItem(rect, "bottom_settings", opacity=200)
+        btn.setZValue(10)  # 与 chatbox 同层，在菜单条(9)之上
+        btn.set_click_handler(self.open_settings)
+        self.graphics_view.scene.addItem(btn)
+        self.bottom_menu_buttons.append(btn)
+
+        # 文字：挂场景，按钮 _rect 中心定位（SettingsButtonItem pos 恒 (0,0)）
         r = label.boundingRect()
         label.setPos(rect.center().x() - r.width() / 2, rect.center().y() - r.height() / 2)
         label.setZValue(11)
