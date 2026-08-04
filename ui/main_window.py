@@ -738,7 +738,12 @@ class GalGameWindow(QMainWindow):
         auto_btn._text_label = icon_label  # 悬停变色用
 
         # --- 快进开关按钮（自动播放按钮左侧）：▷▷ 关闭 / ▶▶ 开启 ---
-        skip_btn_w = btn_h  # 方形图标按钮
+        # 先创建图标文字量宽：▷▷ 是双字符，按钮宽需按文字自适应（最小保持方形 btn_h）
+        skip_on = getattr(self.controller, "skip_mode", False)
+        skip_icon = "▶▶" if skip_on else "▷▷"
+        skip_label = make_label(skip_icon, font_size=14)
+        sr = skip_label.boundingRect()
+        skip_btn_w = max(btn_h, sr.width() + 16)
         skip_rect = QRectF(auto_rect.left() - margin - skip_btn_w, y, skip_btn_w, btn_h)
         skip_btn = SettingsButtonItem(skip_rect, "bottom_skip", opacity=200)
         skip_btn.setZValue(10)
@@ -746,11 +751,6 @@ class GalGameWindow(QMainWindow):
         self.graphics_view.scene.addItem(skip_btn)
         self.bottom_menu_buttons.append(skip_btn)
 
-        # 图标：▷▷ 关闭 / ▶▶ 开启，随状态切换
-        skip_on = getattr(self.controller, "skip_mode", False)
-        skip_icon = "▶▶" if skip_on else "▷▷"
-        skip_label = make_label(skip_icon, font_size=14)
-        sr = skip_label.boundingRect()
         skip_label.setPos(skip_rect.center().x() - sr.width() / 2,
                           skip_rect.center().y() - sr.height() / 2)
         skip_label.setZValue(11)
