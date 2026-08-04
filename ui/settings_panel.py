@@ -84,6 +84,7 @@ class SettingsPanel(QGraphicsPathItem):
         # 预设 UI 显示语言：仅支持 zh/en/ja，超出回落 en
         self.language = language if language in UI_LANGS else "en"
         self.buttons = []   # 底部按钮列表
+        self._button_handlers = {}  # 底部按钮 key -> click_handler（重建后自动重绑）
         # 分辨率选项：JSON 提供的分辨率列表 + 末尾"全屏"；无 JSON 时用默认列表
         base_opts = list(resolution_options) if resolution_options else list(RESOLUTIONS)
         self._res_options = base_opts + [FULLSCREEN_KEY]
@@ -273,6 +274,7 @@ class SettingsPanel(QGraphicsPathItem):
         lf.setPointSize(self.config.get("res_label_size", 18))
         self._language_label.setFont(lf)
         self._language_label.setAcceptHoverEvents(False)
+        self._language_label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
         self._language_label.setParentItem(self)
         self._language_label.setTextWidth(-1)
         rl = self._language_label.boundingRect()
@@ -305,6 +307,7 @@ class SettingsPanel(QGraphicsPathItem):
         vf.setPointSize(self.config.get("res_value_size", 16))
         self._language_value.setFont(vf)
         self._language_value.setAcceptHoverEvents(False)
+        self._language_value.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
         self._language_value.setParentItem(self)
         self._language_value.setTextWidth(-1)
         rv = self._language_value.boundingRect()
@@ -385,6 +388,7 @@ class SettingsPanel(QGraphicsPathItem):
         lf.setPointSize(self.config.get("res_label_size", 18))
         self._resolution_label.setFont(lf)
         self._resolution_label.setAcceptHoverEvents(False)
+        self._resolution_label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
         self._resolution_label.setParentItem(self)
         self._resolution_label.setTextWidth(-1)
         rl = self._resolution_label.boundingRect()
@@ -417,6 +421,7 @@ class SettingsPanel(QGraphicsPathItem):
         vf.setPointSize(self.config.get("res_value_size", 16))
         self._resolution_value.setFont(vf)
         self._resolution_value.setAcceptHoverEvents(False)
+        self._resolution_value.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
         self._resolution_value.setParentItem(self)
         self._resolution_value.setTextWidth(-1)
         rv = self._resolution_value.boundingRect()
@@ -500,6 +505,10 @@ class SettingsPanel(QGraphicsPathItem):
             rect = QRectF(x, y, btn_w, btn_h)
             btn = SettingsButtonItem(rect, key, self, opacity=opacity)
             self.buttons.append(btn)
+            # 重建后自动重绑已注册的点击处理器（语言/重置重建会丢 handler）
+            handler = self._button_handlers.get(key)
+            if handler:
+                btn.set_click_handler(handler)
             # 文本作为面板子项，定位到按钮中心
             text = BUTTON_TEXTS[key].get(self.language, BUTTON_TEXTS[key]["zh"])
             self._add_button_text(text, btn,
@@ -628,6 +637,7 @@ class SettingsPanel(QGraphicsPathItem):
         label.setDefaultTextColor(QColor(rgb[0], rgb[1], rgb[2]))
         label.setFont(font)
         label.setAcceptHoverEvents(False)
+        label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
         # 文本作为面板子项，随面板移动/显示
         label.setParentItem(self)
         # 按钮是面板子项，图形从面板局部 (btn._rect.x, btn._rect.y) 开始
@@ -647,6 +657,15 @@ class SettingsPanel(QGraphicsPathItem):
             if b.key == key:
                 return b
         return None
+
+    def set_button_handler(self, key, handler):
+        """注册底部按钮点击处理器并立即绑定。
+        注册表保留 handler，语言切换/重置导致按钮重建后自动重绑。
+        """
+        self._button_handlers[key] = handler
+        btn = self.button(key)
+        if btn:
+            btn.set_click_handler(handler)
 
 
 class SettingsButtonItem(QGraphicsPathItem):
