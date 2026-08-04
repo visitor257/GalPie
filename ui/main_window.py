@@ -326,16 +326,14 @@ class GalGameWindow(QMainWindow):
     def _back_to_menu(self):
         """返回主菜单：关闭设置面板、停止自动播放/快进、重置剧情状态，
         重建并显示开始菜单（含开始游戏按钮）。
+        注意：不能在按钮点击回调里同步 removeItem 面板（PySide6 硬崩溃），
+        全部清理延后到事件循环空闲（QTimer.singleShot 0）再执行。
         """
         print("返回主菜单")
-        # 关闭设置面板（若开着）
-        if self.is_in_settings and self.settings_panel:
-            panel = self.settings_panel
-            self.settings_panel = None
-            self.is_in_settings = False
-            if panel.scene():
-                self.graphics_view.scene.removeItem(panel)
-        # 停止自动播放/快进定时器，清空状态
+        # 立即标记：设置已关闭（防止期间再操作）
+        self.is_in_settings = False
+        self.settings_panel = None
+        # 先停止自动播放/快进定时器（安全，不碰场景）
         if self.controller.skip_mode:
             self.controller.skip_mode = False
             self.controller.skip_timer.stop()
@@ -348,14 +346,37 @@ class GalGameWindow(QMainWindow):
         self.controller.audio_timer.stop()
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
-        # 清空对话框 widget 引用：show_menu 会 clear_items() 销毁 C++ 对象，
-        # 需先置 None 避免下次 setup_dialog_area 复用悬垂引用崩溃
+        # 注意：text_display/name_label 等不在同步阶段置 None，
+        # 由 _clear_scene_and_show_menu 停掉逐字 timer 后再清引用。
+        # 延后到事件循环空闲：清空场景所有 item（含设置面板/chatbox/proxy/底部
+        # 菜单），再重建主菜单。避免在按钮点击回调栈内删除面板导致硬崩溃。
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._clear_scene_and_show_menu)
+
+    def _clear_scene_and_show_menu(self):
+        """（事件循环空闲时）清空场景并显示主菜单。"""
+        # 先停掉逐字 timer 并断开信号：scene.clear() 删除 QGraphicsProxyWidget 时
+        # 会销毁内嵌 QTextEdit；若 timer 还在跑，timeout 信号会触发已失效 Python
+        # 回调导致硬崩溃（0xC0000409）。
+        if self.text_display is not None:
+            try:
+                self.text_display.timer.stop()
+                self.text_display.timer.timeout.disconnect()
+            except Exception:
+                pass
+        self.graphics_view.scene.clear()
+        self.graphics_view.itemList.clear()
+        self.graphics_view.character_items.clear()
+        self.graphics_view.background_item = None
+        # 清空对话框 widget 引用（C++ 对象已被 scene.clear 销毁）
         self.name_label = None
         self.text_display = None
         self.chatbox_item = None
         self.bottom_menu_item = None
         self.chatbox_widget_proxies.clear()
-        # 显示主菜单
+        self.bottom_menu_buttons = []
+        self.menu_button_items = []
+        self.menu_bg_item = None
         self.show_menu()
 
     def _quit_game(self):
