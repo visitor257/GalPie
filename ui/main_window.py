@@ -156,11 +156,9 @@ class GalGameWindow(QMainWindow):
                     ls = self.controller.logical_size
                     self.graphics_view.add_item(bg_pixmap, [(ls[0] - bg_pixmap.width()) // 2, 0])
             if "title" in menu_data:
-                # 标题图按语言取；预设 UI 仅支持中英日，ru 等其他语言回落 en；
-                # 无对应语言图时回退 zh（多语言共用一张标题图）
+                # 标题图按语言取；无对应语言图时回退 zh（多语言共用一张标题图）
                 title_dict = menu_data["title"]
-                display_lang = self.controller.language if self.controller.language in ("zh", "en", "ja") else "en"
-                title_path = title_dict.get(display_lang) or title_dict.get("zh")
+                title_path = title_dict.get(self.controller.language) or title_dict.get("zh")
                 if not title_path:
                     title_path = next(iter(title_dict.values()))
                 full_title_path = self.controller.base_path / title_path
@@ -223,9 +221,7 @@ class GalGameWindow(QMainWindow):
             self.graphics_view.add_item(button_item, button_pos)
             self.menu_button_items.append(button_item)
 
-            # 预设 UI 仅支持中英日：ru 等其他语言回落 en（与设置面板规则一致）
-            display_lang = self.controller.language if self.controller.language in ("zh", "en", "ja") else "en"
-            text = texts.get(display_lang, next(iter(texts.values())))
+            text = texts.get(self.controller.language, next(iter(texts.values())))
             text_item = QGraphicsTextItem(text)
             text_item.setDefaultTextColor(text_color)
             text_item.setFont(QFont("Microsoft YaHei", 14, QFont.Bold))
