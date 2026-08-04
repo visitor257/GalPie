@@ -53,7 +53,7 @@ DEFAULT_PRESET = {
 BUTTON_TEXTS = {
     "reset": {"zh": "恢复默认", "en": "Reset", "ja": "リセット", "ru": "Сброс"},
     "back": {"zh": "返回", "en": "Back", "ja": "戻る", "ru": "Назад"},
-    "quit": {"zh": "退出游戏", "en": "Quit", "ja": "ゲーム終了", "ru": "Выход"},
+    "quit": {"zh": "主菜单", "en": "Main Menu", "ja": "メインメニュー", "ru": "Главное меню"},
 }
 
 # 面板标题（多语言）

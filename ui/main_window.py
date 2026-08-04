@@ -306,7 +306,7 @@ class GalGameWindow(QMainWindow):
         """
         panel.set_button_handler("reset", self._reset_settings)
         panel.set_button_handler("back", self.close_settings_panel)
-        panel.set_button_handler("quit", self._quit_game)
+        panel.set_button_handler("quit", self._back_to_menu)
 
     def _reset_settings(self):
         """恢复默认设置：文字速度回默认（30ms/字）、语言回第一个。"""
@@ -322,6 +322,41 @@ class GalGameWindow(QMainWindow):
                 self.settings_panel.set_language(self.controller.language)
             self._menu_language_dirty = True
         print("设置已恢复默认")
+
+    def _back_to_menu(self):
+        """返回主菜单：关闭设置面板、停止自动播放/快进、重置剧情状态，
+        重建并显示开始菜单（含开始游戏按钮）。
+        """
+        print("返回主菜单")
+        # 关闭设置面板（若开着）
+        if self.is_in_settings and self.settings_panel:
+            panel = self.settings_panel
+            self.settings_panel = None
+            self.is_in_settings = False
+            if panel.scene():
+                self.graphics_view.scene.removeItem(panel)
+        # 停止自动播放/快进定时器，清空状态
+        if self.controller.skip_mode:
+            self.controller.skip_mode = False
+            self.controller.skip_timer.stop()
+        if self.controller.auto_play:
+            self.controller.auto_play = False
+        self._auto_play_paused = False
+        # 重置剧情状态
+        self.controller.is_in_game = False
+        self.controller.is_waiting_for_next_page = False
+        self.controller.audio_timer.stop()
+        self.controller.current_page = 1
+        self.controller.current_scene_index = 0
+        # 清空对话框 widget 引用：show_menu 会 clear_items() 销毁 C++ 对象，
+        # 需先置 None 避免下次 setup_dialog_area 复用悬垂引用崩溃
+        self.name_label = None
+        self.text_display = None
+        self.chatbox_item = None
+        self.bottom_menu_item = None
+        self.chatbox_widget_proxies.clear()
+        # 显示主菜单
+        self.show_menu()
 
     def _quit_game(self):
         """退出游戏。"""
