@@ -61,8 +61,8 @@ TITLE_TEXTS = {"zh": "游戏设置", "en": "Settings", "ja": "ゲーム設定", 
 
 # 语言选择器可选项（JSON settings.language 中可被选中的语言）
 SUPPORTED_LANGS = ["zh", "en", "ja", "ru"]
-# 预设 UI 界面显示语言（超出此范围的语言界面回落 en）
-UI_LANGS = ["zh", "en", "ja", "ru"]
+# 预设 UI 界面显示语言（仅支持中英日；超出此范围的语言界面回落 en）
+UI_LANGS = ["zh", "en", "ja"]
 # 语言选择器中的语言自称（不随面板语言变）
 LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語", "ru": "Русский"}
 
