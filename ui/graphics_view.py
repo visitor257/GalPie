@@ -2,7 +2,7 @@ from typing import List, Dict
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsOpacityEffect
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QPixmap, QPainter, QTransform
+from PySide6.QtGui import QPixmap, QPainter
 
 from ui.animations import ease_in_out
 
@@ -45,9 +45,13 @@ class AnimatedPixmapItem(QGraphicsPixmapItem):
 
     def set_zoom(self, zoom: float):
         self.current_zoom = zoom
-        # 用 transform 缩放（GPU 变换，无 CPU 重采样）：左上角固定，向右下扩展
-        # 与之前 setPixmap(scaled) 的左上角锚定行为一致，动画每帧不再重采样图片
-        self.setTransform(QTransform().scale(zoom, zoom))
+        if self.original_pixmap:
+            new_width = int(self.original_pixmap.width() * zoom)
+            new_height = int(self.original_pixmap.height() * zoom)
+            scaled_pixmap = self.original_pixmap.scaled(
+                new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.setPixmap(scaled_pixmap)
 
     def set_animations(self, animations: List):
         self.animations = animations
@@ -171,8 +175,6 @@ class GraphicsView(QGraphicsView):
         self.itemList = []
         self.setMouseTracking(True)
         self.setInteractive(True)
-        # 只重绘变化区域（默认 FullViewportUpdate 每帧全量重绘，虚拟显卡下开销大）
-        self.setViewportUpdateMode(QGraphicsView.BoundingRectViewportUpdate)
         # OpenGL viewport 可能忽略 item 光标：兜底强制箭头，避免悬停文本时 IBeam
         self.setCursor(Qt.ArrowCursor)
         self.viewport().setCursor(Qt.ArrowCursor)
