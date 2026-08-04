@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect, QComboBox, QSlider
 )
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF
-from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen
+from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen, QTextCursor
 
 from core.game_controller import GameController
 from ui.graphics_view import GraphicsView, MenuButtonItem
@@ -381,6 +381,8 @@ class GalGameWindow(QMainWindow):
             else:
                 # 剧情中：刷新底部菜单按钮文字（若存在）
                 self._refresh_bottom_menu_buttons()
+                # 重新渲染当前对话（名称/字幕按新语言取词，直接显示全文不重播逐字）
+                self._refresh_current_dialog()
             return
         self._set_menu_buttons_fade_in()
 
@@ -397,6 +399,48 @@ class GalGameWindow(QMainWindow):
         menu_h = max(1, int(round(window_height * ratio)))
         extend = int(bm.get("extend", 50))
         self._create_bottom_menu_buttons(window_width, window_height, menu_h, extend)
+
+    def _refresh_current_dialog(self):
+        """剧情中语言切换后：用当前场景的 content 重新渲染对话（名称/字幕按新语言取词）。
+        直接显示新语言全文，不重播逐字动画，不触发自动前进。
+        当前场景无对话时无操作。
+        """
+        if self.text_display is None or self.name_label is None:
+            return
+        try:
+            page_data = self.controller.current_page_data
+            idx = self.controller.current_scene_index
+            if not page_data or idx >= len(page_data):
+                return
+            scene = page_data[idx]
+            content = scene.get("content")
+            if not content:
+                return
+            # 直接按新语言取词（与 display_dialog 同逻辑），避免 set_text 重启逐字动画/触发回调
+            lang = self.controller.language or "zh"
+            speaking_name = ""
+            if "speaking_name" in content:
+                char_id = content["speaking_name"]
+                char_data = self.controller.story_data["story_and_position"]["character_and_motion"].get(char_id, {})
+                names = char_data.get("name", {})
+                speaking_name = names.get(lang) or names.get("zh", "")
+            elif "speaking" in content:
+                speak_map = content["speaking"]
+                speaking_name = speak_map.get(lang) or speak_map.get("zh", "")
+            self.name_label.setText(speaking_name)
+            words_map = content["words"]
+            words = words_map.get(lang) or words_map.get("zh", "")
+            # 直接写入全文（不动逐字 timer / 回调 / is_text_finished）
+            self.text_display.timer.stop()
+            self.text_display.full_text = words
+            self.text_display.displayed_text = words
+            self.text_display.char_index = len(words)
+            self.text_display.setPlainText(words)
+            cursor = self.text_display.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            self.text_display.setTextCursor(cursor)
+        except Exception as e:
+            print(f"刷新当前对话失败: {e}")
 
     def _set_menu_buttons_fade_in(self, duration=500):
         """菜单按钮（含文本）渐变显示：透明度 0 -> 100。"""
