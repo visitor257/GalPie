@@ -34,7 +34,7 @@ class GameController:
         # 快进开关（模拟长按空格：定时器周期性触发 handle_click，快速推进场景）
         self.skip_mode = False
         self.skip_timer = QTimer()
-        self.skip_timer.setInterval(200)
+        self.skip_timer.setInterval(50)
         self.skip_timer.timeout.connect(self._skip_tick)
 
         self.window_size = [1280, 720]
