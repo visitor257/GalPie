@@ -232,6 +232,7 @@ class GalGameWindow(QMainWindow):
             )
             text_item.setZValue(3)
             text_item.setAcceptHoverEvents(False)
+            text_item.setTextInteractionFlags(Qt.NoTextInteraction)
             self.graphics_view.add_item(text_item)
             self.menu_button_items.append(text_item)
 
@@ -627,6 +628,7 @@ class GalGameWindow(QMainWindow):
         label.setDefaultTextColor(QColor(255, 255, 255))
         label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
         label.setAcceptHoverEvents(False)
+        label.setTextInteractionFlags(Qt.NoTextInteraction)  # 文字不拦截点击
         label.setTextWidth(-1)
         r = label.boundingRect()
         label.setPos(rect.center().x() - r.width() / 2, rect.center().y() - r.height() / 2)
