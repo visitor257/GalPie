@@ -77,6 +77,7 @@ class GalGameWindow(QMainWindow):
         self.graphics_view = None
         self.settings_panel = None  # 当前设置面板（场景内）
         self.is_in_settings = False  # 是否正在设置界面中
+        self._auto_play_paused = False  # 打开设置时是否暂停了自动播放（关闭后恢复）
         self.menu_button_items = []  # 菜单按钮及其文本 item（打开设置时隐藏）
         self.settings_ui_config = {}  # 设置界面配置（menu_pos.settings 第 3 项：ui_mode/resolution 等）
 
@@ -289,6 +290,15 @@ class GalGameWindow(QMainWindow):
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
+        # 打开设置面板：暂停自动播放/快进（返回剧情后恢复）
+        self._auto_play_paused = getattr(self.controller, "auto_play", False)
+        if self.controller.auto_play:
+            self.controller.auto_play = False
+            print("设置打开：暂停自动播放")
+            self._update_auto_play_icon()
+        if getattr(self.controller, "skip_mode", False):
+            self.controller.skip_timer.stop()
+            print("设置打开：暂停快进")
 
     def _bind_settings_buttons(self, panel):
         """为设置面板底部按钮绑定点击行为。
@@ -369,9 +379,20 @@ class GalGameWindow(QMainWindow):
     def _finish_close_settings(self, panel):
         """面板渐隐完成后：移除面板 + 菜单按钮渐显。
         语言切换后：菜单中重建主菜单；剧情中刷新底部菜单按钮文字（不跳转）。
+        返回剧情后：恢复打开设置前暂停的自动播放/快进。
         """
         if panel.scene():
             self.graphics_view.scene.removeItem(panel)
+        # 恢复设置打开前暂停的自动播放/快进（仅当仍在剧情中）
+        if self.controller.is_in_game and not self.controller.is_in_menu:
+            if getattr(self, "_auto_play_paused", False) and not self.controller.auto_play:
+                self.controller.auto_play = True
+                print("设置关闭：恢复自动播放")
+                self._update_auto_play_icon()
+            if getattr(self.controller, "skip_mode", False) and not self.controller.skip_timer.isActive():
+                self.controller.skip_timer.start()
+                print("设置关闭：恢复快进")
+        self._auto_play_paused = False
         if getattr(self, "_menu_language_dirty", False):
             # 语言已切换
             self._menu_language_dirty = False

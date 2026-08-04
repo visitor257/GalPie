@@ -290,6 +290,12 @@ class GameController:
             self.advance_to_next_scene()
 
     def toggle_auto_play(self):
+        # 互斥：开自动播放时，若快进开着则关闭快进（两模式不可同时开启）
+        if not self.auto_play and self.skip_mode:
+            self.skip_mode = False
+            self.skip_timer.stop()
+            print("互斥：自动播放开启，已关闭快进")
+            self.main_window._update_skip_icon()
         self.auto_play = not self.auto_play
         status = "开启" if self.auto_play else "关闭"
         print(f"自动播放已{status}")
@@ -307,7 +313,11 @@ class GameController:
         self.handle_click()
 
     def toggle_skip_mode(self):
-        """切换快进模式：模拟长按空格快速推进剧情。"""
+        # 互斥：开快进时，若自动播放开着则关闭自动播放（两模式不可同时开启）
+        if not self.skip_mode and self.auto_play:
+            self.auto_play = False
+            print("互斥：快进开启，已关闭自动播放")
+            self.main_window._update_auto_play_icon()
         self.skip_mode = not self.skip_mode
         status = "开启" if self.skip_mode else "关闭"
         print(f"快进模式已{status}")
