@@ -233,6 +233,7 @@ class GalGameWindow(QMainWindow):
             text_item.setZValue(3)
             text_item.setAcceptHoverEvents(False)
             text_item.setTextInteractionFlags(Qt.NoTextInteraction)
+            text_item.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
             self.graphics_view.add_item(text_item)
             self.menu_button_items.append(text_item)
 
@@ -499,6 +500,8 @@ class GalGameWindow(QMainWindow):
         # 创建名字标签
         if not self.name_label:
             self.name_label = QLabel()
+            self.name_label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
+            self.name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)  # 名字不拦截鼠标
             self.name_label.setStyleSheet("""
                 QLabel {
                     color: white;
@@ -625,6 +628,7 @@ class GalGameWindow(QMainWindow):
         label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
         label.setAcceptHoverEvents(False)
         label.setTextInteractionFlags(Qt.NoTextInteraction)  # 文字不拦截点击
+        label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         label.setTextWidth(-1)
         r = label.boundingRect()
         label.setPos(rect.center().x() - r.width() / 2, rect.center().y() - r.height() / 2)

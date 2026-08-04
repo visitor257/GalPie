@@ -12,6 +12,7 @@ class TextDisplayWidget(QTextEdit):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         font = QFont("Microsoft YaHei", 14)
         self.setFont(font)
         self.setStyleSheet("""

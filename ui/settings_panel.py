@@ -275,6 +275,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._language_label.setFont(lf)
         self._language_label.setAcceptHoverEvents(False)
         self._language_label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        self._language_label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         self._language_label.setParentItem(self)
         self._language_label.setTextWidth(-1)
         rl = self._language_label.boundingRect()
@@ -308,6 +309,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._language_value.setFont(vf)
         self._language_value.setAcceptHoverEvents(False)
         self._language_value.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        self._language_value.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         self._language_value.setParentItem(self)
         self._language_value.setTextWidth(-1)
         rv = self._language_value.boundingRect()
@@ -389,6 +391,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_label.setFont(lf)
         self._resolution_label.setAcceptHoverEvents(False)
         self._resolution_label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        self._resolution_label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         self._resolution_label.setParentItem(self)
         self._resolution_label.setTextWidth(-1)
         rl = self._resolution_label.boundingRect()
@@ -422,6 +425,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_value.setFont(vf)
         self._resolution_value.setAcceptHoverEvents(False)
         self._resolution_value.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        self._resolution_value.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
         self._resolution_value.setParentItem(self)
         self._resolution_value.setTextWidth(-1)
         rv = self._resolution_value.boundingRect()
@@ -638,6 +642,7 @@ class SettingsPanel(QGraphicsPathItem):
         label.setFont(font)
         label.setAcceptHoverEvents(False)
         label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        label.setCursor(Qt.ArrowCursor)  # 文本悬停保持箭头，避免 IBeam
         # 文本作为面板子项，随面板移动/显示
         label.setParentItem(self)
         # 按钮是面板子项，图形从面板局部 (btn._rect.x, btn._rect.y) 开始
@@ -686,6 +691,7 @@ class SettingsButtonItem(QGraphicsPathItem):
         self.is_hovered = False
         self._text_label = None
         self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.ArrowCursor)  # 悬停保持箭头光标，避免文本默认 IBeam
         self._apply_color()
 
     def _apply_color(self, color=None):

@@ -117,6 +117,7 @@ class MenuButtonItem(QGraphicsPixmapItem):
         self.is_hovered = False
         self.click_handler = None
         self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.ArrowCursor)  # 悬停保持箭头光标，避免文本默认 IBeam
 
     def hoverEnterEvent(self, event):
         self.is_hovered = True
@@ -174,6 +175,9 @@ class GraphicsView(QGraphicsView):
         self.itemList = []
         self.setMouseTracking(True)
         self.setInteractive(True)
+        # OpenGL viewport 可能忽略 item 光标：兜底强制箭头，避免悬停文本时 IBeam
+        self.setCursor(Qt.ArrowCursor)
+        self.viewport().setCursor(Qt.ArrowCursor)
         # 初始适配窗口
         self.fit_logical_rect()
 
