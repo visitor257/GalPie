@@ -290,16 +290,12 @@ class GalGameWindow(QMainWindow):
         self.is_in_settings = True
 
     def _bind_settings_buttons(self, panel):
-        """为设置面板底部按钮绑定点击行为。"""
-        btn_reset = panel.button("reset")
-        if btn_reset:
-            btn_reset.set_click_handler(self._reset_settings)
-        btn_back = panel.button("back")
-        if btn_back:
-            btn_back.set_click_handler(self.close_settings_panel)
-        btn_quit = panel.button("quit")
-        if btn_quit:
-            btn_quit.set_click_handler(self._quit_game)
+        """为设置面板底部按钮绑定点击行为。
+        用 set_button_handler 注册：语言切换/重置重建按钮后自动重绑，不会丢 handler。
+        """
+        panel.set_button_handler("reset", self._reset_settings)
+        panel.set_button_handler("back", self.close_settings_panel)
+        panel.set_button_handler("quit", self._quit_game)
 
     def _reset_settings(self):
         """恢复默认设置：文字速度回默认（30ms/字）、语言回第一个。"""
