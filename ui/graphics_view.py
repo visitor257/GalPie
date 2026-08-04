@@ -200,6 +200,11 @@ class GraphicsView(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
+        # 强制箭头光标：QGraphicsScene 悬停文本/按钮时可能把 viewport 光标改为
+        # IBeam 等（尤其 OpenGL viewport 下），这里每次鼠标移动都覆盖回来
+        if self.viewport().cursor().shape() != Qt.CursorShape.ArrowCursor:
+            self.viewport().setCursor(Qt.ArrowCursor)
+        self.setCursor(Qt.ArrowCursor)
 
     def update_bg_pos(self, bg_pos=[0, 0]):
         self.bg_pos = bg_pos
