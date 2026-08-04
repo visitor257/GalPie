@@ -413,6 +413,19 @@ class GalGameWindow(QMainWindow):
                 it.setPlainText(icon)
                 return
 
+    def toggle_skip_button(self):
+        """底部菜单快进开关：切换状态并更新图标（关 ▷▷ / 开 ▶▶）。"""
+        self.controller.toggle_skip_mode()
+        self._update_skip_icon()
+
+    def _update_skip_icon(self):
+        """按当前 skip_mode 状态更新底部菜单快进按钮图标。"""
+        icon = "▶▶" if getattr(self.controller, "skip_mode", False) else "▷▷"
+        for it in self.bottom_menu_buttons:
+            if isinstance(it, QGraphicsTextItem) and it.toPlainText() in ("▷▷", "▶▶"):
+                it.setPlainText(icon)
+                return
+
     def _refresh_current_dialog(self):
         """剧情中语言切换后：用当前场景的 content 重新渲染对话（名称/字幕按新语言取词）。
         直接显示新语言全文，不重播逐字动画，不触发自动前进。
@@ -724,6 +737,27 @@ class GalGameWindow(QMainWindow):
         self.bottom_menu_buttons.append(icon_label)
         auto_btn._text_label = icon_label  # 悬停变色用
 
+        # --- 快进开关按钮（自动播放按钮左侧）：▷▷ 关闭 / ▶▶ 开启 ---
+        skip_btn_w = btn_h  # 方形图标按钮
+        skip_rect = QRectF(auto_rect.left() - margin - skip_btn_w, y, skip_btn_w, btn_h)
+        skip_btn = SettingsButtonItem(skip_rect, "bottom_skip", opacity=200)
+        skip_btn.setZValue(10)
+        skip_btn.set_click_handler(self.toggle_skip_button)
+        self.graphics_view.scene.addItem(skip_btn)
+        self.bottom_menu_buttons.append(skip_btn)
+
+        # 图标：▷▷ 关闭 / ▶▶ 开启，随状态切换
+        skip_on = getattr(self.controller, "skip_mode", False)
+        skip_icon = "▶▶" if skip_on else "▷▷"
+        skip_label = make_label(skip_icon, font_size=14)
+        sr = skip_label.boundingRect()
+        skip_label.setPos(skip_rect.center().x() - sr.width() / 2,
+                          skip_rect.center().y() - sr.height() / 2)
+        skip_label.setZValue(11)
+        self.graphics_view.scene.addItem(skip_label)
+        self.bottom_menu_buttons.append(skip_label)
+        skip_btn._text_label = skip_label  # 悬停变色用
+
     def _stop_chatbox_animations_for(self, item):
         """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
         避免旧动画在新动画启动后继续改变透明度，导致显示/隐藏状态错乱。
@@ -866,6 +900,9 @@ class GalGameWindow(QMainWindow):
             elif event.key() == Qt.Key_A:
                 self.controller.toggle_auto_play()
                 self._update_auto_play_icon()
+            elif event.key() == Qt.Key_S:
+                self.controller.toggle_skip_mode()
+                self._update_skip_icon()
             elif event.key() == Qt.Key_F2:
                 self.controller.save_game()
             elif event.key() == Qt.Key_F3:
