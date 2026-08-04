@@ -31,8 +31,11 @@ class GameController:
         self.auto_play = False
         self.is_waiting_for_next_page = False
 
-        # 快进开关（每页只搭第一个场景，不播动画/音频，立即进下一页）
+        # 快进开关（模拟长按空格：定时器周期性触发 handle_click，快速推进场景）
         self.skip_mode = False
+        self.skip_timer = QTimer()
+        self.skip_timer.setInterval(200)
+        self.skip_timer.timeout.connect(self._skip_tick)
 
         self.window_size = [1280, 720]
         # 逻辑分辨率：场景坐标定位基准（默认 1280x720，可由 JSON settings.window_size 覆盖）
@@ -125,7 +128,7 @@ class GameController:
             self.current_page += 1
             self.current_scene_index = 0
             print(f"准备下一页: {self.current_page}")
-            if self.auto_play or self.skip_mode:
+            if self.auto_play:
                 self.play_current_page()
             else:
                 self.is_waiting_for_next_page = True
@@ -142,10 +145,6 @@ class GameController:
         self.is_text_finished = False
         self.is_audio_finished = False
 
-        # 快进模式：每页只搭建第一个场景（背景/角色/对话框），不播动画、不显示对话、不等待，立即进下一页
-        skip = self.skip_mode and self.current_scene_index == 0
-        change_effect = None if skip else scene.get("change", None)
-
         # 清除所有角色和背景（如果需要）
         if scene.get("clear_all", False):
             self.main_window.graphics_view.clear_all()
@@ -161,7 +160,7 @@ class GameController:
                 if bg_pixmap:
                     self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
                     self.main_window.graphics_view.update_bg_pos(self.background_pos)
-                    self.main_window.graphics_view.set_background(bg_pixmap, change_effect)
+                    self.main_window.graphics_view.set_background(bg_pixmap, scene.get("change", None))
                 else:
                     print(f"无法加载背景图片: {full_bg_path}")
             else:
@@ -173,7 +172,7 @@ class GameController:
             character_defs = self.story_data["story_and_position"].get("character_and_motion", {})
             for char_id, char_info in characters_data.items():
                 if char_id in character_defs:
-                    self.setup_character(char_id, char_info, character_defs[char_id], change_effect, skip)
+                    self.setup_character(char_id, char_info, character_defs[char_id], scene.get("change", None))
                 else:
                     print(f"角色未定义: {char_id}")
 
@@ -182,15 +181,8 @@ class GameController:
             chatbox_config = scene["chatbox"]
             print(f"[Controller] 处理 chatbox 配置: {chatbox_config}")
             visible = chatbox_config.get("visible", True)
-            change_effect_chatbox = None if skip else chatbox_config.get("change", None)
-            self.main_window.set_chatbox_visible(visible, change_effect_chatbox)
-
-        # 快进模式：搭建完成后不播动画/不显示对话，直接进下一页
-        if skip:
-            self.is_text_finished = True
-            self.is_audio_finished = True
-            self.advance_to_next_scene()
-            return
+            change_effect = chatbox_config.get("change", None)
+            self.main_window.set_chatbox_visible(visible, change_effect)
 
         # 启动所有待执行的动画
         self.main_window.graphics_view.start_pending_animations()
@@ -215,7 +207,7 @@ class GameController:
         # 音频功能暂未实现
         return False
 
-    def setup_character(self, char_id: str, char_info: Dict, char_data: Dict, changeEffect=None, skip_animations=False):
+    def setup_character(self, char_id: str, char_info: Dict, char_data: Dict, changeEffect=None):
         form_name = char_info["form"]
         face_info = char_info["face"]
         if isinstance(face_info, list):
@@ -225,8 +217,7 @@ class GameController:
 
         pos = [char_info["pos"][0] + self.background_pos[0], char_info["pos"][1] + self.background_pos[1]]
         zoom = char_info.get("zoom", 1.0)
-        # 快进模式下不播放角色动画
-        animations = [] if skip_animations else char_info.get("animate", [])
+        animations = char_info.get("animate", [])
 
         form_pixmap = None
         if "form" in char_data and form_name in char_data["form"]:
@@ -305,13 +296,25 @@ class GameController:
         if self.auto_play and self.is_waiting_for_next_page:
             self.play_current_page()
 
+    def _skip_tick(self):
+        """快进定时器 tick：模拟长按空格，周期性触发 handle_click。
+        仅在剧情中且不在设置面板/菜单时生效。
+        """
+        if not self.is_in_game:
+            return
+        if self.main_window.is_in_settings:
+            return
+        self.handle_click()
+
     def toggle_skip_mode(self):
-        """切换快进模式：每页只搭第一个场景立即进下一页，不播动画/音频/对话。"""
+        """切换快进模式：模拟长按空格快速推进剧情。"""
         self.skip_mode = not self.skip_mode
         status = "开启" if self.skip_mode else "关闭"
         print(f"快进模式已{status}")
-        if self.skip_mode and self.is_waiting_for_next_page:
-            self.play_current_page()
+        if self.skip_mode:
+            self.skip_timer.start()
+        else:
+            self.skip_timer.stop()
 
     # 存档相关方法代理给 save_load_system
     def save_game(self):
