@@ -201,6 +201,7 @@ class GalGameWindow(QMainWindow):
         handlers = {
             "start": self.on_start_button_clicked,
             "settings": self.open_settings,
+            "quit": self._quit_game,
         }
 
         for key, button_data in menu_pos.items():
