@@ -13,7 +13,7 @@ from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen
 from core.game_controller import GameController
 from ui.graphics_view import GraphicsView, MenuButtonItem
 from ui.widgets import TextDisplayWidget
-from ui.settings_panel import SettingsPanel, FULLSCREEN_KEY
+from ui.settings_panel import SettingsPanel, SettingsButtonItem, FULLSCREEN_KEY
 from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
 
@@ -70,6 +70,7 @@ class GalGameWindow(QMainWindow):
         self.chatbox_item = None
         self.chatbox_widget_proxies = []  # 存储对话框相关的所有代理控件
         self.bottom_menu_item = None  # 剧情中底部菜单条（ui.bottom_menu 预设模式）
+        self.bottom_menu_buttons = []  # 底部菜单条上的按钮（按钮+文字 item），语言切换时重建
         self.start_button = None
         self.title_item = None
         self.menu_bg_item = None
@@ -368,15 +369,36 @@ class GalGameWindow(QMainWindow):
             self._set_menu_buttons_visible(True)
 
     def _finish_close_settings(self, panel):
-        """面板渐隐完成后：移除面板 + 菜单按钮渐显。"""
+        """面板渐隐完成后：移除面板 + 菜单按钮渐显。
+        语言切换后：菜单中重建主菜单；剧情中刷新底部菜单按钮文字（不跳转）。
+        """
         if panel.scene():
             self.graphics_view.scene.removeItem(panel)
         if getattr(self, "_menu_language_dirty", False):
-            # 语言已切换：按新语言重建整个菜单（标题图片/按钮文字）
+            # 语言已切换
             self._menu_language_dirty = False
-            self.show_menu()
+            if self.controller.is_in_menu:
+                # 主菜单：按新语言重建整个菜单（标题图片/按钮文字）
+                self.show_menu()
+            else:
+                # 剧情中：刷新底部菜单按钮文字（若存在）
+                self._refresh_bottom_menu_buttons()
             return
         self._set_menu_buttons_fade_in()
+
+    def _refresh_bottom_menu_buttons(self):
+        """按当前 controller.language 重建底部菜单按钮文字（剧情中语言切换后）。"""
+        if not self.bottom_menu_buttons:
+            return
+        bm = self.ui_settings.get("bottom_menu")
+        if not bm:
+            return
+        # 复用创建逻辑：清除并重建（按钮位置不变）
+        window_width, window_height = self.controller.logical_size
+        ratio = float(bm.get("height_ratio", 0.03))
+        menu_h = max(1, int(round(window_height * ratio)))
+        extend = int(bm.get("extend", 50))
+        self._create_bottom_menu_buttons(window_width, window_height, menu_h, extend)
 
     def _set_menu_buttons_fade_in(self, duration=500):
         """菜单按钮（含文本）渐变显示：透明度 0 -> 100。"""
@@ -565,8 +587,53 @@ class GalGameWindow(QMainWindow):
         scene_rect = self.graphics_view.scene.sceneRect()
         if scene_rect.height() < window_height + extend:
             self.graphics_view.scene.setSceneRect(0, 0, window_width, window_height + extend)
+        # 底部菜单按钮：最右侧第一个 = 设置（预设 UI，多语言与设置面板一致）
+        self._create_bottom_menu_buttons(window_width, window_height, menu_h, extend)
         print(f"底部菜单(default): 高 {menu_h}px (ratio={ratio}) 延伸 {extend}px，颜色 rgba({r},{g},{b},{a})")
         return menu_h
+
+    def _create_bottom_menu_buttons(self, window_width: int, window_height: int,
+                                    menu_h: int, extend: int = 50):
+        """创建底部菜单条上的按钮（预设 default UI）。
+        最右侧第一个按钮 = 设置（点击打开设置面板）。
+        按钮文字随 controller.language 变化（多语言与设置面板一致）。
+        """
+        # 清除旧按钮及文字
+        for it in list(self.bottom_menu_buttons):
+            if it.scene():
+                self.graphics_view.scene.removeItem(it)
+        self.bottom_menu_buttons = []
+
+        # 按钮布局：右缘贴菜单条右边缘（留 margin），垂直居中于菜单条可视区
+        margin = 12
+        btn_h = max(18, menu_h - 2 * margin)
+        btn_w = max(40, btn_h * 3)  # 容纳“设置”文字
+        y = (window_height - menu_h) + (menu_h - btn_h) / 2  # 菜单条顶边 + 垂直居中
+        x = window_width - margin - btn_w  # 最右侧，贴右边缘
+
+        rect = QRectF(x, y, btn_w, btn_h)
+        btn = SettingsButtonItem(rect, "bottom_settings", opacity=200)
+        btn.setZValue(10)  # 与 chatbox 同层，在菜单条(9)之上
+        btn.set_click_handler(self.open_settings)
+        self.graphics_view.scene.addItem(btn)
+        self.bottom_menu_buttons.append(btn)
+
+        # 文字：挂场景，按钮 _rect 中心定位（SettingsButtonItem pos 恒 (0,0)）
+        text = "设置"
+        lang = self.controller.language or "zh"
+        if lang in ("en", "ja", "ru"):
+            text = {"en": "Settings", "ja": "設定", "ru": "Настройки"}[lang]
+        label = QGraphicsTextItem(text)
+        label.setDefaultTextColor(QColor(255, 255, 255))
+        label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        label.setAcceptHoverEvents(False)
+        label.setTextWidth(-1)
+        r = label.boundingRect()
+        label.setPos(rect.center().x() - r.width() / 2, rect.center().y() - r.height() / 2)
+        label.setZValue(11)
+        self.graphics_view.scene.addItem(label)
+        self.bottom_menu_buttons.append(label)
+        btn._text_label = label  # 悬停变色用（_set_text_color 需要）
 
     def _stop_chatbox_animations_for(self, item):
         """停止并清理作用于指定 item（或其 effect）上的进行中 chatbox 动画。
