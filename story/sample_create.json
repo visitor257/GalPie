@@ -40,7 +40,8 @@
     },
     "bottom_menu": {
       "mode": "default",
-      "color": [0,0,0,200]
+      "color": [0,0,0,200],
+      "backlog_bgcolor": [255,255,255,200]
     }
   },
   "menu": {
