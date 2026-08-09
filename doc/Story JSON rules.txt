@@ -15,7 +15,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
 "settings": dictionary (optional; defaults are used when missing)
     Description: Used to configure language support, window size, title, etc. When missing or empty, the program uses defaults (language falls back to "zh", window 1280x720, title "GalPie").
-    Keys inside "settings": "language", "window_size", "window_title", "identify_code"
+    Keys inside "settings": "language", "window_size", "window_title", "identify_code", "transition_color"
 
     "language": dictionary (optional; defaults to "zh" when missing)
         Description: Sets the supported languages. The current format is a dictionary: {language tag: language display name}.
@@ -35,6 +35,13 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "identify_code": string (optional)
         Explanation of "identify_code": Sets an identification code for this story, used to manage story save files more conveniently.
+
+    "transition_color": list (optional; default [0, 0, 0] black)
+        Explanation of "transition_color": Sets the color displayed in the window during transitions, RGB format, three integers from 0 to 255, e.g., [0, 0, 0].
+        The program uses this color as the transition color block in the following transition scenarios:
+        - After clicking "Start Game": the main menu fades out, first fading into this color, staying for about 1.5 seconds, then fading into the story.
+        - After confirming a load from the main menu: likewise first fades into this color, then fades into the loaded scene.
+        - When the scene is blank/cleared (no elements at all), the window background is also this color.
 
 "ui": dictionary (optional; the default UI is used when missing)
     Description: Used to configure the interactive interface, such as the dialogue box and bottom menu. When missing, the default UI settings are used (default dialogue box style / name region / words region).
@@ -56,22 +63,51 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "bottom_menu": dictionary (optional)
         Description: Sets the bottom menu bar during the story. If not provided, no bottom menu bar is shown.
-        Keys inside "bottom_menu": "mode", "color"
+        Keys inside "bottom_menu": "mode", "color", "button_color", "backlog_bgcolor", "save"
 
         "mode": string (optional)
             Explanation of "mode": The mode of the bottom menu; currently only "default" (preset style) is supported.
-            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "Settings" button, the "Skip (▷▷)" toggle, and the "Auto-play (▷)" toggle arranged from right to left.
-            The Settings button opens the settings panel; Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening the settings panel pauses both, and they resume after returning to the story.
+            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "Log" button, the "Settings" button, the "Skip (▷▷)" toggle, the "Auto-play (▷)" toggle, the "Save" button, and the "Quick Save (Q.Save)" button arranged from right to left.
+            The Settings button opens the settings panel; the Log button opens the backlog panel; the Save button opens the save panel; the Quick Save button saves directly to the quick save slot (F2=save, F3=load latest save, A=auto-play, S=skip).
+            Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening the settings/log/save panel pauses both, and they resume after returning to the story.
 
         "color": list (optional)
             Explanation of "color": The fill color of the bottom menu bar, RGBA format, four integers from 0 to 255, e.g., [0, 0, 0, 200].
             Default value is [0, 0, 0, 255].
 
-        "height_ratio": float (optional)
-            Explanation of "height_ratio": The ratio of the bottom menu bar height to the logical height of the window. Default is 0.03.
 
-        "extend": integer (optional)
-            Explanation of "extend": The number of pixels the bottom menu bar extends downward beyond the window bottom edge. Default is 50.
+        "button_color": list (optional)
+            Explanation of "button_color": The background color of the buttons on the bottom menu bar (Log/Settings/Skip/Auto-play/Save/Quick Save), RGBA format, e.g., [0, 0, 0, 200].
+            Default value is [0, 0, 0, 255]. The button text color is chosen automatically based on the brightness of this color:
+            - Sum of the three RGB values < 383: white text in normal state; on hover the button turns white with black text.
+            - Sum of the three RGB values >= 383: black text in normal state; on hover the button turns black with white text.
+
+        "backlog_bgcolor": list (optional)
+            Explanation of "backlog_bgcolor": The background color of the backlog (log) panel, RGBA format, e.g., [255, 255, 255, 200].
+            Default value is [255, 255, 255, 200].
+
+        "save": dictionary (optional)
+            Description: The interface configuration of the save panel / load panel. The save panel and the load panel share this structure (the load button on the main menu has its own config; see "menu_pos.load" below).
+            Keys inside "save": "ui_mode", "color", "saves_color", "saves_text_color", "text_color", "button_color"
+
+            "ui_mode": string (optional)
+                Explanation of "ui_mode": The interface mode; currently only "default" (preset style) is supported.
+
+            "color": list (optional; default [255, 255, 255, 217])
+                Explanation of "color": The background color of the panel, RGBA format.
+
+            "saves_color": list (optional; default [185, 122, 87, 255])
+                Explanation of "saves_color": The background color of the save slots, RGBA format. On hover it automatically becomes lighter/darker while keeping the original hue: when the sum of the three RGB values < 383, it blends 35% toward white; when >= 383, it blends 35% toward black.
+
+            "saves_text_color": list (optional; default [255, 255, 255])
+                Explanation of "saves_text_color": The color of the text inside the save slots (line/date-time/trash icon/empty-slot "SAVE" text/confirmation text), RGB format.
+                Note: the text of the confirm/cancel buttons is always white and is not affected by this config.
+
+            "text_color": list (optional; default [30, 30, 30])
+                Explanation of "text_color": The color of the static text inside the panel (the "Save Game"/"Load Game" title at the top-left, the page number at the bottom, etc.), RGB format.
+
+            "button_color": list (optional; default [0, 0, 0, 255])
+                Explanation of "button_color": The background color of the buttons on the bottom toolbar of the panel (◀ page prev ▶, + add page, Main Menu, Back), RGBA format. The text/hover rules are the same as the bottom menu bar's button_color (brightness < 383 white text/hover turns white with black text; >= 383 black text/hover turns black with white text).
 
 "menu": dictionary (optional)
     Description: Sets the main menu (start screen). If not provided, the story starts directly on launch (playing from the first page of the current storyline) without showing a main menu.
@@ -105,22 +141,23 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "menu_pos": dictionary (optional)
         Description: Sets the positions and texts of the title and buttons in the main menu.
-        Explanation of keys inside "menu_pos": It can contain "title" and any button tags (such as "start", "settings", "quit").
+        Explanation of keys inside "menu_pos": It can contain "title" and any button tags (such as "start", "load", "settings", "quit").
 
         "title": list (optional)
             Explanation of elements inside "title": The position coordinate [x, y] of the title image on the main menu background.
             The coordinate system is based on the main menu background image. The top-left corner of the image is the origin (0 point); the x axis increases to the right and the y axis increases downward.
             Example: [54, 48].
 
-        <button tag>: list (required, e.g., "start"/"settings"/"quit")
+        <button tag>: list (required, e.g., "start"/"load"/"settings"/"quit")
             Description: Sets a main menu button. The list structure is: [position, text dictionary, additional config (optional)]
             1st element: The position coordinate [x, y] of the button image on the main menu background.
             2nd element: The text dictionary, giving the button text by language tag, e.g., {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}.
                 The program takes the text for the current language; if absent, it takes the first text in the dictionary.
-            3rd element (optional): The additional config dictionary, e.g., {"ui_mode": "default"} (reserved config for the settings button).
+            3rd element (optional): The additional config dictionary, e.g., {"ui_mode": "default"}.
             Currently built-in supported button tags and their functions:
                 "start": Start the game; clicking enters the story.
-                "settings": Open the settings panel (language/resolution switching, etc.).
+                "load": Opens the load panel (load game interface). Its additional config dictionary has the same structure as the "save" config of the bottom menu bar (color/saves_color/saves_text_color/text_color/button_color), used to set the appearance of the load panel; defaults are used if not provided.
+                "settings": Opens the settings panel (language/resolution switching, etc.). Its additional config dictionary (ui_mode/color/text_color/button_color) is used to set the appearance of the settings panel; defaults are used if not provided.
                 "quit": Quit the game.
             Other custom button tags are currently not bound to any function (clicking does nothing); they are displayed only.
 
@@ -178,7 +215,6 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
         Explanation of keys inside "story": The storyline tags set in "storyline_id" above
 
         <storyline tag>: dictionary (required)
-
             Description: Story and plot content, as well as the settings of scenes and subtitles. Note that with "clear_all": false, the scene settings of the previous page continue to exist if not set again; if some part is set again, that part is replaced with the new settings (where "bg" is replaced as a whole, and "characters" is replaced tag by tag: the character tags that are set again are replaced with the new settings, while other characters that are not set are kept). You can learn more in the example JSON parsing in Part 2.
             Explanation of keys inside the dictionary: page number, starting from 1
 
@@ -280,7 +316,6 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                             Content explanation of "speaking_name": The character tag set in "character_and_motion" above. The program takes the title for the current language from the "name" dictionary of that character; if absent, it falls back to "zh"; if still absent, an empty string.
 
 
-
 2. Example JSON Parsing:
 The following is the actual content of story/sample_create.json (some translation texts duplicated from above are omitted; the structure is complete).
 
@@ -298,7 +333,8 @@ The following is the actual content of story/sample_create.json (some translatio
       "1920x1080"
     ],
     "window_title": "Sample story",     <-Window title, optional; defaults to GalPie
-    "identify_code": "sample_identify"  <-Story identification code, optional
+    "identify_code": "sample_identify",  <-Story identification code, optional
+    "transition_color": [0, 0, 0]       <-Transition color, optional; defaults to black. After clicking "Start Game" the main menu fades into this color, stays about 1.5 seconds, then fades into the story; the same happens after confirming a load from the main menu
   },
   "ui": {                                           <-UI settings
     "chatbox_and_words_position": {                 <-Sets the dialogue box style
@@ -307,8 +343,18 @@ The following is the actual content of story/sample_create.json (some translatio
       "words_show_region": [[310,60],[805,149]]     <-The region where the subtitle is displayed on the dialogue box style (top-left and bottom-right)
     },
     "bottom_menu": {                                <-Bottom menu bar (optional), the preset menu shown at the bottom of the window during the story
-      "mode": "default",                            <-Mode; currently only default is supported (preset style: Settings/Skip/Auto-play three buttons)
-      "color": [0, 0, 0, 200]                       <-Fill color of the menu bar, RGBA
+      "mode": "default",                            <-Mode; currently only default is supported (preset style: from right to left Log / Settings / Skip / Auto-play / Save / Quick Save)
+      "color": [0, 0, 0, 150],                      <-Fill color of the menu bar, RGBA
+      "button_color": [0, 0, 0, 200],               <-Background color of the buttons on the menu bar, RGBA; the text color is chosen automatically by brightness (RGB sum < 383 white text / >= 383 black text, inverted on hover)
+      "backlog_bgcolor": [255, 255, 255, 200],      <-Background color of the backlog (log) panel, RGBA
+      "save": {                                     <-Save panel / load panel interface config
+        "ui_mode": "default",                       <-Interface mode; currently only default is supported
+        "color": [255, 255, 255, 217],              <-Panel background color, RGBA
+        "saves_color": [185, 122, 87, 255],         <-Save slot background color, RGBA; on hover blends 35% toward white (RGB sum < 383) or toward black (>= 383)
+        "saves_text_color": [255, 255, 255],        <-Text color inside the save slots (line/date-time/trash icon/empty "SAVE"/confirmation text), RGB; the confirm/cancel button text is always white
+        "text_color": [30, 30, 30],                 <-Static text color inside the panel (title, page number, etc.), RGB
+        "button_color": [0, 0, 0, 255]              <-Background color of the bottom toolbar buttons of the panel, RGBA; text/hover rules same as the menu bar button_color
+      }
     }
   },
   "menu": {                                         <-Main menu (optional)
@@ -324,13 +370,18 @@ The following is the actual content of story/sample_create.json (some translatio
         [115, 230],
         {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}  <-Button text (by language tag)
       ],
-      "settings": [                                 <-Settings button
+      "load": [                                     <-Load game button: opens the load panel
         [115, 310],
+        {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},  <-Button text (by language tag)
+        {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Additional config, same structure as bottom_menu.save; sets the appearance of the load panel
+      ],
+      "settings": [                                 <-Settings button
+        [115, 390],
         {"zh": "设置", "en": "Settings", "ja": "設定", "ru": "Настройки"},
-        {"ui_mode": "default"}                      <-Additional config (reserved)
+        {"ui_mode": "default"}                      <-Additional config (ui_mode/color/text_color/button_color)
       ],
       "quit": [                                     <-Quit game button
-        [115, 390],
+        [115, 470],
         {"zh": "退出", "en": "Quit", "ja": "終了", "ru": "Выйти"}
       ]
     }
@@ -378,7 +429,6 @@ The following is the actual content of story/sample_create.json (some translatio
             },
             "words": {                                                    <-Sets the dialogue content, i.e., the subtitle. Set the subtitle for every language tag.
               "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）",
-
               "en": "(This is a test story, used only for program testing. The story content is AI-generated.)",
               "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
               "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
@@ -658,3 +708,19 @@ The following is the actual content of story/sample_create.json (some translatio
     }
   }
 }
+
+
+---
+
+## Save System (.gpsave)
+
+- Slot saves: `saves/{title}_{identify_code}_SLOT{index}.gpsave`, where index is the slot number (save panel row 1 = 0-3, row 2 = 4-7; with future paging, page 2 = 8-15, and so on).
+- Quick save: `saves/{title}_{identify_code}_QSAVE.gpsave`, index is fixed at -1; it is not shown in the save panel and is always listed first when loading (F3).
+- A save file is a pickle-serialized list of 11 elements: title, identify code, thumbnail PNG, storyline config, current storyline, current page-1, speaker, words (multi-language dict), date, time, slot index.
+- Save panel: clicking an empty slot saves to that slot; clicking a slot that has a save asks "Confirm overwrite?" (after confirming, the old save is deleted and the new one is saved); the trash button asks "Confirm delete?".
+- Load panel: clicking a slot that has a save asks "Confirm load?"; after confirming, the game fades into the transition color and then enters the loaded scene. The load panel has no "+ add page" button on the bottom toolbar; the trash (delete) icons ARE shown in the load panel too, and deleting a save uses the same confirmation as the save panel.
+- Paging: each page shows 8 slots; the toolbar at the bottom-left has ◀ page-prev, the page number (current/total), ▶ page-next (right-paging is circular: on an empty page it returns to page 1, on page 1 paging left goes to the last page), and "+" (only in the save panel) adds a page; the total page count is derived from the largest existing slot index (max_index // 8 + 1, at least 1). The bottom-right has "Main Menu" and "Back" buttons.
+- When a panel is opened, the bottom menu bar and the main-menu buttons are hidden, and auto-play / skip are paused; they resume after returning to the story.
+- Bottom menu bar buttons, from right to left: Log, Settings, Skip (▷▷), Auto-play (▷), Save, Quick Save (Q.Save).
+- Hotkeys: Space / Enter / left mouse button = advance (during typewriter display, clicking completes the display); A = auto-play; S = skip; F2 = save (normal save to slot 0); F3 = load latest save (quick save first); Esc = close the currently open panel.
+- Settings file: `saves/{title}_{identify_code}_SETTINGS.gpsetting` (contents: title, identify code, resolution, language).

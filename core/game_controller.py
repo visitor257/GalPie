@@ -37,6 +37,10 @@ class GameController:
         self.skip_timer.setInterval(50)
         self.skip_timer.timeout.connect(self._skip_tick)
 
+        # 日志（backlog）：进入剧情时的起始页 + 已播放对话条目 [(说话人, 台词), ...]
+        self.backlog_start_page = 1
+        self.backlog_entries = []
+
         self.window_size = [1280, 720]
         # 逻辑分辨率：场景坐标定位基准（默认 1280x720，可由 JSON settings.window_size 覆盖）
         self.logical_size = [1280, 720]
@@ -44,6 +48,7 @@ class GameController:
         self.resolution_options = []
         self.background_pos = [0, 0]
         self.language = None
+        self.transition_color = [0, 0, 0]  # 转场底色（settings.transition_color），默认黑
 
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
@@ -62,6 +67,13 @@ class GameController:
             self.language = lang_cfg[0] if lang_cfg else "zh"
         if "window_title" in settings:
             self.main_window.setWindowTitle(settings["window_title"])
+        # 转场底色：settings.transition_color（如 [0,0,0] 黑），缺省黑色
+        tc = settings.get("transition_color", [0, 0, 0])
+        if isinstance(tc, (list, tuple)) and len(tc) >= 3:
+            self.transition_color = [int(c) for c in tc[:3]]
+        else:
+            self.transition_color = [0, 0, 0]
+        self.main_window.apply_transition_color(self.transition_color)
         if "window_size" in settings:
             ws = settings["window_size"]
             if isinstance(ws, str):
@@ -89,6 +101,9 @@ class GameController:
     def goto_storyline_by_check_value(self):
         self.current_page = 1
         self.current_scene_index = 0
+        # 进入剧情：重置日志（起始页记录 + 清空条目）
+        self.backlog_start_page = 1
+        self.backlog_entries = []
         storyline_data = self.story_data.get("story_and_position", {}).get("storyline_id", {})
         if storyline_data:
             self.current_storyline_id = max(storyline_data, key=storyline_data.get)
@@ -335,9 +350,44 @@ class GameController:
         from data_management.save_load_system import save_game
         save_game(self)
 
+    def save_game_to_slot(self, slot_index):
+        """保存到指定格子（index 0-7）。"""
+        from data_management.save_load_system import save_game
+        save_game(self, slot_index)
+
+    def get_slot_save_data(self, slot_index):
+        """读取指定格子的存档 data（无存档返回 None）。"""
+        from data_management.save_load_system import get_slot_save_data
+        return get_slot_save_data(self, slot_index)
+
+    def delete_slot_save(self, slot_index):
+        """删除指定格子的存档文件。成功返回 True。"""
+        from data_management.save_load_system import delete_slot_save
+        return delete_slot_save(self, slot_index)
+
+    def quick_save(self):
+        """快速存档：覆盖式保存到固定 QUICK 槽（Q.Save 按钮 / 快捷键）。
+        保存前若快进/自动播放开启，先关闭它们（避免保存瞬间画面/状态被推进干扰）。
+        """
+        # 需求：快进或自动播放时点快速保存 -> 停止/关闭快进或自动播放
+        if getattr(self, "skip_mode", False):
+            self.skip_mode = False
+            if self.skip_timer.isActive():
+                self.skip_timer.stop()
+            print("快速保存：关闭快进")
+            self.main_window._update_skip_icon()
+        if getattr(self, "auto_play", False):
+            self.auto_play = False
+            print("快速保存：关闭自动播放")
+            self.main_window._update_auto_play_icon()
+        from data_management.save_load_system import quick_save_game
+        quick_save_game(self)
+        # 需求：保存完成后在 Q.Save 按钮上弹出圆角提示框（保存成功）
+        self.main_window.show_quick_save_toast()
+
     def load_save(self, load_file_name=None):
         from data_management.save_load_system import load_save
-        load_save(self, load_file_name)
+        return load_save(self, load_file_name)
 
     def build_last_scene(self):
         from data_management.save_load_system import build_last_scene

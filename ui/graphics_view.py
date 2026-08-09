@@ -2,7 +2,7 @@ from typing import List, Dict
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsOpacityEffect
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QPixmap, QPainter
+from PySide6.QtGui import QPixmap, QPainter, QColor
 
 from ui.animations import ease_in_out
 
@@ -186,6 +186,16 @@ class GraphicsView(QGraphicsView):
         self.fitInView(0, 0, self.logical_size[0], self.logical_size[1],
                        Qt.KeepAspectRatioByExpanding)
 
+    def set_background_color(self, color):
+        """Set window base color (stylesheet only).
+
+        NOTE: do NOT set QGraphicsScene.backgroundBrush - otherwise clearing the
+        scene (e.g. returning to main menu) would show a full-screen solid color,
+        causing an abrupt "direct color switch". After clearing, transition
+        elements (fade_out_menu color block / main menu gradient) take over.
+        """
+        rgb = ",".join(str(int(c)) for c in color[:3])
+        self.setStyleSheet(f"background-color: rgb({rgb});")
     def set_logical_size(self, w, h):
         """更新逻辑分辨率并重建场景矩形。"""
         self.logical_size = [w, h]
@@ -195,7 +205,18 @@ class GraphicsView(QGraphicsView):
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
         if event.isAccepted():
-            return
+            # 事件被场景 item 接受（accepted=True）。接受事件的 item 可通过
+            # scene.mouseGrabberItem() 获取：若是 QGraphicsProxyWidget
+            # （对话框文字/名字区域，QTextEdit/QLabel 消费了点击做文本选择/光标），
+            # 剧情中点击对话框应推进剧情 → 重置事件为未接受，走下方转发链
+            # （parent().mousePressEvent → 冒泡到主窗口 → handle_click）。
+            # 若接受者是真实按钮（SettingsButtonItem 等），按钮已自行处理 click_handler，不转发。
+            from PySide6.QtWidgets import QGraphicsProxyWidget
+            item = self.scene.mouseGrabberItem()
+            if isinstance(item, QGraphicsProxyWidget):
+                event.setAccepted(False)
+            else:
+                return
         self.parent().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):

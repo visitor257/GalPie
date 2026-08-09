@@ -1,1 +1,2 @@
 ﻿2025-11-28_21:34: GalPie.py: load_save: 需回溯场景，获取bg和characters，构建场景data，并填入specify_scene（完成修复）
+2026-08-09: ui.bottom_menu 支持 height_ratio（默认 0.03，菜单条高度=逻辑高度×比例）与 extend（默认 50，菜单条向下延伸像素），均为可选配置项；示例 sample_create.json 未填写用默认值。（注意：规则文档不记录此二字段，规则解释只写 json 中实际出现的配置）
