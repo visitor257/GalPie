@@ -5,11 +5,11 @@ from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QPainterPath
 
 
 def _render_scene_thumbnail(controller):
-    """离屏搭建当前场景画面（当前页第一个场景，忽略动画的最终静止画面），
-    返回 PNG 字节（供存档 data[2] 使用）。不依赖窗口截图，与运行时渲染逻辑一致：
+    """按当前页初始快照（controller.page_state）离屏渲染画面，返回 PNG 字节（供存档 data[2] 使用）。
+    不依赖窗口截图，与运行时渲染逻辑一致：
       - 默认逻辑分辨率画布（logical_size）
       - 背景 KeepAspectRatioByExpanding 缩放铺满 + 居中偏移
-      - 角色 form+face 透明合成，按最终 zoom（动画最终值）缩放、按位置绘制
+      - 角色 form+face 透明合成，按快照 zoom 缩放、按快照位置绘制
     仅包含背景和角色（不含对话框/文字/底部菜单）。
     任何资源缺失时降级跳过对应元素，不抛异常。
     """
@@ -24,47 +24,12 @@ def _render_scene_thumbnail(controller):
     try:
         story_data = controller.story_data or {}
         spa = story_data.get("story_and_position", {})
-        # 渲染"当前实际画面"：页面播完等点击时 current_page 已超前 1 页
-        # （is_waiting_for_next_page=True 时画面停在 current_page-1），回退一页渲染。
-        render_page = controller.current_page
-        if getattr(controller, "is_waiting_for_next_page", False):
-            render_page = max(1, render_page - 1)
-        # 自建回溯：从渲染页往前找最近 clear_all 页，再逐页叠加 bg/characters，
-        # 得到"继承后"的完整场景（页面未显式写 bg/characters 时画面不空白）。
-        story = spa.get("story", {}).get(controller.current_storyline_id or "", {})
-        scene = None
-        if story:
-            page_keys = sorted(story.keys(), key=lambda k: int(k) if str(k).isdigit() else 0)
-            # 找到 render_page 及之前最近的 clear_all 页作为基准
-            base_page = None
-            for k in page_keys:
-                if int(k) > render_page:
-                    break
-                pg = story.get(k, [{}])
-                if isinstance(pg, list) and pg and pg[0].get("clear_all", False):
-                    base_page = k
-            if base_page is None and page_keys and int(page_keys[0]) <= render_page:
-                base_page = page_keys[0]
-            if base_page is not None:
-                base = story.get(base_page, [{}])
-                scene = dict(base[0]) if isinstance(base, list) and base else {}
-                # 叠加 base_page 之后到 render_page 的每页 bg/characters
-                for k in page_keys:
-                    if int(k) <= int(base_page):
-                        continue
-                    if int(k) > render_page:
-                        break
-                    pg = story.get(k, [{}])
-                    if isinstance(pg, list) and pg:
-                        s = pg[0]
-                        if s.get("bg"):
-                            scene["bg"] = s["bg"]
-                        if s.get("characters"):
-                            scene["characters"] = s["characters"]
-        scene = scene or {}
+        # 快照：翻页时记录的当前页初始画面（bg id / 角色最终配置 / chatbox 可见性）
+        snap = getattr(controller, "page_state", {}) or {}
+        bg_name = snap.get("bg")
+        characters = snap.get("characters", {}) or {}
 
         # ---- 背景 ----
-        bg_name = scene.get("bg")
         if bg_name:
             bg_path = spa.get("backgrounds", {}).get(bg_name)
             if bg_path:
@@ -76,9 +41,8 @@ def _render_scene_thumbnail(controller):
                     bg_pos = [(w - bg_pixmap.width()) // 2, 0]
                     painter.drawPixmap(bg_pos[0], bg_pos[1], scaled)
 
-        # ---- 角色（忽略动画中间态，取动画最终 zoom/位置） ----
+        # ---- 角色（快照中已是动画最终 zoom/位置） ----
         char_defs = spa.get("character_and_motion", {})
-        characters = scene.get("characters", {}) or {}
         bg_offset_x = 0
         if bg_name and spa.get("backgrounds", {}).get(bg_name):
             bg_pixmap2 = QPixmap(str(controller.base_path / spa["backgrounds"][bg_name]))
@@ -87,19 +51,9 @@ def _render_scene_thumbnail(controller):
         for char_id, char_info in characters.items():
             char_data = char_defs.get(char_id, {})
             form_name = char_info.get("form")
-            face_info = char_info.get("face")
-            face_name = face_info[0] if isinstance(face_info, list) else face_info
+            face_name = char_info.get("face")
             pos = list(char_info.get("pos", [0, 0]))
-            # 动画最终态：zoom 取最后一个动画的 zoom 目标；位置叠加 move 最终位移
             zoom = float(char_info.get("zoom", 1.0))
-            for group in char_info.get("animate", []) or []:
-                for anim in group or []:
-                    if anim.get("zoom") is not None:
-                        zoom = float(anim["zoom"])
-                    move = anim.get("move")
-                    if move:
-                        pos[0] += move[-1][0]
-                        pos[1] += move[-1][1]
 
             form_pixmap = None
             if form_name and form_name in char_data.get("form", {}):
@@ -204,9 +158,11 @@ def save_game(controller, slot_index=0):
         QDateTime.currentDateTime().toString("yyyy-MM-dd"),
         QDateTime.currentDateTime().toString("HH-mm-ss")
     ]
-    # data[2]：离屏搭建当前场景画面（忽略动画），替代窗口截图
+    # data[2]：离屏搭建当前页初始画面（按 page_state 快照渲染），替代窗口截图
     data[2] = _render_scene_thumbnail(controller)
-    # data[6]/[7]：与缩略图一致，取"当前实际画面"所在页的台词
+    # data[6]/[7]：与缩略图一致，取"当前实际画面"所在页的台词。
+    # 等待点击进入下一页时（is_waiting_for_next_page=True），current_page 已是下一页、
+    # 画面仍停在上一页播完状态——回退一页，保证台词与画面（缩略图）对应。
     render_page = controller.current_page
     if getattr(controller, "is_waiting_for_next_page", False):
         render_page = max(1, render_page - 1)
@@ -220,6 +176,12 @@ def save_game(controller, slot_index=0):
         data[7] = page_content.get("words", None)
     # 格子存档：文件名 {标题}_{识别码}_SLOT{index}.gpsave，data 末尾记录 index
     data.append(slot_index)
+    # data[11]：当前页初始画面快照（翻页时记录的 page_state），读档按此构建画面
+    data.append({
+        "bg": controller.page_state.get("bg"),
+        "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
+        "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
+    })
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_SLOT{slot_index}.gpsave", "wb") as f:
@@ -245,9 +207,11 @@ def quick_save_game(controller):
         QDateTime.currentDateTime().toString("yyyy-MM-dd"),
         QDateTime.currentDateTime().toString("HH-mm-ss")
     ]
-    # data[2]：离屏搭建当前场景画面（忽略动画），替代窗口截图
+    # data[2]：离屏搭建当前页初始画面（按 page_state 快照渲染），替代窗口截图
     data[2] = _render_scene_thumbnail(controller)
-    # data[6]/[7]：与缩略图一致，取"当前实际画面"所在页的台词
+    # data[6]/[7]：与缩略图一致，取"当前实际画面"所在页的台词。
+    # 等待点击进入下一页时（is_waiting_for_next_page=True），current_page 已是下一页、
+    # 画面仍停在上一页播完状态——回退一页，保证台词与画面（缩略图）对应。
     render_page = controller.current_page
     if getattr(controller, "is_waiting_for_next_page", False):
         render_page = max(1, render_page - 1)
@@ -261,6 +225,12 @@ def quick_save_game(controller):
         data[7] = page_content.get("words", None)
     # 快速存档：index = -1（不在保存面板显示）
     data.append(-1)
+    # data[11]：当前页初始画面快照
+    data.append({
+        "bg": controller.page_state.get("bg"),
+        "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
+        "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
+    })
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_QSAVE.gpsave", "wb") as f:
@@ -306,74 +276,30 @@ def load_save(controller, load_file_name=None):
         controller.story_data["story_and_position"]["storyline_id"] = data[3]
     controller.current_storyline_id = data[4]
     controller.current_page = int(data[5])
-    # 兜底：第 1 页存档存的是 0（current_page-1），读回 0 会令
-    # build_last_scene 死循环（story 无 "0" 页），修正为 1
+    # 兜底：第 1 页存档存的是 0（current_page-1），读回 0 修正为 1
     if controller.current_page < 1:
         controller.current_page = 1
     controller.current_scene_index = 0
     # 读档时清空日志：只保留读档后新播的对话
     controller.backlog_entries = []
     controller.backlog_start_page = controller.current_page
-    scene = build_last_scene(controller)
-    controller.play_current_page(specify_scene=scene)
+    # 读档：按存档快照（data[11]）恢复画面状态，再播当前页第 0 场景（只播一遍）
+    snapshot = data[11] if len(data) > 11 and isinstance(data[11], dict) else None
+    if snapshot is None:
+        # 旧档（无快照）：退化为空画面（读档后由当前页场景自行铺画面）
+        snapshot = {"bg": None, "characters": {}, "chatbox_visible": True}
+    # 保存快照供主菜单读档路径（_show_loaded_scene）在重建 dialog area 后重新应用
+    controller.last_loaded_snapshot = {
+        "bg": snapshot.get("bg"),
+        "characters": {k: dict(v) for k, v in (snapshot.get("characters") or {}).items()},
+        "chatbox_visible": bool(snapshot.get("chatbox_visible", True)),
+    }
+    if controller.is_in_menu:
+        # 主菜单读档：此时不播放（is_in_menu 会阻止），画面恢复交给 _show_loaded_scene
+        return True
+    controller.restore_snapshot(snapshot)
     controller.play_current_page()
     return True
-
-def build_last_scene(controller):
-    page = controller.current_page
-    scene = None
-    story_data = controller.story_data
-    current_storyline_id = controller.current_storyline_id
-    story = story_data.get("story_and_position", {}).get("story", {}).get(current_storyline_id, {})
-    first_page = next(iter(story), None)
-    if not first_page:
-        first_page = str(page)
-    current_storyline_story = story
-    now_scene = current_storyline_story.get(str(page), {})
-    now_scene_clear_all = False
-    while scene is None and str(page) != first_page and not now_scene_clear_all:
-        page -= 1
-        now_scene = current_storyline_story.get(str(page), {})
-        for i in now_scene:
-            if i.get("clear_all", False):
-                scene = now_scene
-    if page != controller.current_page:
-        page -= 1
-    while page != controller.current_page:
-        page += 1
-        now_scene = current_storyline_story.get(str(page), {})
-        for i in now_scene:
-            if i.get("bg", None):
-                scene[0]["bg"] = i.get("bg", None)
-            if i.get("characters", None):
-                scene[0]["characters"] = i.get("characters", None)
-                for j in i.get("characters", None):
-                    if i["characters"][j].get("animate", None):
-                        for k in i["characters"][j].get("animate", None):
-                            for l in k:
-                                if l.get("zoom", None):
-                                    scene[0]["characters"][j]["zoom"] = l.get("zoom", None)
-                                if l.get("move", None):
-                                    now_pos = scene[0]["characters"][j]["pos"]
-                                    animate_pos = l.get("move", [[0, 0]]) + [now_pos]
-                                    scene[0]["characters"][j]["pos"] = list(map(lambda *args: sum(args), *animate_pos))
-    if scene:
-        scene = scene[0]
-        scene["clear_all"] = True
-        if not current_storyline_story.get(str(controller.current_page), [{}])[0].get("change", None) and scene.get(
-                "change", None):
-            del scene["change"]
-        if "characters" in scene:
-            for i in scene["characters"]:
-                if "animate" in scene["characters"][i]:
-                    del scene["characters"][i]["animate"]
-        scene["content"] = {}
-        scene["content"]["speaking"] = {}
-        scene["content"]["words"] = {}
-        for i in controller.story_data["settings"]["language"]:
-            scene["content"]["speaking"][i] = ""
-            scene["content"]["words"][i] = ""
-    return scene
 
 
 def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_check=False):
@@ -407,8 +333,13 @@ def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_chec
         if parts[-1].startswith("QSAVE"):
             time_number_str = "99999999999999"
         else:
-            # 读 data[-3]/data[-2] 真实时间（data 末尾可能是 index）
-            d_idx = -3 if len(data) >= 11 and isinstance(data[-1], int) else -2
+            # 时间索引随存档结构变化：
+            #   新档 len>=12：末尾 [-1]=快照dict, [-2]=slot_index, [-3]=时间, [-4]=日期
+            #   旧档 len==11：末尾 [-1]=slot_index(int), [-2]=时间, [-3]=日期
+            if len(data) >= 12 and isinstance(data[-1], dict):
+                d_idx = -4
+            else:
+                d_idx = -3 if len(data) >= 11 and isinstance(data[-1], int) else -2
             d = str(data[d_idx]).replace("-", "")
             t = str(data[d_idx + 1]).replace("-", "")
             time_number_str = d + t

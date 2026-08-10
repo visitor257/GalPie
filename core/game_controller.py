@@ -50,6 +50,19 @@ class GameController:
         self.language = None
         self.transition_color = [0, 0, 0]  # 转场底色（settings.transition_color），默认黑
 
+        # 画面状态双变量（存档快照用）：
+        #   scene_state（a）：随场景执行逐场景记录当前画面（bg id / 角色配置 / chatbox 可见性）
+        #   page_state（b）：每页开始前由 a 赋值而来，代表"该页初始画面状态"，不受页内场景影响
+        # 翻页时把 b 作为新页快照；存档存 b；读档直接按 b 构建画面。
+        # 结构：
+        #   {"bg": "咖啡馆",
+        #    "characters": {"girl": {"form": "校服", "face": "平常", "pos": [x,y], "zoom": 1.5}},
+        #    "chatbox_visible": True}
+        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        # 已生成的按页快照字典：{页号: page_state副本}，供存档时取当前页快照
+        self.page_snapshots = {}
+
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
         self.base_path = base_path
@@ -104,6 +117,10 @@ class GameController:
         # 进入剧情：重置日志（起始页记录 + 清空条目）
         self.backlog_start_page = 1
         self.backlog_entries = []
+        # 进入剧情：重置画面状态（第 1 页初始：空背景、无角色、chatbox 可见）
+        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        self.page_snapshots = {}
         storyline_data = self.story_data.get("story_and_position", {}).get("storyline_id", {})
         if storyline_data:
             self.current_storyline_id = max(storyline_data, key=storyline_data.get)
@@ -140,7 +157,22 @@ class GameController:
     def play_scene_sequence(self, specify_scene=None):
         print(f"播放场景序列，当前场景索引: {self.current_scene_index}, 总场景数: {len(self.current_page_data)}")
         if self.current_scene_index >= len(self.current_page_data):
-            self.current_page += 1
+            # 本页（a 页）全部场景播完，进入下一页前：
+            # 把逐场景状态 scene_state（a 页最终画面）记为 page_state（新页初始状态），
+            # 并存为按页快照。读档时直接用该页快照构建画面。
+            new_page = self.current_page + 1
+            self.page_state = {
+                "bg": self.scene_state.get("bg"),
+                "characters": {k: dict(v) for k, v in self.scene_state.get("characters", {}).items()},
+                "chatbox_visible": bool(self.scene_state.get("chatbox_visible", True)),
+            }
+            self.page_snapshots[new_page] = {
+                "bg": self.page_state["bg"],
+                "characters": {k: dict(v) for k, v in self.page_state["characters"].items()},
+                "chatbox_visible": self.page_state["chatbox_visible"],
+            }
+            print(f"翻页快照: 页{new_page} 初始状态={self.page_state}")
+            self.current_page = new_page
             self.current_scene_index = 0
             print(f"准备下一页: {self.current_page}")
             if self.auto_play:
@@ -163,6 +195,9 @@ class GameController:
         # 清除所有角色和背景（如果需要）
         if scene.get("clear_all", False):
             self.main_window.graphics_view.clear_all()
+            # 同步逐场景状态：画面清空（bg/角色重置，后续场景可再设置）
+            self.scene_state["bg"] = None
+            self.scene_state["characters"] = {}
 
         # 设置背景
         if "bg" in scene:
@@ -176,6 +211,8 @@ class GameController:
                     self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
                     self.main_window.graphics_view.update_bg_pos(self.background_pos)
                     self.main_window.graphics_view.set_background(bg_pixmap, scene.get("change", None))
+                    # 同步逐场景状态：记录当前背景 id
+                    self.scene_state["bg"] = bg_name
                 else:
                     print(f"无法加载背景图片: {full_bg_path}")
             else:
@@ -188,6 +225,9 @@ class GameController:
             for char_id, char_info in characters_data.items():
                 if char_id in character_defs:
                     self.setup_character(char_id, char_info, character_defs[char_id], scene.get("change", None))
+                    # 同步逐场景状态：记录角色配置（form/face/pos/zoom，动画取最终值）
+                    self.scene_state["characters"][char_id] = self._character_final_state(
+                        char_id, char_info)
                 else:
                     print(f"角色未定义: {char_id}")
 
@@ -198,6 +238,8 @@ class GameController:
             visible = chatbox_config.get("visible", True)
             change_effect = chatbox_config.get("change", None)
             self.main_window.set_chatbox_visible(visible, change_effect)
+            # 同步逐场景状态：记录对话框可见性
+            self.scene_state["chatbox_visible"] = bool(visible)
 
         # 启动所有待执行的动画
         self.main_window.graphics_view.start_pending_animations()
@@ -262,6 +304,112 @@ class GameController:
             self.main_window.graphics_view.add_character(char_id, face_pixmap, pos, zoom, animations, changeEffect)
         else:
             print(f"无法加载角色图片: {char_id}")
+
+    def _character_final_state(self, char_id: str, char_info: Dict) -> Dict:
+        """计算角色在场景中的最终状态（动画取最终值），用于快照记录。
+        返回 {"form": ..., "face": ..., "pos": [x, y], "zoom": ...}
+        pos 为未加背景偏移的原始坐标（与 JSON 一致），读档还原时由
+        还原逻辑统一加背景偏移，避免背景变化导致坐标漂移。
+        """
+        face_info = char_info.get("face")
+        face_name = face_info[0] if isinstance(face_info, list) else face_info
+        # 初始 pos/zoom
+        pos = [float(char_info.get("pos", [0, 0])[0]), float(char_info.get("pos", [0, 0])[1])]
+        zoom = float(char_info.get("zoom", 1.0))
+        # 动画最终值：遍历所有动画组，zoom 取最后一个 zoom 目标；move 累加位移
+        for group in char_info.get("animate", []) or []:
+            for anim in group or []:
+                if anim.get("zoom") is not None:
+                    zoom = float(anim["zoom"])
+                move = anim.get("move")
+                if move:
+                    pos[0] += float(move[-1][0])
+                    pos[1] += float(move[-1][1])
+        return {
+            "form": char_info.get("form"),
+            "face": face_name,
+            "pos": [int(pos[0]), int(pos[1])],
+            "zoom": zoom,
+        }
+
+    def restore_snapshot(self, snapshot: Dict):
+        """读档后按快照恢复画面状态：清空场景、设置背景、摆放角色（无动画）、设置对话框可见性。
+        同时更新 scene_state/page_state，使后续翻页快照链保持连贯。
+        """
+        # 先清空当前画面（背景+角色），避免旧状态残留
+        self.main_window.graphics_view.clear_all()
+        bg_name = snapshot.get("bg")
+        characters = snapshot.get("characters", {}) or {}
+        chatbox_visible = bool(snapshot.get("chatbox_visible", True))
+
+        # 背景
+        if bg_name:
+            backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+            if bg_name in backgrounds:
+                bg_path = backgrounds[bg_name]
+                full_bg_path = self.base_path / bg_path
+                bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
+                if bg_pixmap:
+                    self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
+                    self.main_window.graphics_view.update_bg_pos(self.background_pos)
+                    self.main_window.graphics_view.set_background(bg_pixmap)
+        # 角色（按快照配置直接摆放，无动画）
+        char_defs = self.story_data.get("story_and_position", {}).get("character_and_motion", {})
+        for char_id, char_info in characters.items():
+            if char_id not in char_defs:
+                continue
+            form_name = char_info.get("form")
+            face_name = char_info.get("face")
+            pos = list(char_info.get("pos", [0, 0]))
+            zoom = float(char_info.get("zoom", 1.0))
+            # 组装角色图（form+face 合成，同 setup_character）
+            form_pixmap = None
+            face_pixmap = None
+            char_data = char_defs[char_id]
+            if form_name and form_name in char_data.get("form", {}):
+                form_pixmap = self.main_window.load_pixmap(
+                    str(self.base_path / char_data["form"][form_name]))
+            if face_name and face_name in char_data.get("face", {}):
+                face_pixmap = self.main_window.load_pixmap(
+                    str(self.base_path / char_data["face"][face_name]))
+            combined = None
+            if form_pixmap and face_pixmap and not form_pixmap.isNull() and not face_pixmap.isNull():
+                combined = QPixmap(form_pixmap.size())
+                combined.fill(Qt.transparent)
+                p = QPainter(combined)
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setRenderHint(QPainter.SmoothPixmapTransform)
+                p.drawPixmap(0, 0, form_pixmap)
+                p.drawPixmap(0, 0, face_pixmap)
+                p.end()
+            elif form_pixmap and not form_pixmap.isNull():
+                combined = form_pixmap
+            elif face_pixmap and not face_pixmap.isNull():
+                combined = face_pixmap
+            if combined is not None:
+                # pos 为原始坐标（快照记录时未加背景偏移），加背景偏移摆放
+                draw_pos = [pos[0] + self.background_pos[0], pos[1] + self.background_pos[1]]
+                self.main_window.graphics_view.add_character(
+                    char_id, combined, draw_pos, zoom, [], None)
+        # 对话框可见性
+        self.main_window.set_chatbox_visible(chatbox_visible)
+        # 同步状态变量，使后续翻页快照链连贯
+        self.scene_state = {
+            "bg": bg_name,
+            "characters": {k: dict(v) for k, v in characters.items()},
+            "chatbox_visible": chatbox_visible,
+        }
+        self.page_state = {
+            "bg": bg_name,
+            "characters": {k: dict(v) for k, v in characters.items()},
+            "chatbox_visible": chatbox_visible,
+        }
+        self.page_snapshots[self.current_page] = {
+            "bg": bg_name,
+            "characters": {k: dict(v) for k, v in characters.items()},
+            "chatbox_visible": chatbox_visible,
+        }
+        print(f"快照恢复: 页{self.current_page} bg={bg_name} 角色={list(characters.keys())} chatbox={chatbox_visible}")
 
     def on_text_display_complete(self):
         print("文本显示完成")
@@ -388,10 +536,6 @@ class GameController:
     def load_save(self, load_file_name=None):
         from data_management.save_load_system import load_save
         return load_save(self, load_file_name)
-
-    def build_last_scene(self):
-        from data_management.save_load_system import build_last_scene
-        return build_last_scene(self)
 
     def get_this_story_saves_new_to_old(self, save_dir="./saves", content_check=False):
         from data_management.save_load_system import get_this_story_saves_new_to_old

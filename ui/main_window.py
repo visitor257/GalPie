@@ -264,6 +264,7 @@ class GalGameWindow(QMainWindow):
         handlers = {
             "start": self.on_start_button_clicked,
             "load": self.open_load_panel,
+            "qload": self._on_qload_button_clicked,  # 快速加载：功能开发中
             "settings": self.open_settings,
             "quit": self._quit_game,
         }
@@ -456,6 +457,10 @@ class GalGameWindow(QMainWindow):
         """退出游戏。"""
         print("退出游戏")
         QApplication.quit()
+
+    def _on_qload_button_clicked(self):
+        """主菜单"继续游戏/快速加载"按钮：功能开发中，暂不执行实际逻辑。"""
+        print("Q.Load/继续游戏：功能开发中")
 
     def _on_resolution_changed(self, resolution):
         """分辨率变更：全屏标记 -> 全屏模式；"WxH" -> 窗口化并缩放。
@@ -838,11 +843,15 @@ class GalGameWindow(QMainWindow):
             self._set_bottom_menu_visible(True)
 
     def _show_loaded_scene(self):
-        """After fade: build dialog area and play loaded scene (snapshot then next page)."""
+        """After fade: build dialog area and restore snapshot画面, then play current page once."""
         self.graphics_view.clear_items()
         self.setup_dialog_area()
         self.controller.is_in_game = True
-        self.controller.play_current_page(specify_scene=self.controller.build_last_scene())
+        # 恢复读档快照画面（load_save 时已存到 last_loaded_snapshot，
+        # 此处重建 dialog area 后重新应用，避免 clear_items 清掉画面）
+        snap = getattr(self.controller, "last_loaded_snapshot", None)
+        if snap:
+            self.controller.restore_snapshot(snap)
         self.controller.play_current_page()
     def _slot_fname(self, slot_index):
         """构造指定格子的存档文件名（无存档也可能不存在）。"""
@@ -1360,7 +1369,7 @@ class GalGameWindow(QMainWindow):
     def _create_bottom_menu_buttons(self, window_width: int, window_height: int,
                                     menu_h: int, extend: int = 50):
         """创建底部菜单条上的按钮（预设 default UI）。
-        从右到左：日志(右1) | 设置(右2) | 快进(右3) | 自动播放(右4) | 保存(右5) | Q.Save(右6)。
+        从右到左：日志(右1) | 设置(右2) | 快进(右3) | 自动播放(右4) | 加载(右5) | 保存(右6) | Q.Load(右7) | Q.Save(右8)。
         按钮文字随 controller.language 变化（多语言与设置面板一致）。
         """
         # 清除旧按钮及文字
@@ -1481,12 +1490,37 @@ class GalGameWindow(QMainWindow):
         self.bottom_menu_buttons.append(icon_label)
         auto_btn._text_label = icon_label  # 悬停变色用
 
-        # --- 保存按钮（自动播放按钮左侧，右5）：仅中文 保存，其余语言一律英文 Save ---
+        # --- 加载按钮（自动播放按钮左侧，右5）：中文 加载 / 日语 ロード / 其余语言 Load ---
+        # 功能与主菜单"加载游戏"一致：复用 open_load_panel（主菜单/剧情中均可打开）
+        if lang == "zh":
+            load_text = "加载"
+        elif lang == "ja":
+            load_text = "ロード"
+        else:  # en / ru
+            load_text = "Load"
+        load_label = make_label(load_text, text_color=normal_text_color)
+        load_r = load_label.boundingRect()
+        load_btn_w = max(40, load_r.width() + 24)
+        load_rect = QRectF(auto_rect.left() - margin - load_btn_w, y, load_btn_w, btn_h)
+        load_btn = SettingsButtonItem(load_rect, "bottom_load", opacity=200, button_color=button_color)
+        load_btn.setZValue(10)
+        load_btn.set_click_handler(self.open_load_panel)
+        self.graphics_view.scene.addItem(load_btn)
+        self.bottom_menu_buttons.append(load_btn)
+
+        load_label.setPos(load_rect.center().x() - load_r.width() / 2,
+                          load_rect.center().y() - load_r.height() / 2)
+        load_label.setZValue(11)
+        self.graphics_view.scene.addItem(load_label)
+        self.bottom_menu_buttons.append(load_label)
+        load_btn._text_label = load_label  # 悬停变色用
+
+        # --- 保存按钮（加载按钮左侧，右6）：仅中文 保存，其余语言一律英文 Save ---
         save_text = "保存" if lang == "zh" else "Save"
         save_label = make_label(save_text, text_color=normal_text_color)
         save_r = save_label.boundingRect()
         save_btn_w = max(40, save_r.width() + 24)
-        save_rect = QRectF(auto_rect.left() - margin - save_btn_w, y, save_btn_w, btn_h)
+        save_rect = QRectF(load_rect.left() - margin - save_btn_w, y, save_btn_w, btn_h)
         save_btn = SettingsButtonItem(save_rect, "bottom_save", opacity=200, button_color=button_color)
         save_btn.setZValue(10)
         save_btn.set_click_handler(self.open_save_panel)
@@ -1500,12 +1534,32 @@ class GalGameWindow(QMainWindow):
         self.bottom_menu_buttons.append(save_label)
         save_btn._text_label = save_label  # 悬停变色用
 
-        # --- 快速保存 Q.Save 按钮（保存按钮左侧，右6）：仅中文 快速保存，其余语言一律英文 Q.Save ---
+        # --- 快速加载 Q.Load 按钮（保存按钮左侧，右7）：固定文字 Q.Load ---
+        # 功能开发中：暂不绑定逻辑，点击仅打印提示
+        qload_text = "Q.Load"
+        qload_label = make_label(qload_text, text_color=normal_text_color)
+        qload_r = qload_label.boundingRect()
+        qload_btn_w = max(40, qload_r.width() + 24)
+        qload_rect = QRectF(save_rect.left() - margin - qload_btn_w, y, qload_btn_w, btn_h)
+        qload_btn = SettingsButtonItem(qload_rect, "bottom_quick_load", opacity=200, button_color=button_color)
+        qload_btn.setZValue(10)
+        qload_btn.set_click_handler(lambda: print("Q.Load：功能开发中"))
+        self.graphics_view.scene.addItem(qload_btn)
+        self.bottom_menu_buttons.append(qload_btn)
+
+        qload_label.setPos(qload_rect.center().x() - qload_r.width() / 2,
+                           qload_rect.center().y() - qload_r.height() / 2)
+        qload_label.setZValue(11)
+        self.graphics_view.scene.addItem(qload_label)
+        self.bottom_menu_buttons.append(qload_label)
+        qload_btn._text_label = qload_label  # 悬停变色用
+
+        # --- 快速保存 Q.Save 按钮（Q.Load 按钮左侧，右8）：仅中文 快速保存，其余语言一律英文 Q.Save ---
         qsave_text = "快速保存" if lang == "zh" else "Q.Save"
         qsave_label = make_label(qsave_text, text_color=normal_text_color)
         qsave_r = qsave_label.boundingRect()
         qsave_btn_w = max(40, qsave_r.width() + 24)
-        qsave_rect = QRectF(save_rect.left() - margin - qsave_btn_w, y, qsave_btn_w, btn_h)
+        qsave_rect = QRectF(qload_rect.left() - margin - qsave_btn_w, y, qsave_btn_w, btn_h)
         qsave_btn = SettingsButtonItem(qsave_rect, "bottom_quick_save", opacity=200, button_color=button_color)
         qsave_btn.setZValue(10)
         qsave_btn.set_click_handler(self.controller.quick_save)
