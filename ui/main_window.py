@@ -14,7 +14,7 @@ from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen, QTextCursor, QFo
 from core.game_controller import GameController
 from ui.graphics_view import GraphicsView, MenuButtonItem
 from ui.widgets import TextDisplayWidget
-from ui.settings_panel import SettingsPanel, SettingsButtonItem, BacklogPanel, SavePanel, FULLSCREEN_KEY
+from ui.settings_panel import SettingsPanel, SettingsButtonItem, BacklogPanel, SavePanel, FULLSCREEN_KEY, ConfirmDialog
 from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
 from data_management.save_load_system import (save_settings_file, load_settings_file,
@@ -87,6 +87,7 @@ class GalGameWindow(QMainWindow):
         self.is_in_backlog = False  # 是否正在日志界面中
         self.save_panel = None  # 当前保存面板（场景内）
         self.is_in_save = False  # 是否正在保存界面中
+        self.confirm_dialog = None  # 当前确认框（继续游戏等操作前）
         self._auto_play_paused = False  # 打开设置时是否暂停了自动播放（关闭后恢复）
         self.menu_button_items = []  # 菜单按钮及其文本 item（打开设置时隐藏）
         self.settings_ui_config = {}  # 设置界面配置（menu_pos.settings 第 3 项：ui_mode/resolution 等）
@@ -459,8 +460,89 @@ class GalGameWindow(QMainWindow):
         QApplication.quit()
 
     def _on_qload_button_clicked(self):
-        """主菜单"继续游戏/快速加载"按钮：功能开发中，暂不执行实际逻辑。"""
-        print("Q.Load/继续游戏：功能开发中")
+        """主菜单"继续游戏/快速加载"按钮：弹出确认框（遮罩 + 确认 UI）。
+        确认 -> 读最新存档（同 F3）；取消 -> 关闭确认框回到主菜单。
+        确认框配置来源：menu.menu_pos.qload 第 3 项 dict（ui_mode="default" 预设 UI）。
+        """
+        # 面板互斥：已有其他面板打开时不重复叠加
+        if getattr(self, "is_in_settings", False) or getattr(self, "is_in_save", False) \
+                or getattr(self, "is_in_backlog", False) or getattr(self, "confirm_dialog", None):
+            return
+        # 读取 qload 配置（menu.menu_pos.qload 第 3 项 dict）
+        cfg = None
+        try:
+            menu_data = self.controller.story_data.get("menu", {})
+            mp = menu_data.get("menu_pos", {}) if isinstance(menu_data, dict) else {}
+            _q = mp.get("qload")
+            if isinstance(_q, list) and len(_q) >= 3 and isinstance(_q[2], dict):
+                cfg = dict(_q[2])
+        except Exception:
+            pass
+        scene_rect = self.graphics_view.sceneRect()
+        if scene_rect.isNull():
+            scene_rect = QRectF(0, 0, self.width(), self.height())
+        dlg = ConfirmDialog(
+            self.graphics_view.scene,
+            language=self.controller.language or "zh",
+            config=cfg,
+            transition_color=self.controller.transition_color,
+            on_cancel=self._close_qload_confirm,
+            on_confirm=self._confirm_qload,
+        )
+        dlg.center_in_scene(scene_rect)
+        dlg.fade_in()
+        self.confirm_dialog = dlg
+        print("继续游戏确认框已打开")
+
+    def _close_qload_confirm(self):
+        """取消：关闭确认框（移除遮罩+确认框），回到主菜单。
+        注意：不能在按钮点击回调里同步 removeItem（PySide6 硬崩溃），
+        延后到事件循环空闲执行。
+        """
+        dlg = getattr(self, "confirm_dialog", None)
+        if dlg:
+            self.confirm_dialog = None
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._remove_qload_dialog(dlg))
+        print("继续游戏：已取消")
+
+    def _confirm_qload(self):
+        """确认：关闭确认框并读最新存档（同 F3：QSAVE 恒排最前）。
+        主菜单读档路径与加载面板一致：fade 转场后 _show_loaded_scene。
+        """
+        dlg = getattr(self, "confirm_dialog", None)
+        if dlg:
+            self.confirm_dialog = None
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._remove_qload_dialog(dlg))
+        print("继续游戏：确认，读取最新存档")
+        ok = self.controller.load_save()
+        if not ok:
+            print("继续游戏：没有可用存档")
+            return
+        if self.controller.is_in_menu:
+            # 主菜单读档：fade 转场后进入剧情（与加载面板一致）
+            self.controller.is_in_menu = False
+            tc = self.controller.transition_color
+            if not tc:
+                tc = [0, 0, 0]
+            w, h = self.controller.logical_size
+            color_block = QPixmap(w, h)
+            color_block.fill(QColor(tc[0], tc[1], tc[2]))
+            self.graphics_view.clear_items()
+            self.graphics_view.add_item(color_block, [0, 0])
+            self.graphics_view.show_items("gradient")
+            self.graphics_view.start_pending_animations()
+            QTimer.singleShot(1500, lambda: self._show_loaded_scene())
+        else:
+            self._set_bottom_menu_visible(True)
+
+    def _remove_qload_dialog(self, dlg):
+        """（事件循环空闲时）移除确认框。"""
+        try:
+            dlg.remove_from_scene()
+        except Exception:
+            pass
 
     def _on_resolution_changed(self, resolution):
         """分辨率变更：全屏标记 -> 全屏模式；"WxH" -> 窗口化并缩放。

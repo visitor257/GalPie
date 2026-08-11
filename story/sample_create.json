@@ -108,10 +108,9 @@
         {
           "ui_mode": "default",
           "color": [255,255,255,217],
-          "saves_color": [185,122,87,255],
-          "saves_text_color": [255,255,255],
-          "text_color": [30,30,30],
-          "button_color": [0,0,0,255]
+          "text_color": [185,122,87,255],
+          "cancel_color": [255,255,255],
+          "confirm_color": [30,30,30]
         }
       ],
       "start": [

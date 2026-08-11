@@ -15,7 +15,7 @@
 import html as _html
 from PySide6.QtWidgets import (
     QGraphicsPathItem, QGraphicsOpacityEffect, QGraphicsTextItem,
-    QGraphicsProxyWidget, QTextEdit, QScrollBar
+    QGraphicsProxyWidget, QTextEdit, QScrollBar, QGraphicsRectItem
 )
 from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF
 from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainter, QPixmap, QPainterPath, QPainterPathStroker, QTextOption
@@ -1849,5 +1849,189 @@ class SavePanel(QGraphicsPathItem):
         self._back_label = None
         self._save_btns = []
         self._save_labels = []
+        if self.scene():
+            self._scene.removeItem(self)
+
+
+# ---------------------------------------------------------------------------
+# 确认框（Continue/Q.Load 等操作前的确认 UI）
+# ---------------------------------------------------------------------------
+# 配置来源：menu.menu_pos.qload 第 3 项 dict：
+#   ui_mode      "default"（预设 UI，当前实现）
+#   color        确认框底色 RGBA
+#   text_color   第一行文字（"确认？"）颜色 RGB
+#   cancel_color 取消按钮底色 RGB
+#   confirm_color 确认按钮底色 RGB
+# 遮罩：整窗叠加 settings.transition_color、透明度 50%
+# 预设 UI 语言仅支持 zh/en/ja（超出回落 en）
+CONFIRM_TEXTS = {
+    "question": {"zh": "确认？", "en": "Confirm?", "ja": "確認？"},
+    "cancel": {"zh": "取消", "en": "Cancel", "ja": "キャンセル"},
+    "confirm": {"zh": "确认", "en": "Confirm", "ja": "確認"},
+}
+
+
+class ConfirmDialog(QGraphicsPathItem):
+    """快速加载前的确认框（场景覆盖层）。
+    由一层全屏遮罩（transition_color、50% 透明度）+ 居中圆角确认框组成：
+      - 第一行："确认？"（zh/en/ja，预设 UI 仅支持这三种语言）
+      - 第二行：取消 / 确认 两个圆角按钮
+    按钮底色 cancel_color/confirm_color；文字颜色与悬停叠加按按钮亮度规则：
+      sum(rgb) < 383  -> 白字，悬停向白混合 35%
+      sum(rgb) >= 383 -> 黑字，悬停向黑混合 35%
+    """
+
+    Z_MASK = 70      # 遮罩层（盖过主菜单按钮/面板）
+    Z_BOX = 71       # 确认框本体
+
+    def __init__(self, scene, language="zh", config=None, transition_color=(0, 0, 0),
+                 on_cancel=None, on_confirm=None):
+        # 确认框本体（先构造，再 setZValue）
+        super().__init__()
+        self._scene = scene
+        # 预设 UI 语言：仅支持 zh/en/ja，超出回落 en
+        self.language = language if language in UI_LANGS else "en"
+        cfg = config or {}
+        self._box_color = list(cfg.get("color", [255, 255, 255, 217]))
+        self._text_color = list(cfg.get("text_color", [30, 30, 30]))
+        self._cancel_color = list(cfg.get("cancel_color", [255, 255, 255]))
+        self._confirm_color = list(cfg.get("confirm_color", [30, 30, 30]))
+        self.on_cancel = on_cancel
+        self.on_confirm = on_confirm
+
+        # 遮罩：整窗 transition_color、50% 透明度
+        tc = list(transition_color or [0, 0, 0])
+        self._mask = QGraphicsRectItem(0, 0, 0, 0)
+        self._mask.setBrush(QBrush(QColor(tc[0], tc[1], tc[2], 128)))
+        self._mask.setPen(QPen(Qt.NoPen))
+        self._mask.setZValue(self.Z_MASK)
+        scene.addItem(self._mask)
+
+        scene.addItem(self)
+        self.setZValue(self.Z_BOX)
+
+    def center_in_scene(self, scene_rect: QRectF):
+        """按场景尺寸定位：遮罩铺满，确认框居中。"""
+        w, h = scene_rect.width(), scene_rect.height()
+        self._mask.setRect(scene_rect)
+        # 确认框：宽 40% 窗口、高 30% 窗口（上限 480x240），圆角 24
+        box_w = min(int(w * 0.4), 480)
+        box_h = min(int(h * 0.3), 240)
+        x = scene_rect.x() + (w - box_w) / 2
+        y = scene_rect.y() + (h - box_h) / 2
+        self._box_rect = QRectF(x, y, box_w, box_h)
+
+        # 圆角路径（圆角 24，与面板一致）
+        path = QPainterPath()
+        path.addRoundedRect(self._box_rect, 24, 24)
+        self.setPath(path)
+        box_color = self._box_color
+        if len(box_color) >= 4:
+            self.setBrush(QBrush(QColor(box_color[0], box_color[1], box_color[2], box_color[3])))
+        else:
+            self.setBrush(QBrush(QColor(box_color[0], box_color[1], box_color[2], 217)))
+        self.setPen(QPen(Qt.NoPen))
+
+        # 第一行："确认？"（左右居中）
+        q_text = CONFIRM_TEXTS["question"].get(self.language, CONFIRM_TEXTS["question"]["en"])
+        self._question_label = QGraphicsTextItem(q_text, self)
+        tc = self._text_color
+        self._question_label.setDefaultTextColor(QColor(tc[0], tc[1], tc[2]))
+        self._question_label.setFont(QFont("Microsoft YaHei", 20, QFont.Bold))
+        self._question_label.setTextWidth(-1)
+        qr = self._question_label.boundingRect()
+        self._question_label.setPos(
+            self._box_rect.center().x() - qr.width() / 2,
+            self._box_rect.y() + box_h * 0.18)
+        self._question_label.setZValue(self.Z_BOX + 1)
+
+        # 第二行：取消 / 确认 两个圆角按钮（左右居中，间距 20）
+        btn_w = min(int(box_w * 0.3), 160)
+        btn_h = int(box_h * 0.32)
+        gap = 20
+        total = btn_w * 2 + gap
+        btn_y = self._box_rect.y() + box_h * 0.58
+        left_x = self._box_rect.center().x() - total / 2
+
+        self._cancel_btn = self._make_button(
+            QRectF(left_x, btn_y, btn_w, btn_h),
+            CONFIRM_TEXTS["cancel"].get(self.language, CONFIRM_TEXTS["cancel"]["en"]),
+            self._cancel_color, "cancel")
+        self._confirm_btn = self._make_button(
+            QRectF(left_x + btn_w + gap, btn_y, btn_w, btn_h),
+            CONFIRM_TEXTS["confirm"].get(self.language, CONFIRM_TEXTS["confirm"]["en"]),
+            self._confirm_color, "confirm")
+
+    def _make_button(self, rect, text, rgb, key):
+        """创建圆角按钮（QGraphicsPathItem + 文字），按亮度规则定文字色。"""
+        path = QPainterPath()
+        path.addRoundedRect(rect, 12, 12)
+        btn = QGraphicsPathItem(path, self)
+        btn.setBrush(QBrush(QColor(rgb[0], rgb[1], rgb[2])))
+        btn.setPen(QPen(Qt.NoPen))
+        btn.setZValue(self.Z_BOX + 1)
+        btn.setAcceptHoverEvents(True)
+        btn.setCursor(Qt.ArrowCursor)
+        btn._rgb = list(rgb)
+        btn._key = key
+
+        label = QGraphicsTextItem(text, btn)
+        label.setDefaultTextColor(
+            QColor(255, 255, 255) if sum(rgb[:3]) < 383 else QColor(0, 0, 0))
+        label.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        label.setTextWidth(-1)
+        lr = label.boundingRect()
+        label.setPos(rect.center().x() - lr.width() / 2,
+                     rect.center().y() - lr.height() / 2)
+        label.setZValue(self.Z_BOX + 2)
+        label.setAcceptHoverEvents(False)
+        label.setTextInteractionFlags(Qt.NoTextInteraction)
+        label.setCursor(Qt.ArrowCursor)
+        btn._label = label
+        btn.mousePressEvent = self._make_press(btn)
+        btn.hoverEnterEvent = self._make_hover(btn, True)
+        btn.hoverLeaveEvent = self._make_hover(btn, False)
+        return btn
+
+    def _make_press(self, btn):
+        def _press(event):
+            if event.button() == Qt.LeftButton:
+                if btn._key == "cancel" and self.on_cancel:
+                    self.on_cancel()
+                elif btn._key == "confirm" and self.on_confirm:
+                    self.on_confirm()
+                event.accept()
+        return _press
+
+    def _make_hover(self, btn, enter):
+        def _hover(event):
+            rgb = btn._rgb
+            if enter:
+                # 悬停：向白/黑混合 35%
+                if sum(rgb[:3]) < 383:
+                    hover = [c + int((255 - c) * 0.35) for c in rgb[:3]]
+                else:
+                    hover = [int(c * 0.65) for c in rgb[:3]]
+                btn.setBrush(QBrush(QColor(hover[0], hover[1], hover[2])))
+            else:
+                btn.setBrush(QBrush(QColor(rgb[0], rgb[1], rgb[2])))
+        return _hover
+
+    def fade_in(self, duration=200):
+        """遮罩+确认框一起淡入。"""
+        effect = QGraphicsOpacityEffect()
+        effect.setOpacity(0.0)
+        self.setGraphicsEffect(effect)
+        self._anim = QPropertyAnimation(effect, b"opacity")
+        self._anim.setDuration(duration)
+        self._anim.setStartValue(0.0)
+        self._anim.setEndValue(1.0)
+        self._anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self._anim.start()
+
+    def remove_from_scene(self):
+        """从场景移除遮罩与确认框。"""
+        if self._mask.scene():
+            self._scene.removeItem(self._mask)
         if self.scene():
             self._scene.removeItem(self)
