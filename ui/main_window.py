@@ -462,20 +462,19 @@ class GalGameWindow(QMainWindow):
     def _on_qload_button_clicked(self):
         """主菜单"继续游戏/快速加载"按钮：弹出确认框（遮罩 + 确认 UI）。
         确认 -> 读最新存档（同 F3）；取消 -> 关闭确认框回到主菜单。
-        确认框配置来源：menu.menu_pos.qload 第 3 项 dict（ui_mode="default" 预设 UI）。
+        确认框配置来源：ui.confirm_ui 节点（ui_mode="default" 预设 UI）。
         """
         # 面板互斥：已有其他面板打开时不重复叠加
         if getattr(self, "is_in_settings", False) or getattr(self, "is_in_save", False) \
                 or getattr(self, "is_in_backlog", False) or getattr(self, "confirm_dialog", None):
             return
-        # 读取 qload 配置（menu.menu_pos.qload 第 3 项 dict）
+        # 读取确认 UI 配置（ui.confirm_ui 节点，与 qload 按钮位置/文本分离）
         cfg = None
         try:
-            menu_data = self.controller.story_data.get("menu", {})
-            mp = menu_data.get("menu_pos", {}) if isinstance(menu_data, dict) else {}
-            _q = mp.get("qload")
-            if isinstance(_q, list) and len(_q) >= 3 and isinstance(_q[2], dict):
-                cfg = dict(_q[2])
+            ui_data = self.controller.story_data.get("ui", {})
+            cu = ui_data.get("confirm_ui") if isinstance(ui_data, dict) else None
+            if isinstance(cu, dict):
+                cfg = dict(cu)
         except Exception:
             pass
         scene_rect = self.graphics_view.sceneRect()

@@ -16,6 +16,13 @@
     "transition_color": [0,0,0]
   },
   "ui": {
+    "confirm_ui": {
+      "ui_mode": "default",
+      "color": [255,255,255,217],
+      "text_color": [185,122,87,255],
+      "cancel_color": [255,255,255],
+      "confirm_color": [30,30,30]
+    },
     "chatbox_and_words_position": {
       "chatbox": "./res/ui/chatbox.png",
       "name_show_region": [
@@ -104,13 +111,6 @@
           "en": "Continue",
           "ja": "続きから",
           "ru": "Продолжить"
-        },
-        {
-          "ui_mode": "default",
-          "color": [255,255,255,217],
-          "text_color": [185,122,87,255],
-          "cancel_color": [255,255,255],
-          "confirm_color": [30,30,30]
         }
       ],
       "start": [
