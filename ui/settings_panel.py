@@ -1885,7 +1885,7 @@ class ConfirmDialog(QGraphicsPathItem):
     Z_BOX = 71       # 确认框本体
 
     def __init__(self, scene, language="zh", config=None, transition_color=(0, 0, 0),
-                 on_cancel=None, on_confirm=None):
+                 on_cancel=None, on_confirm=None, question=None):
         # 确认框本体（先构造，再 setZValue）
         super().__init__()
         self._scene = scene
@@ -1898,6 +1898,7 @@ class ConfirmDialog(QGraphicsPathItem):
         self._confirm_color = list(cfg.get("confirm_color", [30, 30, 30]))
         self.on_cancel = on_cancel
         self.on_confirm = on_confirm
+        self._question_text = question
 
         # 遮罩：整窗 transition_color、50% 透明度
         tc = list(transition_color or [0, 0, 0])
@@ -1914,9 +1915,9 @@ class ConfirmDialog(QGraphicsPathItem):
         """按场景尺寸定位：遮罩铺满，确认框居中。"""
         w, h = scene_rect.width(), scene_rect.height()
         self._mask.setRect(scene_rect)
-        # 确认框：宽 40% 窗口、高 30% 窗口（上限 480x240），圆角 24
+        # 确认框：宽 40% 窗口、高 22% 窗口（上限 480x170），圆角 24
         box_w = min(int(w * 0.4), 480)
-        box_h = min(int(h * 0.3), 240)
+        box_h = min(int(h * 0.22), 170)
         x = scene_rect.x() + (w - box_w) / 2
         y = scene_rect.y() + (h - box_h) / 2
         self._box_rect = QRectF(x, y, box_w, box_h)
@@ -1932,8 +1933,14 @@ class ConfirmDialog(QGraphicsPathItem):
             self.setBrush(QBrush(QColor(box_color[0], box_color[1], box_color[2], 217)))
         self.setPen(QPen(Qt.NoPen))
 
-        # 第一行："确认？"（左右居中）
-        q_text = CONFIRM_TEXTS["question"].get(self.language, CONFIRM_TEXTS["question"]["en"])
+        # 第一行：问题文案（左右居中）；question 可为多语言 dict 或单语言 str，None 用默认"确认？"
+        if self._question_text is None:
+            q_text = CONFIRM_TEXTS["question"].get(self.language, CONFIRM_TEXTS["question"]["en"])
+        elif isinstance(self._question_text, dict):
+            q_text = self._question_text.get(self.language) or self._question_text.get("zh") \
+                or self._question_text.get("en") or next(iter(self._question_text.values()), "确认？")
+        else:
+            q_text = str(self._question_text)
         self._question_label = QGraphicsTextItem(q_text, self)
         tc = self._text_color
         self._question_label.setDefaultTextColor(QColor(tc[0], tc[1], tc[2]))

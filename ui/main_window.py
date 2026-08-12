@@ -455,20 +455,38 @@ class GalGameWindow(QMainWindow):
         self.show_menu()
 
     def _quit_game(self):
-        """退出游戏。"""
-        print("退出游戏")
+        """退出游戏：先弹确认框（确认 -> 真正退出；取消 -> 关闭）。"""
+        print("退出游戏：弹出确认框")
+        self._open_confirm_dialog(
+            question={
+                "zh": "确认退出？",
+                "en": "Quit?",
+                "ja": "終了しますか？",
+            },
+            on_confirm=self._do_quit,
+        )
+
+    def _do_quit(self):
+        """确认退出：关闭确认框后真正退出。"""
+        print("退出游戏：确认")
+        from PySide6.QtCore import QTimer
+        dlg = getattr(self, "confirm_dialog", None)
+        if dlg:
+            self.confirm_dialog = None
+            QTimer.singleShot(0, lambda: self._remove_qload_dialog(dlg))
         QApplication.quit()
 
-    def _on_qload_button_clicked(self):
-        """主菜单"继续游戏/快速加载"按钮：弹出确认框（遮罩 + 确认 UI）。
-        确认 -> 读最新存档（同 F3）；取消 -> 关闭确认框回到主菜单。
-        确认框配置来源：ui.confirm_ui 节点（ui_mode="default" 预设 UI）。
+    def _open_confirm_dialog(self, question=None, on_confirm=None, on_cancel=None):
+        """通用确认框：读取 ui.confirm_ui 配置，创建遮罩 + 确认 UI。
+
+        question: None（默认"确认？"）或多语言 dict / 单语言 str
+        on_confirm/on_cancel: 确认/取消回调（取消缺省为关闭确认框）
         """
         # 面板互斥：已有其他面板打开时不重复叠加
         if getattr(self, "is_in_settings", False) or getattr(self, "is_in_save", False) \
                 or getattr(self, "is_in_backlog", False) or getattr(self, "confirm_dialog", None):
             return
-        # 读取确认 UI 配置（ui.confirm_ui 节点，与 qload 按钮位置/文本分离）
+        # 读取确认 UI 配置（ui.confirm_ui 节点）
         cfg = None
         try:
             ui_data = self.controller.story_data.get("ui", {})
@@ -485,13 +503,36 @@ class GalGameWindow(QMainWindow):
             language=self.controller.language or "zh",
             config=cfg,
             transition_color=self.controller.transition_color,
-            on_cancel=self._close_qload_confirm,
-            on_confirm=self._confirm_qload,
+            on_cancel=on_cancel or self._close_qload_confirm,
+            on_confirm=on_confirm,
+            question=question,
         )
         dlg.center_in_scene(scene_rect)
         dlg.fade_in()
         self.confirm_dialog = dlg
-        print("继续游戏确认框已打开")
+        print("确认框已打开")
+
+    def _on_bottom_qload_clicked(self):
+        """底部菜单 Q.Load 按钮：与主菜单"继续游戏"一致，弹确认框，确认后读最新档。
+
+        剧情中读档由 load_save 内部完成（restore_snapshot + play_current_page），
+        读档后恢复底部菜单可见。
+        """
+        print("底部 Q.Load：弹出确认框")
+        # 无存档时不弹确认框，直接无反应
+        if not get_this_story_saves_new_to_old(self.controller):
+            return
+        self._open_confirm_dialog(on_confirm=self._confirm_qload)
+
+    def _on_qload_button_clicked(self):
+        """主菜单"继续游戏/快速加载"按钮：弹出确认框（遮罩 + 确认 UI）。
+        确认 -> 读最新存档（同 F3）；取消 -> 关闭确认框回到主菜单。
+        确认框配置来源：ui.confirm_ui 节点（ui_mode="default" 预设 UI）。
+        """
+        # 无存档时不弹确认框，直接无反应
+        if not get_this_story_saves_new_to_old(self.controller):
+            return
+        self._open_confirm_dialog(on_confirm=self._confirm_qload)
 
     def _close_qload_confirm(self):
         """取消：关闭确认框（移除遮罩+确认框），回到主菜单。
@@ -1204,6 +1245,7 @@ class GalGameWindow(QMainWindow):
         self._qsave_toast = None
 
 
+
     def _refresh_current_dialog(self):
         """剧情中语言切换后：用当前场景的 content 重新渲染对话（名称/字幕按新语言取词）。
         直接显示新语言全文，不重播逐字动画，不触发自动前进。
@@ -1575,9 +1617,7 @@ class GalGameWindow(QMainWindow):
         # 功能与主菜单"加载游戏"一致：复用 open_load_panel（主菜单/剧情中均可打开）
         if lang == "zh":
             load_text = "加载"
-        elif lang == "ja":
-            load_text = "ロード"
-        else:  # en / ru
+        else:  # en / ja / ru
             load_text = "Load"
         load_label = make_label(load_text, text_color=normal_text_color)
         load_r = load_label.boundingRect()
@@ -1617,14 +1657,14 @@ class GalGameWindow(QMainWindow):
 
         # --- 快速加载 Q.Load 按钮（保存按钮左侧，右7）：固定文字 Q.Load ---
         # 功能开发中：暂不绑定逻辑，点击仅打印提示
-        qload_text = "Q.Load"
+        qload_text = "快速加载" if lang == "zh" else "Q.Load"
         qload_label = make_label(qload_text, text_color=normal_text_color)
         qload_r = qload_label.boundingRect()
         qload_btn_w = max(40, qload_r.width() + 24)
         qload_rect = QRectF(save_rect.left() - margin - qload_btn_w, y, qload_btn_w, btn_h)
         qload_btn = SettingsButtonItem(qload_rect, "bottom_quick_load", opacity=200, button_color=button_color)
         qload_btn.setZValue(10)
-        qload_btn.set_click_handler(lambda: print("Q.Load：功能开发中"))
+        qload_btn.set_click_handler(self._on_bottom_qload_clicked)
         self.graphics_view.scene.addItem(qload_btn)
         self.bottom_menu_buttons.append(qload_btn)
 
