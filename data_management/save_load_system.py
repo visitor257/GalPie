@@ -314,6 +314,9 @@ def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_chec
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     result = []
     processing = {}
+    # saves 目录不存在时直接返回空列表（首次运行/未存档时常见）
+    if not os.path.isdir(save_dir):
+        return result
     for i in os.listdir(save_dir):
         if os.path.splitext(i)[-1] != ".gpsave":
             continue
