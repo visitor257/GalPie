@@ -203,6 +203,30 @@ class GraphicsView(QGraphicsView):
         self.fit_logical_rect()
 
     def mousePressEvent(self, event):
+        # "⊙"隐藏模式：任意位置点击（左键/右键）恢复显示，不推进剧情、不触发右键返回
+        mw = self.window()
+        if mw is not None and getattr(mw, "_ui_hidden", False):
+            if event.button() in (Qt.LeftButton, Qt.RightButton):
+                mw._on_ui_hidden_click()
+                event.accept()
+                return
+        # 右键 = 返回：设置/日志/保存/加载面板打开时，触发对应关闭函数
+        if event.button() == Qt.RightButton:
+            mw = self.window()
+            handled = False
+            if mw is not None:
+                if getattr(mw, "is_in_settings", False):
+                    mw.close_settings_panel()
+                    handled = True
+                elif getattr(mw, "is_in_save", False):
+                    mw.close_save_panel()
+                    handled = True
+                elif getattr(mw, "is_in_backlog", False):
+                    mw.close_backlog_panel()
+                    handled = True
+            if handled:
+                event.accept()
+                return
         super().mousePressEvent(event)
         if event.isAccepted():
             # 事件被场景 item 接受（accepted=True）。接受事件的 item 可通过

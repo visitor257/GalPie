@@ -6,7 +6,7 @@ A galgame maker/reader based on PySide6<br>
 <br><br>
 Main program: GalPie.py<br>
 It can currently read story JSON files written according to the rules to play the game.<br>
-(For the writing rules, please refer to **Story JSON rules.txt** (Chinese: **剧情json规则.txt**) in the **doc** folder. You can also consult **sample_create.json** in the **sample** folder as a reference when writing.)<br>
+(For the writing rules, please refer to **Story JSON rules.txt** (Chinese: **剧情json规则.txt**) in the **doc** folder. You can also consult **sample_create.json** in the **story** folder as a reference when writing.)<br>
 <br>
 Put the story JSON file into the **story** folder, and the program will load it automatically on startup.<br>
 If the story includes a **menu** (main menu), the main menu is shown first on launch; otherwise the story starts directly.<br>
@@ -14,10 +14,11 @@ If the story includes a **menu** (main menu), the main menu is shown first on la
 
 ## Main Menu<br>
 On launch, if the story has a **menu** configured, the main menu is shown first. It supports the following buttons (configured in **menu.menu_pos**):<br>
+- **Continue** (qload): If a save exists, a confirm dialog is shown; after confirmation it loads the newest save (quick save first) and enters the story. If no save exists, clicking does nothing.<br>
 - **Start** (start): Enter the story<br>
 - **Load** (load): Open the load game panel to load a slot save of this story<br>
 - **Settings** (settings): Open the settings panel (language / resolution)<br>
-- **Quit** (quit): Exit the program<br>
+- **Quit** (quit): Show a confirm dialog; exit the program after confirmation<br>
 <br>
 
 ## In-Game Controls<br>
@@ -25,6 +26,10 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 <tr>
 <td>[Space] / [Enter] / Left Mouse Click</td>
 <td>Advance the story (clicking while the text is still typing shows the full text immediately)</td>
+</tr>
+<tr>
+<td>Right Mouse Click</td>
+<td>While a Settings / Backlog / Save / Load panel is open, equivalent to pressing that panel's "Back" button</td>
 </tr>
 <tr>
 <td>[A]</td>
@@ -51,7 +56,8 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 
 ## Bottom Menu Bar<br>
 During the story, a preset menu bar can be shown at the bottom of the window (controlled by the story's **ui.bottom_menu**). From right to left:<br>
-<b>Log</b> (opens the backlog panel of past dialogue) → <b>Settings</b> (opens the settings panel; switch language/resolution, etc.) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Save</b> (opens the save panel) → <b>Q.Save</b> (quick save to the quick save slot).<br>
+<b>⊙</b> (hide toggle: hides the dialogue box and the bottom menu; click anywhere to restore) → <b>Log</b> (backlog of past dialogue) → <b>Settings</b> (language/resolution) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Load</b> (opens the load panel) → <b>Save</b> (opens the save panel) → <b>Q.Load</b> (quick load: confirm, then load the newest save) → <b>Q.Save</b> (quick save).<br>
+<b>⊙</b> hides the dialogue box and the whole bottom menu (including the bar itself) while the story keeps advancing; pressing anywhere (left or right click) restores them, with the dialogue box restored to its visibility before hiding.<br>
 Skip and Auto-play are mutually exclusive (enabling one automatically disables the other); opening any panel pauses both, and they resume after returning to the story.<br>
 The colors of the menu bar, its buttons, and all panels can be configured in the story JSON (see the rules documents in the **doc** folder).<br>
 <br>
@@ -83,6 +89,3 @@ Save files are stored in the **saves** folder and are isolated per story automat
 - **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores language/resolution settings)<br>
 Saves of different stories do not interfere with each other; <b>please give different stories different identify_code values</b>, otherwise they are treated as the same story and share saves.<br>
 <br>
-
-## Known Issues<br>
-1. Scene does not match the loaded save. (Fixed)<br>

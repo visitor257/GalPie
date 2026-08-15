@@ -45,7 +45,27 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
 "ui": dictionary (optional; the default UI is used when missing)
     Description: Used to configure the interactive interface, such as the dialogue box and bottom menu. When missing, the default UI settings are used (default dialogue box style / name region / words region).
-    Keys inside "ui": "chatbox_and_words_position", "bottom_menu"
+    Keys inside "ui": "confirm_ui", "chatbox_and_words_position", "bottom_menu"
+
+    "confirm_ui": dictionary (optional; the default confirm dialog appearance is used when missing)
+        Description: Interface configuration of the confirm dialog. The confirm dialog is used for operations that need a second confirmation: the main menu "Continue" (menu_pos.qload) before loading the latest save, the bottom menu "Q.Load" (quick load) before loading the latest save, and the main menu "Quit" (menu_pos.quit) before exiting the game.
+        The confirm dialog consists of a full-screen mask (color from settings.transition_color, 50% opacity) plus a centered rounded box with one line of question text and two buttons (Cancel/Confirm).
+        Keys inside "confirm_ui": "ui_mode", "color", "text_color", "cancel_color", "confirm_color"
+
+        "ui_mode": string (optional)
+            Explanation of "ui_mode": The interface mode. Currently only "default" (preset style) is supported.
+
+        "color": list (optional; default [255, 255, 255, 217])
+            Explanation of "color": The background color of the confirm box, RGBA format.
+
+        "text_color": list (optional; default [30, 30, 30])
+            Explanation of "text_color": The color of the question text (e.g. "Confirm?"), RGB format.
+
+        "cancel_color": list (optional; default [255, 255, 255])
+            Explanation of "cancel_color": The background color of the "Cancel" button, RGB format. The text color is chosen automatically by brightness (same rule as bottom menu button_color).
+
+        "confirm_color": list (optional; default [30, 30, 30])
+            Explanation of "confirm_color": The background color of the "Confirm" button, RGB format. The text color is chosen automatically by brightness.
 
     "chatbox_and_words_position": dictionary (optional; the default dialogue box style and regions are used when missing)
         Description: Settings of the dialogue box style. When missing, the default dialogue box style / name region [[76,60],[270,149]] / words region [[310,60],[805,149]] are used.
@@ -67,8 +87,11 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
         "mode": string (optional)
             Explanation of "mode": The mode of the bottom menu; currently only "default" (preset style) is supported.
-            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "Log" button, the "Settings" button, the "Skip (▷▷)" toggle, the "Auto-play (▷)" toggle, the "Save" button, and the "Quick Save (Q.Save)" button arranged from right to left.
-            The Settings button opens the settings panel; the Log button opens the backlog panel; the Save button opens the save panel; the Quick Save button saves directly to the quick save slot (F2=save, F3=load latest save, A=auto-play, S=skip).
+            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "⊙" button, the "Log" button, the "Settings" button, the "Skip (▷▷)" toggle, the "Auto-play (▷)" toggle, the "Load" button, the "Save" button, the "Quick Load (Q.Load)" button, and the "Quick Save (Q.Save)" button arranged from right to left.
+            The "⊙" button is a hide toggle: pressing it hides the dialogue box and the whole bottom menu (including the menu bar itself) while the story keeps advancing; pressing anywhere (left or right click) restores them. The dialogue box is restored to its visibility before hiding (if it was already hidden by the story, e.g. on a transition page, it stays hidden).
+            The Settings button opens the settings panel; the Log button opens the backlog panel; the Save button opens the save panel; the Load button opens the load panel (same as main menu "Load"); the Quick Save button saves directly to the quick save slot; the Quick Load (Q.Load) button shows a confirm dialog (appearance from ui.confirm_ui), then loads the latest save (same as F3).
+            While any of the settings/log/save/load panels is open, pressing the right mouse button is equivalent to pressing that panel's "Back" button, closing it directly.
+            (F2=save, F3=load latest save, A=auto-play, S=skip)
             Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening the settings/log/save panel pauses both, and they resume after returning to the story.
 
         "color": list (optional)
@@ -141,24 +164,25 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "menu_pos": dictionary (optional)
         Description: Sets the positions and texts of the title and buttons in the main menu.
-        Explanation of keys inside "menu_pos": It can contain "title" and any button tags (such as "start", "load", "settings", "quit").
+        Explanation of keys inside "menu_pos": It can contain "title" and any button tags (such as "qload", "start", "load", "settings", "quit").
 
         "title": list (optional)
             Explanation of elements inside "title": The position coordinate [x, y] of the title image on the main menu background.
             The coordinate system is based on the main menu background image. The top-left corner of the image is the origin (0 point); the x axis increases to the right and the y axis increases downward.
             Example: [54, 48].
 
-        <button tag>: list (required, e.g., "start"/"load"/"settings"/"quit")
+        <button tag>: list (required, e.g., "qload"/"start"/"load"/"settings"/"quit")
             Description: Sets a main menu button. The list structure is: [position, text dictionary, additional config (optional)]
             1st element: The position coordinate [x, y] of the button image on the main menu background.
             2nd element: The text dictionary, giving the button text by language tag, e.g., {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}.
                 The program takes the text for the current language; if absent, it takes the first text in the dictionary.
             3rd element (optional): The additional config dictionary, e.g., {"ui_mode": "default"}.
             Currently built-in supported button tags and their functions:
+                "qload": Continue game (quick load). On click, if any save exists, a confirm dialog is shown (appearance from ui.confirm_ui); on confirm it loads the latest save (same as F3, quick save first) and enters the story. If no save exists, clicking does nothing (no dialog).
                 "start": Start the game; clicking enters the story.
                 "load": Opens the load panel (load game interface). Its additional config dictionary has the same structure as the "save" config of the bottom menu bar (color/saves_color/saves_text_color/text_color/button_color), used to set the appearance of the load panel; defaults are used if not provided.
                 "settings": Opens the settings panel (language/resolution switching, etc.). Its additional config dictionary (ui_mode/color/text_color/button_color) is used to set the appearance of the settings panel; defaults are used if not provided.
-                "quit": Quit the game.
+                "quit": Quit the game. On click a confirm dialog is shown (appearance from ui.confirm_ui, question text "Quit?"); the game quits only after confirmation.
             Other custom button tags are currently not bound to any function (clicking does nothing); they are displayed only.
 
 "story_and_position": dictionary (required)
@@ -337,13 +361,20 @@ The following is the actual content of story/sample_create.json (some translatio
     "transition_color": [0, 0, 0]       <-Transition color, optional; defaults to black. After clicking "Start Game" the main menu fades into this color, stays about 1.5 seconds, then fades into the story; the same happens after confirming a load from the main menu
   },
   "ui": {                                           <-UI settings
+    "confirm_ui": {                                 <-Confirm dialog config (continue/quick load/quit confirmations)
+      "ui_mode": "default",                         <-Interface mode, only "default" supported
+      "color": [255, 255, 255, 217],                <-Confirm box background color, RGBA
+      "text_color": [185, 122, 87, 255],            <-Question text color (e.g. "Confirm?")
+      "cancel_color": [255, 255, 255],              <-"Cancel" button background color
+      "confirm_color": [30, 30, 30]                 <-"Confirm" button background color
+    },
     "chatbox_and_words_position": {                 <-Sets the dialogue box style
       "chatbox": "./res/ui/chatbox.png",            <-The image of the dialogue box style
       "name_show_region": [[76,60],[270,149]],      <-The region where the speaker's name is displayed on the dialogue box style (top-left and bottom-right)
       "words_show_region": [[310,60],[805,149]]     <-The region where the subtitle is displayed on the dialogue box style (top-left and bottom-right)
     },
     "bottom_menu": {                                <-Bottom menu bar (optional), the preset menu shown at the bottom of the window during the story
-      "mode": "default",                            <-Mode; currently only default is supported (preset style: from right to left Log / Settings / Skip / Auto-play / Save / Quick Save)
+      "mode": "default",                            <-Mode; currently only default is supported (preset style: from right to left ⊙ / Log / Settings / Skip / Auto-play / Load / Save / Q.Load / Q.Save)
       "color": [0, 0, 0, 150],                      <-Fill color of the menu bar, RGBA
       "button_color": [0, 0, 0, 200],               <-Background color of the buttons on the menu bar, RGBA; the text color is chosen automatically by brightness (RGB sum < 383 white text / >= 383 black text, inverted on hover)
       "backlog_bgcolor": [255, 255, 255, 200],      <-Background color of the backlog (log) panel, RGBA
@@ -366,22 +397,26 @@ The following is the actual content of story/sample_create.json (some translatio
     "text_rgb": [255, 255, 255],                    <-Color of the button text, RGB
     "menu_pos": {                                   <-Positions and texts of the title and buttons
       "title": [54, 48],                            <-Position of the title image [x, y]
-      "start": [                                    <-Start game button: position [x, y]
+      "qload": [                                    <-Continue (quick load) button: position [x, y] (confirm dialog if saves exist, then load latest; does nothing if no save)
         [115, 230],
+        {"zh": "继续游戏", "en": "Continue", "ja": "続きから", "ru": "Продолжить"}  <-Button text (by language tag)
+      ],
+      "start": [                                    <-Start game button: position [x, y]
+        [115, 310],
         {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}  <-Button text (by language tag)
       ],
       "load": [                                     <-Load game button: opens the load panel
-        [115, 310],
+        [115, 390],
         {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},  <-Button text (by language tag)
         {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Additional config, same structure as bottom_menu.save; sets the appearance of the load panel
       ],
       "settings": [                                 <-Settings button
-        [115, 390],
+        [115, 470],
         {"zh": "设置", "en": "Settings", "ja": "設定", "ru": "Настройки"},
         {"ui_mode": "default"}                      <-Additional config (ui_mode/color/text_color/button_color)
       ],
       "quit": [                                     <-Quit game button
-        [115, 470],
+        [115, 550],
         {"zh": "退出", "en": "Quit", "ja": "終了", "ru": "Выйти"}
       ]
     }

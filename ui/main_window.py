@@ -88,6 +88,9 @@ class GalGameWindow(QMainWindow):
         self.save_panel = None  # 当前保存面板（场景内）
         self.is_in_save = False  # 是否正在保存界面中
         self.confirm_dialog = None  # 当前确认框（继续游戏等操作前）
+        # "⊙"隐藏开关：隐藏对话框+底部菜单，任意点击恢复
+        self._ui_hidden = False
+        self._ui_hidden_chatbox_was = True  # 进入隐藏时对话框可见性（恢复用）
         self._auto_play_paused = False  # 打开设置时是否暂停了自动播放（关闭后恢复）
         self.menu_button_items = []  # 菜单按钮及其文本 item（打开设置时隐藏）
         self.settings_ui_config = {}  # 设置界面配置（menu_pos.settings 第 3 项：ui_mode/resolution 等）
@@ -1137,6 +1140,51 @@ class GalGameWindow(QMainWindow):
             if it.scene():
                 it.setVisible(visible)
 
+    def _toggle_ui_hidden(self):
+        """"⊙"开关：隐藏/恢复 对话框+底部菜单。
+
+        进入隐藏：记录当前对话框可见性（剧情中对话框可能本来就隐藏，如过场页），
+        隐藏对话框与底部菜单；恢复时按记录状态还原，不强制显示。
+        """
+        if self._ui_hidden:
+            self._restore_ui()
+            return
+        # 记录对话框当前可见性（chatbox_item 可能不存在，如主菜单）
+        was = True
+        try:
+            if self.chatbox_item is not None and self.chatbox_item.scene():
+                was = bool(self.chatbox_item.isVisible())
+        except Exception:
+            was = True
+        self._ui_hidden_chatbox_was = was
+        # 隐藏对话框 + 底部菜单（按钮 + 菜单条本体）
+        if self.chatbox_item is not None and self.chatbox_item.scene():
+            self.set_chatbox_visible(False)
+        self._set_bottom_menu_visible(False)
+        if self.bottom_menu_item is not None and self.bottom_menu_item.scene():
+            self.bottom_menu_item.setVisible(False)
+        self._ui_hidden = True
+        print(f"UI 隐藏：对话框原可见性={was}")
+
+    def _restore_ui(self):
+        """恢复 UI（任意点击触发）：恢复底部菜单 + 按记录状态恢复对话框。"""
+        if not self._ui_hidden:
+            return
+        self._set_bottom_menu_visible(True)
+        if self.bottom_menu_item is not None and self.bottom_menu_item.scene():
+            self.bottom_menu_item.setVisible(True)
+        try:
+            if self.chatbox_item is not None and self.chatbox_item.scene():
+                self.set_chatbox_visible(self._ui_hidden_chatbox_was)
+        except Exception:
+            pass
+        self._ui_hidden = False
+        print("UI 恢复显示")
+
+    def _on_ui_hidden_click(self):
+        """隐藏模式下任意位置点击：仅恢复显示，不推进剧情。"""
+        self._restore_ui()
+
     def _update_skip_icon(self):
         """按当前 skip_mode 状态更新底部菜单快进按钮图标。"""
         icon = "▶▶" if getattr(self.controller, "skip_mode", False) else "▷▷"
@@ -1492,7 +1540,7 @@ class GalGameWindow(QMainWindow):
     def _create_bottom_menu_buttons(self, window_width: int, window_height: int,
                                     menu_h: int, extend: int = 50):
         """创建底部菜单条上的按钮（预设 default UI）。
-        从右到左：日志(右1) | 设置(右2) | 快进(右3) | 自动播放(右4) | 加载(右5) | 保存(右6) | Q.Load(右7) | Q.Save(右8)。
+        从右到左：⊙(右1) | 日志(右2) | 设置(右3) | 快进(右4) | 自动播放(右5) | 加载(右6) | 保存(右7) | Q.Load(右8) | Q.Save(右9)。
         按钮文字随 controller.language 变化（多语言与设置面板一致）。
         """
         # 清除旧按钮及文字
@@ -1524,13 +1572,31 @@ class GalGameWindow(QMainWindow):
             label.setTextWidth(-1)
             return label
 
-        # --- 日志/Backlog按钮（最右侧右1）：文字 日志(zh) / Backlog(en/ja) ---
+        # --- "⊙"隐藏开关按钮（最右侧右1）：隐藏/恢复 对话框+底部菜单 ---
+        hide_label = make_label("⊙", font_size=14, text_color=normal_text_color)
+        hr = hide_label.boundingRect()
+        hide_btn_w = max(btn_h, hr.width() + 16)
+        hide_rect = QRectF(window_width - margin - hide_btn_w, y, hide_btn_w, btn_h)
+        hide_btn = SettingsButtonItem(hide_rect, "bottom_ui_hidden", opacity=200, button_color=button_color)
+        hide_btn.setZValue(10)
+        hide_btn.set_click_handler(self._toggle_ui_hidden)
+        self.graphics_view.scene.addItem(hide_btn)
+        self.bottom_menu_buttons.append(hide_btn)
+
+        hide_label.setPos(hide_rect.center().x() - hr.width() / 2,
+                          hide_rect.center().y() - hr.height() / 2)
+        hide_label.setZValue(11)
+        self.graphics_view.scene.addItem(hide_label)
+        self.bottom_menu_buttons.append(hide_label)
+        hide_btn._text_label = hide_label  # 悬停变色用
+
+        # --- 日志/Backlog按钮（右2）：文字 日志(zh) / Backlog(en/ja) ---
         lang = self.controller.language or "zh"
         backlog_text = "日志" if lang == "zh" else "Backlog"
         backlog_label = make_label(backlog_text, text_color=normal_text_color)
         bkr = backlog_label.boundingRect()
         backlog_btn_w = max(40, bkr.width() + 24)
-        backlog_rect = QRectF(window_width - margin - backlog_btn_w, y, backlog_btn_w, btn_h)
+        backlog_rect = QRectF(hide_rect.left() - margin - backlog_btn_w, y, backlog_btn_w, btn_h)
         backlog_btn = SettingsButtonItem(backlog_rect, "bottom_backlog", opacity=200, button_color=button_color)
         backlog_btn.setZValue(10)
         backlog_btn.set_click_handler(self.toggle_backlog_button)
