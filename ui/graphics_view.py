@@ -184,7 +184,7 @@ class GraphicsView(QGraphicsView):
     def fit_logical_rect(self):
         """将逻辑场景矩形等比缩放填满当前视口（超出部分裁切）。"""
         self.fitInView(0, 0, self.logical_size[0], self.logical_size[1],
-                       Qt.KeepAspectRatioByExpanding)
+                       Qt.KeepAspectRatio)
 
     def set_background_color(self, color):
         """Set window base color (stylesheet only).
