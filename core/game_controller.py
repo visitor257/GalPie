@@ -63,6 +63,15 @@ class GameController:
         # 已生成的按页快照字典：{页号: page_state副本}，供存档时取当前页快照
         self.page_snapshots = {}
 
+        # 计分（分支分数）：初始值来自 storyline_id（各分支的初始分），
+        # 剧情中由选择（selection 的 score）增减，运行时仅存内存，存档时写入 data[12]。
+        # 结构：{"main": 1.0, "girl": 1.0, ...}
+        self.scores = {}
+        # 选择等待状态：selection 场景显示选项按钮期间置 True，阻止点击推进剧情
+        self.is_waiting_for_selection = False
+        # 场景级 next 路由（如 ["main", "20"]）：当前场景播完后跳线跳页
+        self.pending_next = None
+
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
         self.base_path = base_path
@@ -121,6 +130,10 @@ class GameController:
         self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True}
         self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True}
         self.page_snapshots = {}
+        # 重置选择状态（选项页返回主菜单后，再进剧情时避免残留拦截点击/快进）
+        self.is_waiting_for_selection = False
+        self.pending_next = None
+        self.main_window.hide_selection()
         storyline_data = self.story_data.get("story_and_position", {}).get("storyline_id", {})
         if storyline_data:
             self.current_storyline_id = max(storyline_data, key=storyline_data.get)
@@ -130,6 +143,13 @@ class GameController:
                 self.current_page = int(first_page)
         else:
             self.current_storyline_id = "main"
+        # 计分重置：各分支分数 = storyline_id 的初始值
+        self.scores = {}
+        for branch, val in storyline_data.items():
+            try:
+                self.scores[branch] = float(val)
+            except (TypeError, ValueError):
+                self.scores[branch] = 0.0
 
     def play_current_page(self, specify_scene=None):
         if self.is_in_menu:
@@ -158,6 +178,12 @@ class GameController:
         print(f"播放场景序列，当前场景索引: {self.current_scene_index}, 总场景数: {len(self.current_page_data)}")
         if self.current_scene_index >= len(self.current_page_data):
             # 本页（a 页）全部场景播完，进入下一页前：
+            # 先检查页级 next 路由（如 ["main", "20"]）：有则跳线跳页，不走默认 +1
+            if self.pending_next:
+                nxt = self.pending_next
+                self.pending_next = None
+                self._jump_to(nxt, wait_if_no_autoplay=True)
+                return
             # 把逐场景状态 scene_state（a 页最终画面）记为 page_state（新页初始状态），
             # 并存为按页快照。读档时直接用该页快照构建画面。
             new_page = self.current_page + 1
@@ -243,6 +269,19 @@ class GameController:
 
         # 启动所有待执行的动画
         self.main_window.graphics_view.start_pending_animations()
+
+        # 记录场景级 next 路由（如 cafe_girl 页2 的 ["main", "20"]）：
+        # 本场景播完后跳线跳页，由 check_auto_advance -> advance_to_next_scene 消费
+        if "next" in scene:
+            self.pending_next = scene["next"]
+
+        # 选择场景：显示选项按钮，等待玩家选择（不推进、不显示对话）
+        if "selection" in scene:
+            self.is_text_finished = False
+            self.is_audio_finished = False
+            self.is_waiting_for_selection = True
+            self.main_window.show_selection(scene["selection"], self.on_selection_chosen)
+            return
 
         # 显示对话内容
         if "content" in scene:
@@ -338,6 +377,11 @@ class GameController:
         """
         # 先清空当前画面（背景+角色），避免旧状态残留
         self.main_window.graphics_view.clear_all()
+        # 清理残留选择项：读档时若处于选择页，旧选项按钮必须移除，
+        # 读到的目标页若也是选择页，会由 execute_scene 重新显示
+        self.main_window.hide_selection()
+        self.is_waiting_for_selection = False
+        self.pending_next = None
         bg_name = snapshot.get("bg")
         characters = snapshot.get("characters", {}) or {}
         chatbox_visible = bool(snapshot.get("chatbox_visible", True))
@@ -411,6 +455,64 @@ class GameController:
         }
         print(f"快照恢复: 页{self.current_page} bg={bg_name} 角色={list(characters.keys())} chatbox={chatbox_visible}")
 
+    def _jump_to(self, nxt, wait_if_no_autoplay=False):
+        """按 next 路由跳线跳页：nxt = [分支id, 页码]（如 ["main", "20"]）。
+        跳转后把当前画面状态（scene_state）记为目标页初始快照（page_state），
+        保证读档/后续翻页的快照链连贯；然后从目标页第 0 场景开始播放。
+        wait_if_no_autoplay=True：自动播放关闭时跳到目标页后等待用户点击
+        （与正常翻页行为一致），用于"场景播完自动触发"的 next 路由；
+        选项点击触发的跳转（wait=False）立即播放，因为用户刚主动选择过。
+        """
+        if not nxt or len(nxt) < 2:
+            return
+        line, page = str(nxt[0]), int(nxt[1])
+        print(f"跳线路由: {self.current_storyline_id}:{self.current_page} -> {line}:{page}")
+        self.current_storyline_id = line
+        self.current_page = page
+        self.current_scene_index = 0
+        self.is_waiting_for_next_page = False
+        # 目标页初始快照 = 当前画面状态（跳转瞬间 scene_state）
+        self.page_state = {
+            "bg": self.scene_state.get("bg"),
+            "characters": {k: dict(v) for k, v in self.scene_state.get("characters", {}).items()},
+            "chatbox_visible": bool(self.scene_state.get("chatbox_visible", True)),
+        }
+        self.page_snapshots[self.current_page] = {
+            "bg": self.page_state["bg"],
+            "characters": {k: dict(v) for k, v in self.page_state["characters"].items()},
+            "chatbox_visible": self.page_state["chatbox_visible"],
+        }
+        print(f"跳线快照: 页{self.current_page} 初始状态={self.page_state}")
+        # 自动播放关闭且要求等待：跳到目标页但不立即播放（与正常翻页一致）
+        if wait_if_no_autoplay and not self.auto_play:
+            self.is_waiting_for_next_page = True
+            print("自动播放已关闭，跳转后等待用户点击进入")
+            return
+        self.play_current_page()
+
+    def on_selection_chosen(self, option: Dict):
+        """选择回调：玩家点了一个选项后调用。
+        处理：关闭选择 UI、加分（score）、按 next 跳线（无 next 则继续本线下一场景）。
+        """
+        self.is_waiting_for_selection = False
+        self.main_window.hide_selection()
+        # 加分：score = [分支id, 数值]（如 ["girl", 0.5]）
+        score = option.get("score")
+        if isinstance(score, (list, tuple)) and len(score) >= 2:
+            branch = str(score[0])
+            try:
+                val = float(score[1])
+            except (TypeError, ValueError):
+                val = 0.0
+            self.scores[branch] = self.scores.get(branch, 0.0) + val
+            print(f"选择加分: {branch} +{val} = {self.scores[branch]}")
+        # 跳转：next = [分支id, 页码]；无 next 则正常顺序（当前线下一场景/下一页）
+        nxt = option.get("next")
+        if nxt and len(nxt) >= 2:
+            self._jump_to(nxt)
+        else:
+            self.advance_to_next_scene()
+
     def on_text_display_complete(self):
         print("文本显示完成")
         self.is_text_finished = True
@@ -433,11 +535,21 @@ class GameController:
 
     def advance_to_next_scene(self):
         self.audio_timer.stop()
+        # 场景级 next 路由：本场景播完跳线（如 cafe_girl 页2 的 ["main", "20"]）。
+        # 无自动播放时等待点击，与正常翻页行为一致
+        if self.pending_next:
+            nxt = self.pending_next
+            self.pending_next = None
+            self._jump_to(nxt, wait_if_no_autoplay=True)
+            return
         self.current_scene_index += 1
         self.play_scene_sequence()
 
     def handle_click(self):
         if not self.is_in_game:
+            return
+        if self.is_waiting_for_selection:
+            print("选择等待中，忽略点击")
             return
         print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")
         print(f"等待下一页: {self.is_waiting_for_next_page}")
@@ -476,6 +588,8 @@ class GameController:
         if not self.is_in_game:
             return
         if self.main_window.is_in_settings:
+            return
+        if self.is_waiting_for_selection:
             return
         self.handle_click()
 

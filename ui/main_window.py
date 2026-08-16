@@ -88,6 +88,9 @@ class GalGameWindow(QMainWindow):
         self.save_panel = None  # 当前保存面板（场景内）
         self.is_in_save = False  # 是否正在保存界面中
         self.confirm_dialog = None  # 当前确认框（继续游戏等操作前）
+        self.selection_items = []  # 当前选择场景的选项按钮（QGraphicsPixmapItem 列表）
+        self.is_in_selection = False  # 是否正在选择场景（选项按钮显示中）
+        self.selection_on_chosen = None  # 选择回调（controller.on_selection_chosen）
         # "⊙"隐藏开关：隐藏对话框+底部菜单，任意点击恢复
         self._ui_hidden = False
         self._ui_hidden_chatbox_was = True  # 进入隐藏时对话框可见性（恢复用）
@@ -1391,6 +1394,8 @@ class GalGameWindow(QMainWindow):
         self.controller.is_in_game = True
 
     def setup_dialog_area(self):
+        # 清除旧选择按钮（读档/重建对话框时避免残留）
+        self.hide_selection()
         # 清除旧对话框元素
         if self.chatbox_item:
             self.graphics_view.scene.removeItem(self.chatbox_item)
@@ -1848,6 +1853,175 @@ class GalGameWindow(QMainWindow):
                 item.setOpacity(1.0)
                 item.setVisible(visible)
             print(f"[Chatbox] 直接设置可见性: {visible}")
+
+    def show_selection(self, selection_cfg: dict, on_chosen):
+        """显示选择场景的选项按钮（selection 字段）。
+
+        selection_cfg 结构（story JSON）：
+          {
+            "change": "gradient",          # 转场效果（预留，当前忽略）
+            "selection": [
+              {"text": {多语言}, "score": ["main", 0.5], "next": ["main", "18"]},
+              ...
+            ]
+          }
+        按钮素材：story_and_position.selection_button
+          {"normal": "./res/ui/selection.png", "touched": "./res/ui/selection_touched.png",
+           "text_color": [255,255,255]}
+        布局：选项按钮从屏幕中部向下垂直排列，居中；文字（text_color）叠在按钮上。
+        """
+        # 若已有选择面板先清掉（防御）
+        self.hide_selection()
+        lang = self.controller.language or "zh"
+        options = selection_cfg.get("selection", []) if isinstance(selection_cfg, dict) else []
+        if not options:
+            print("选择场景：无选项，跳过")
+            self.controller.is_waiting_for_selection = False
+            self.controller.advance_to_next_scene()
+            return
+
+        # 读取按钮素材配置（story_and_position.selection_button）
+        spa = (self.controller.story_data or {}).get("story_and_position", {}) or {}
+        sb = spa.get("selection_button", {}) or {}
+        normal_path = sb.get("normal")
+        touched_path = sb.get("touched")
+        tc = sb.get("text_color", [255, 255, 255])
+        if isinstance(tc, (list, tuple)) and len(tc) >= 3:
+            text_color = QColor(int(tc[0]), int(tc[1]), int(tc[2]))
+        else:
+            text_color = QColor(255, 255, 255)
+
+        from pathlib import Path as _Path
+        _bp = self.controller.base_path
+        if not isinstance(_bp, _Path):
+            _bp = _Path(str(_bp))
+        normal_pm = self.load_pixmap(str(_bp / normal_path)) if normal_path else None
+        touched_pm = self.load_pixmap(str(_bp / touched_path)) if touched_path else None
+        if normal_pm is None or normal_pm.isNull():
+            print("选择按钮素材缺失，使用默认圆角按钮")
+            normal_pm = touched_pm = None
+
+        scene = self.graphics_view.scene
+        w, h = self.controller.logical_size
+        # 选项按钮尺寸：素材原始尺寸（若素材缺失则用默认宽高）
+        if normal_pm:
+            btn_w = normal_pm.width()
+            btn_h = normal_pm.height()
+        else:
+            btn_w, btn_h = 400, 64
+        gap = 24
+        total_h = len(options) * btn_h + (len(options) - 1) * gap
+        # 选项组整体垂直居中（按钮组中心 = 窗口中心）
+        start_y = (h - total_h) // 2
+        cx = w // 2
+
+        self.selection_on_chosen = on_chosen
+        self.is_in_selection = True
+        for i, opt in enumerate(options):
+            # 按钮图（双态素材；无素材时用半透明圆角矩形）
+            if normal_pm:
+                item = MenuButtonItem(normal_pm, touched_pm)
+            else:
+                item = self._make_default_selection_button(btn_w, btn_h)
+            x = cx - btn_w // 2
+            y = start_y + i * (btn_h + gap)
+            item.setPos(x, y)
+            # z=15：低于设置/保存/加载面板（z=20）与日志面板（z=60），
+            # 面板打开时选项按钮被面板盖住，不再浮在面板上层
+            item.setZValue(15)
+            item.set_click_handler(lambda o=opt: self._on_selection_clicked(o))
+            scene.addItem(item)
+            self.selection_items.append(item)
+
+            # 选项文字（多语言，按当前语言回退 zh/en/首项）
+            text = self._translate_option_text(opt.get("text"), lang)
+            font = QFont("Microsoft YaHei", 20, QFont.Bold)
+            label = QGraphicsTextItem(text)
+            label.setFont(font)
+            label.setDefaultTextColor(text_color)
+            label.setTextInteractionFlags(Qt.NoTextInteraction)
+            # 文字不接收鼠标事件：悬停/点击穿透到下方按钮，保证按钮悬停效果与点击都正常
+            label.setAcceptHoverEvents(False)
+            label.setAcceptedMouseButtons(Qt.NoButton)
+            lr = label.boundingRect()
+            label.setPos(cx - lr.width() / 2, y + (btn_h - lr.height()) / 2)
+            # z 略高于按钮（15.5），但低于面板（20），文字在按钮上、面板下
+            label.setZValue(15.5)
+            scene.addItem(label)
+            self.selection_items.append(label)
+            # 悬停时按钮换图，文字颜色跟随（简单处理：仅按钮换图）
+            if hasattr(item, "_text_label"):
+                item._text_label = label
+        print(f"选择场景：显示 {len(options)} 个选项")
+
+    def _make_default_selection_button(self, btn_w, btn_h):
+        """无素材时的兜底选项按钮：半透明圆角矩形 + 悬停变亮。"""
+        from PySide6.QtGui import QPainterPath
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, btn_w, btn_h), 12, 12)
+        item = QGraphicsPathItem(path)
+        item.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        item.setPen(QPen(QColor(255, 255, 255, 120), 2))
+        # 简单 hover：变亮
+        def _hover_enter(e):
+            item.setBrush(QBrush(QColor(60, 60, 60, 200)))
+            super(QGraphicsPathItem, item).hoverEnterEvent(e)
+        def _hover_leave(e):
+            item.setBrush(QBrush(QColor(0, 0, 0, 180)))
+            super(QGraphicsPathItem, item).hoverLeaveEvent(e)
+        item.hoverEnterEvent = _hover_enter
+        item.hoverLeaveEvent = _hover_leave
+        item.setAcceptHoverEvents(True)
+        item.setCursor(Qt.ArrowCursor)
+        item.click_handler = None
+        def _press(e):
+            if e.button() == Qt.LeftButton and item.click_handler:
+                item.click_handler()
+                e.accept()
+                return
+            super(QGraphicsPathItem, item).mousePressEvent(e)
+        item.mousePressEvent = _press
+        def _set_click_handler(h):
+            item.click_handler = h
+        item.set_click_handler = _set_click_handler
+        def _reset_hover():
+            item.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        item.reset_hover = _reset_hover
+        return item
+
+    def _translate_option_text(self, text, lang):
+        """选项文字多语言：dict 按当前语言取，回退 zh → en → 任意首项；str 直接用。"""
+        if isinstance(text, dict):
+            if text.get(lang):
+                return text[lang]
+            if text.get("zh"):
+                return text["zh"]
+            if text.get("en"):
+                return text["en"]
+            for v in text.values():
+                if v:
+                    return v
+            return ""
+        return text if isinstance(text, str) else ""
+
+    def _on_selection_clicked(self, option):
+        """选项按钮点击：转调 controller 回调（加分 + 跳线）。"""
+        if self.selection_on_chosen:
+            self.selection_on_chosen(option)
+
+    def hide_selection(self):
+        """移除所有选择按钮与文字（选择完成/取消时调用）。"""
+        if not self.selection_items:
+            return
+        scene = self.graphics_view.scene
+        for item in self.selection_items:
+            try:
+                scene.removeItem(item)
+            except Exception:
+                pass
+        self.selection_items = []
+        self.is_in_selection = False
+        self.selection_on_chosen = None
 
     def display_dialog(self, content: dict):
         lang = self.controller.language or "zh"

@@ -182,6 +182,9 @@ def save_game(controller, slot_index=0):
         "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
         "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
     })
+    # data[12]：计分（分支分数，内存态随剧情增减），读档恢复。
+    # 无计分机制的剧情（controller 无 scores 属性）存空 dict，不影响旧档兼容。
+    data.append(dict(getattr(controller, "scores", None) or {}))
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_SLOT{slot_index}.gpsave", "wb") as f:
@@ -231,6 +234,8 @@ def quick_save_game(controller):
         "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
         "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
     })
+    # data[12]：计分（与 save_game 一致，见 save_game 注释）
+    data.append(dict(getattr(controller, "scores", None) or {}))
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_QSAVE.gpsave", "wb") as f:
@@ -275,14 +280,18 @@ def load_save(controller, load_file_name=None):
     if data[3]:
         controller.story_data["story_and_position"]["storyline_id"] = data[3]
     controller.current_storyline_id = data[4]
-    controller.current_page = int(data[5])
-    # 兜底：第 1 页存档存的是 0（current_page-1），读回 0 修正为 1
+    # data[5] 存档时存的是 current_page - 1（第 1 页存 0），读档 +1 还原
+    controller.current_page = int(data[5]) + 1
+    # 兜底：旧档异常值（如 0 或负数）修正为 1
     if controller.current_page < 1:
         controller.current_page = 1
     controller.current_scene_index = 0
     # 读档时清空日志：只保留读档后新播的对话
     controller.backlog_entries = []
     controller.backlog_start_page = controller.current_page
+    # 计分恢复：新档 data[12] 为分数 dict；旧档（无此字段）不恢复，保持内存默认
+    if len(data) > 12 and isinstance(data[12], dict):
+        controller.scores = dict(data[12])
     # 读档：按存档快照（data[11]）恢复画面状态，再播当前页第 0 场景（只播一遍）
     snapshot = data[11] if len(data) > 11 and isinstance(data[11], dict) else None
     if snapshot is None:
@@ -337,12 +346,17 @@ def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_chec
             time_number_str = "99999999999999"
         else:
             # 时间索引随存档结构变化：
-            #   新档 len>=12：末尾 [-1]=快照dict, [-2]=slot_index, [-3]=时间, [-4]=日期
+            #   新档 len>=13：末尾 [-1]=scores dict, [-2]=快照 dict, [-3]=slot_index, [-4]=时间, [-5]=日期
+            #   旧档 len==12：末尾 [-1]=快照 dict, [-2]=slot_index, [-3]=时间, [-4]=日期
             #   旧档 len==11：末尾 [-1]=slot_index(int), [-2]=时间, [-3]=日期
-            if len(data) >= 12 and isinstance(data[-1], dict):
+            if len(data) >= 13 and isinstance(data[-1], dict):
+                d_idx = -5
+            elif len(data) >= 12 and isinstance(data[-1], dict):
                 d_idx = -4
+            elif len(data) >= 11 and isinstance(data[-1], int):
+                d_idx = -3
             else:
-                d_idx = -3 if len(data) >= 11 and isinstance(data[-1], int) else -2
+                d_idx = -2
             d = str(data[d_idx]).replace("-", "")
             t = str(data[d_idx + 1]).replace("-", "")
             time_number_str = d + t

@@ -216,8 +216,14 @@
       "天空": "./res/bg/sky.png",
       "咖啡馆": "./res/bg/cafe.png"
     },
+    "selection_button": {
+      "text_color": [255, 255, 255],
+      "normal": "./res/ui/selection.png",
+      "touched": "./res/ui/selection_touched.png"
+    },
     "storyline_id": {
-      "main": 1.0
+      "main": 1.0,
+      "girl": 1.0
     },
     "story": {
       "main": {
@@ -615,6 +621,177 @@
                 "ru": "Вы часто сюда приходите?"
               }
             }
+          }
+        ],
+        "17": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": false,
+              "change": "gradient"
+            },
+            "selection": {
+              "change": "gradient",
+              "selection": [
+                {"text": {"zh": "是的，我经常来", "en": "", "ja": "", "ru": ""},"score": ["main", 0.5] , "next": ["main", "18"]},
+                {"text": {"zh": "没有，这是我第一次来", "en": "", "ja": "", "ru": ""},"score": ["girl", 0.5], "next": ["cafe_girl", "1"]}
+              ]
+            }
+          }
+        ],
+        "18": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": true,
+              "change": "gradient"
+            },
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "是的，我经常来。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "19": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "看起来不错。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "20": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "来看看点什么吧",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ]
+      },
+      "cafe_girl": {
+        "1": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": true,
+              "change": "gradient"
+            },
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "不，这是我第一次来。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "2": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "是吗？我也是第一次来，而且你选的这家店真不错！",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            },
+            "next": ["main", "20"]
           }
         ]
       }
