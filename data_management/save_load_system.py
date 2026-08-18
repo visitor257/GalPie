@@ -29,22 +29,27 @@ def _render_scene_thumbnail(controller):
         bg_name = snap.get("bg")
         characters = snap.get("characters", {}) or {}
 
-        # ---- 背景 ----
+        # ---- 背景（字符串=背景 id；字典 {"color": [...]} = 纯色） ----
         if bg_name:
-            bg_path = spa.get("backgrounds", {}).get(bg_name)
-            if bg_path:
-                bg_pixmap = QPixmap(str(controller.base_path / bg_path))
-                if not bg_pixmap.isNull():
-                    # 同 GraphicsView.fit_background：KeepAspectRatioByExpanding 铺满
-                    scaled = bg_pixmap.scaled(
-                        w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-                    bg_pos = [(w - bg_pixmap.width()) // 2, 0]
-                    painter.drawPixmap(bg_pos[0], bg_pos[1], scaled)
+            if isinstance(bg_name, dict) and "color" in bg_name:
+                color = bg_name.get("color")
+                if isinstance(color, (list, tuple)) and len(color) >= 3:
+                    painter.fillRect(0, 0, w, h, QColor(int(color[0]), int(color[1]), int(color[2])))
+            else:
+                bg_path = spa.get("backgrounds", {}).get(bg_name)
+                if bg_path:
+                    bg_pixmap = QPixmap(str(controller.base_path / bg_path))
+                    if not bg_pixmap.isNull():
+                        # 同 GraphicsView.fit_background：KeepAspectRatioByExpanding 铺满
+                        scaled = bg_pixmap.scaled(
+                            w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                        bg_pos = [(w - bg_pixmap.width()) // 2, 0]
+                        painter.drawPixmap(bg_pos[0], bg_pos[1], scaled)
 
         # ---- 角色（快照中已是动画最终 zoom/位置） ----
         char_defs = spa.get("character_and_motion", {})
         bg_offset_x = 0
-        if bg_name and spa.get("backgrounds", {}).get(bg_name):
+        if isinstance(bg_name, str) and spa.get("backgrounds", {}).get(bg_name):
             bg_pixmap2 = QPixmap(str(controller.base_path / spa["backgrounds"][bg_name]))
             if not bg_pixmap2.isNull():
                 bg_offset_x = (w - bg_pixmap2.width()) // 2
@@ -150,7 +155,7 @@ def save_game(controller, slot_index=0):
         settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+"),
         settings.get("identify_code", "").replace(" ", "-").replace("_", "+"),
         None,
-        controller.story_data.get("story_and_position", {}).get("storyline_id", None),
+        (controller.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}).get("storyline_id_score", None),
         controller.current_storyline_id,
         str(controller.current_page - 1),
         None,
@@ -202,7 +207,7 @@ def quick_save_game(controller):
         settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+"),
         settings.get("identify_code", "").replace(" ", "-").replace("_", "+"),
         None,
-        controller.story_data.get("story_and_position", {}).get("storyline_id", None),
+        (controller.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}).get("storyline_id_score", None),
         controller.current_storyline_id,
         str(controller.current_page - 1),
         None,
@@ -278,7 +283,7 @@ def load_save(controller, load_file_name=None):
         print("读档失败：存档数据损坏")
         return False
     if data[3]:
-        controller.story_data["story_and_position"]["storyline_id"] = data[3]
+        controller.story_data["story_and_position"].setdefault("storyline_settings", {})["storyline_id_score"] = data[3]
     controller.current_storyline_id = data[4]
     # data[5] 存档时存的是 current_page - 1（第 1 页存 0），读档 +1 还原
     controller.current_page = int(data[5]) + 1

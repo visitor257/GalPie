@@ -214,16 +214,21 @@
     "backgrounds": {
       "公园": "./res/bg/park.png",
       "天空": "./res/bg/sky.png",
-      "咖啡馆": "./res/bg/cafe.png"
+      "咖啡馆": "./res/bg/cafe.png",
+      "家_主角": "./res/bg/home_main.png"
     },
     "selection_button": {
       "text_color": [255, 255, 255],
       "normal": "./res/ui/selection.png",
       "touched": "./res/ui/selection_touched.png"
     },
-    "storyline_id": {
-      "main": 1.0,
-      "girl": 1.0
+    "storyline_settings": {
+      "main_storyline": "main",
+      "score_gap": 0.5,
+      "storyline_id_score": {
+        "main": 1.0,
+        "girl": 1.0
+      }
     },
     "story": {
       "main": {
@@ -633,8 +638,8 @@
             "selection": {
               "change": "gradient",
               "selection": [
-                {"text": {"zh": "是的，我经常来", "en": "", "ja": "", "ru": ""},"score": ["main", 0.5] , "next": ["main", "18"]},
-                {"text": {"zh": "没有，这是我第一次来", "en": "", "ja": "", "ru": ""},"score": ["girl", 0.5], "next": ["cafe_girl", "1"]}
+                {"text": {"zh": "是的，我经常来", "en": "Yes, I come here often", "ja": "うん、よく来てるよ", "ru": "Да, я часто сюда прихожу"},"score": ["main", 0.5] , "next": {"direct": ["main", "18"]}},
+                {"text": {"zh": "没有，这是我第一次来", "en": "No, this is my first time", "ja": "いや、初めて来たんだ", "ru": "Нет, я здесь впервые"},"score": ["girl", 0.5], "next": {"direct": ["cafe_girl", "1"]}}
               ]
             }
           }
@@ -655,9 +660,9 @@
               },
               "words": {
                 "zh": "是的，我经常来。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Yes, I come here often.",
+                "ja": "うん、よく来てるよ。",
+                "ru": "Да, я часто сюда прихожу."
               }
             }
           }
@@ -669,9 +674,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "看起来不错。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "That looks nice.",
+                "ja": "いい感じだね。",
+                "ru": "Выглядит неплохо."
               }
             }
           }
@@ -705,6 +710,621 @@
               },
               "words": {
                 "zh": "来看看点什么吧",
+                "en": "Let's see what to order",
+                "ja": "何を注文しようか",
+                "ru": "Давай посмотрим, что заказать"
+              }
+            }
+          }
+        ],
+        "21": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你有什么推荐的吗？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "22": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "他家的拿铁很不错。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "23": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "那就来一杯拿铁吧。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "24": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "咖啡馆",
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "两杯拿铁。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "25": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "我们端着咖啡坐到靠窗的位置。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "26": [
+          {
+            "clear_all": false,
+            "change": "gradient",
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "这里确实很舒服。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "27": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "是啊，很适合聊天。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "28": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "说起来，我还不知道你叫什么名字。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "29": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "我叫林越，你呢？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "30": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "我叫苏晴。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "31": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "我们一边喝着咖啡，一边聊了起来。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "32": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你平时喜欢做什么？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "33": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "偶尔会去书店逛逛。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "34": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2
+                    }
+                  ],
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "好巧，我也喜欢逛书店。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "35": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "那下次可以一起去。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "36": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "好呀好呀，我知道一家不错的书店！",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "37": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "咖啡馆",
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "不知不觉，咖啡已经喝完了。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "38": [
+          {
+            "clear_all": false,
+            "change": "gradient",
+            "characters": {
+              "girl": {
+                "form": "校服",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "时间不早了，我得走了。我们下次见吧。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "39": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "嗯，下次见。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "40": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "天空",
+            "content": {
+              "speaking": {
+                "zh": "",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              },
+              "words": {
+                "zh": "随后我们交换了联系方式，就这样分开了。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            },
+            "next": {"judge": [[["girl", "1"]], [["main", "41"]]]}
+          }
+        ],
+        "41": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": false,
+              "change": "gradient"
+            }
+          }
+        ],
+        "42": [
+          {
+            "clear_all": true,
+            "bg": {"color": [0,0,0]},
+            "characters": {
+              "": {
+                "animate": [
+                  [
+                    {
+                      "time": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          {
+            "clear_all": true,
+            "bg": "家_主角",
+            "chatbox": {
+              "visible": true,
+              "change": "gradient"
+            },
+            "content": {
+              "words": {
+                "zh": "回到家后，我打开电脑。",
                 "en": "",
                 "ja": "",
                 "ru": ""
@@ -730,9 +1350,9 @@
               },
               "words": {
                 "zh": "不，这是我第一次来。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "No, this is my first time.",
+                "ja": "いや、初めて来たんだ。",
+                "ru": "Нет, я здесь впервые."
               }
             }
           }
@@ -786,12 +1406,58 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "是吗？我也是第一次来，而且你选的这家店真不错！",
+                "en": "Really? It's my first time too, and you picked a nice place!",
+                "ja": "そうなの？私も初めてなんだけど、いいお店を選んだね！",
+                "ru": "Правда? Я тоже впервые здесь, и ты выбрал хорошее место!"
+              }
+            },
+            "next": {"direct": ["main", "20"]}
+          }
+        ]
+      },
+      "girl": {
+        "1": [
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": false,
+              "change": "gradient"
+            }
+          }
+        ],
+        "2": [
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": {"color": [0,0,0]},
+            "characters": {
+              "": {
+                "animate": [
+                  [
+                    {
+                      "time": 1
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": "家_主角",
+            "chatbox": {
+              "visible": true,
+              "change": "gradient"
+            },
+            "content": {
+              "words": {
+                "zh": "到家没多久，我便收到了苏晴发来的信息。",
                 "en": "",
                 "ja": "",
                 "ru": ""
               }
-            },
-            "next": ["main", "20"]
+            }
           }
         ]
       }

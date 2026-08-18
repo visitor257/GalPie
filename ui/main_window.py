@@ -1388,6 +1388,10 @@ class GalGameWindow(QMainWindow):
     def start_game_after_fade(self):
         self.graphics_view.clear_items()
         self.setup_dialog_area()
+        # 重置选择状态：选项页返回主菜单后残留的 is_waiting_for_selection 会拦截点击/快进，
+        # 开始游戏（不走 goto_storyline_by_check_value）必须显式清理
+        self.controller.is_waiting_for_selection = False
+        self.controller.pending_next = None
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
         self.controller.play_current_page()

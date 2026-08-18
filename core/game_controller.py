@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 from pathlib import Path
 from PySide6.QtCore import QTimer, QDateTime, QByteArray, QBuffer
-from PySide6.QtGui import QPixmap, QPainter
+from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
 
 
@@ -26,6 +26,8 @@ class GameController:
         self.audio_timer = QTimer()
         self.audio_timer.setSingleShot(True)
         self.audio_timer.timeout.connect(self.on_audio_finished)
+        # 空 id 角色动画的停留等待时长（毫秒）：无文本场景 + 空动画时使用
+        self._pending_empty_anim_ms = 0
 
         # 自动播放开关
         self.auto_play = False
@@ -63,10 +65,13 @@ class GameController:
         # 已生成的按页快照字典：{页号: page_state副本}，供存档时取当前页快照
         self.page_snapshots = {}
 
-        # 计分（分支分数）：初始值来自 storyline_id（各分支的初始分），
+        # 计分（分支分数）：初始值来自 storyline_id_score（各分支的初始分），
         # 剧情中由选择（selection 的 score）增减，运行时仅存内存，存档时写入 data[12]。
         # 结构：{"main": 1.0, "girl": 1.0, ...}
         self.scores = {}
+        # 选线判定阈值（storyline_settings.score_gap，缺省 0）：judge 路由中
+        # 第一名 - 第二名 >= score_gap 才进入第一名的线，否则走保底线
+        self.score_gap = 0.0
         # 选择等待状态：selection 场景显示选项按钮期间置 True，阻止点击推进剧情
         self.is_waiting_for_selection = False
         # 场景级 next 路由（如 ["main", "20"]）：当前场景播完后跳线跳页
@@ -112,6 +117,12 @@ class GameController:
             self.main_window.graphics_view.set_logical_size(
                 self.logical_size[0], self.logical_size[1])
             self.main_window.resize(self.logical_size[0], self.logical_size[1])
+        # 选线判定阈值：story_and_position.storyline_settings.score_gap（缺省 0）
+        try:
+            _sl = self.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}
+            self.score_gap = float(_sl.get("score_gap", 0) or 0)
+        except (TypeError, ValueError):
+            self.score_gap = 0.0
 
     def start_story(self):
         if self.is_in_menu:
@@ -134,16 +145,19 @@ class GameController:
         self.is_waiting_for_selection = False
         self.pending_next = None
         self.main_window.hide_selection()
-        storyline_data = self.story_data.get("story_and_position", {}).get("storyline_id", {})
-        if storyline_data:
-            self.current_storyline_id = max(storyline_data, key=storyline_data.get)
-            story = self.story_data["story_and_position"].get("story", {}).get(self.current_storyline_id, {})
-            if story:
-                first_page = next(iter(story))
-                self.current_page = int(first_page)
-        else:
-            self.current_storyline_id = "main"
-        # 计分重置：各分支分数 = storyline_id 的初始值
+        # 故事线配置：story_and_position.storyline_settings
+        #   main_storyline：主线（游戏开始首先播放的线，缺省 "main"）
+        #   storyline_id_score：各分支初始分数（计分用，缺省空 dict）
+        _sl_settings = self.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}
+        # 开局主线 = main_storyline 指定的线
+        self.current_storyline_id = str(_sl_settings.get("main_storyline", "main") or "main")
+        storyline_data = _sl_settings.get("storyline_id_score", {}) or {}
+        # 播放主线第一页
+        story = self.story_data["story_and_position"].get("story", {}).get(self.current_storyline_id, {})
+        if story:
+            first_page = next(iter(story))
+            self.current_page = int(first_page)
+        # 计分重置：各分支分数 = storyline_id_score 的初始值（仅计分用，不影响开局主线）
         self.scores = {}
         for branch, val in storyline_data.items():
             try:
@@ -217,6 +231,7 @@ class GameController:
         print(f"执行场景 {self.current_scene_index}: {scene}")
         self.is_text_finished = False
         self.is_audio_finished = False
+        self._pending_empty_anim_ms = 0
 
         # 清除所有角色和背景（如果需要）
         if scene.get("clear_all", False):
@@ -225,37 +240,67 @@ class GameController:
             self.scene_state["bg"] = None
             self.scene_state["characters"] = {}
 
-        # 设置背景
+        # 设置背景：字符串 = 背景 id（查 backgrounds 表加载图片）；
+        # 字典 {"color": [r,g,b]} = 纯色背景（等价 h×w 纯色图片）
         if "bg" in scene:
             bg_name = scene["bg"]
-            backgrounds = self.story_data["story_and_position"].get("backgrounds", {})
-            if bg_name in backgrounds:
-                bg_path = backgrounds[bg_name]
-                full_bg_path = self.base_path / bg_path
-                bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
-                if bg_pixmap:
-                    self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
-                    self.main_window.graphics_view.update_bg_pos(self.background_pos)
+            if isinstance(bg_name, dict) and "color" in bg_name:
+                color = bg_name.get("color")
+                if isinstance(color, (list, tuple)) and len(color) >= 3:
+                    w, h = self.logical_size
+                    bg_pixmap = QPixmap(w, h)
+                    bg_pixmap.fill(QColor(int(color[0]), int(color[1]), int(color[2])))
+                    self.background_pos = [0, 0]
+                    self.main_window.graphics_view.update_bg_pos([0, 0])
                     self.main_window.graphics_view.set_background(bg_pixmap, scene.get("change", None))
-                    # 同步逐场景状态：记录当前背景 id
-                    self.scene_state["bg"] = bg_name
+                    # 同步逐场景状态：记录纯色背景配置（存 dict，读档/缩略图按同格式还原）
+                    self.scene_state["bg"] = {"color": [int(c) for c in color[:3]]}
+            elif isinstance(bg_name, str):
+                backgrounds = self.story_data["story_and_position"].get("backgrounds", {})
+                if bg_name in backgrounds:
+                    bg_path = backgrounds[bg_name]
+                    full_bg_path = self.base_path / bg_path
+                    bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
+                    if bg_pixmap:
+                        self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
+                        self.main_window.graphics_view.update_bg_pos(self.background_pos)
+                        self.main_window.graphics_view.set_background(bg_pixmap, scene.get("change", None))
+                        # 同步逐场景状态：记录当前背景 id
+                        self.scene_state["bg"] = bg_name
+                    else:
+                        print(f"无法加载背景图片: {full_bg_path}")
                 else:
-                    print(f"无法加载背景图片: {full_bg_path}")
-            else:
-                print(f"背景未定义: {bg_name}")
+                    print(f"背景未定义: {bg_name}")
 
-        # 设置角色
+        # 设置角色（增量更新：clear_all=false 且渐变时，只更新变化的部分，未变化的保持不动）
         if "characters" in scene:
             characters_data = scene["characters"]
             character_defs = self.story_data["story_and_position"].get("character_and_motion", {})
+            change_effect = scene.get("change", None)
             for char_id, char_info in characters_data.items():
-                if char_id in character_defs:
-                    self.setup_character(char_id, char_info, character_defs[char_id], scene.get("change", None))
-                    # 同步逐场景状态：记录角色配置（form/face/pos/zoom，动画取最终值）
-                    self.scene_state["characters"][char_id] = self._character_final_state(
-                        char_id, char_info)
-                else:
+                if char_id == "":
+                    # 空 id 角色：不加载图片，仅计算动画总时长作为停留等待
+                    # （无图空动画，视觉上画面保持当前状态动画时长）
+                    anims = char_info.get("animate") or []
+                    dur = self._calc_anim_duration(anims)
+                    if dur > self._pending_empty_anim_ms:
+                        self._pending_empty_anim_ms = dur
+                    continue
+                if char_id not in character_defs:
                     print(f"角色未定义: {char_id}")
+                    continue
+                new_final = self._character_final_state(char_id, char_info)
+                old_final = self.scene_state["characters"].get(char_id)
+                if old_final is not None and old_final == new_final:
+                    # 配置未变化：保持当前显示不重建；若本场景带动画，直接对现有 item 播放
+                    if char_info.get("animate"):
+                        item = self.main_window.graphics_view.character_items.get(char_id)
+                        if item is not None:
+                            item.set_animations(char_info["animate"])
+                    continue
+                self.setup_character(char_id, char_info, character_defs[char_id], change_effect)
+                # 同步逐场景状态：记录角色配置（form/face/pos/zoom，动画取最终值）
+                self.scene_state["characters"][char_id] = new_final
 
         # 控制对话框可见性（新增功能）
         if "chatbox" in scene:
@@ -294,14 +339,44 @@ class GameController:
                 print("场景中没有音频，立即标记音频完成")
                 self.on_audio_finished()
         else:
-            print("场景中没有对话内容，直接标记文本和音频完成")
-            self.is_text_finished = True
-            self.is_audio_finished = True
-            self.check_auto_advance()
+            if self._pending_empty_anim_ms > 0:
+                # 空动画等待：无文本场景 + 空 id 角色动画 -> 停留动画时长再继续
+                # （复用音频计时机制：点击可跳过等待）
+                wait = self._pending_empty_anim_ms
+                self._pending_empty_anim_ms = 0
+                print(f"场景中没有对话内容，空动画停留 {wait}ms")
+                self.is_text_finished = True
+                self.is_audio_finished = False
+                self.audio_timer.start(wait)
+            else:
+                print("场景中没有对话内容，直接标记文本和音频完成")
+                self.is_text_finished = True
+                self.is_audio_finished = True
+                self.check_auto_advance()
 
     def has_audio(self, content: Dict) -> bool:
         # 音频功能暂未实现
         return False
+
+    def _calc_anim_duration(self, anims) -> int:
+        """计算动画总时长（毫秒）：组内取最大 time，组间求和。
+        用于空 id 角色动画的停留等待时长。
+        """
+        total = 0.0
+        if isinstance(anims, (list, tuple)):
+            for group in anims:
+                gmax = 0.0
+                if isinstance(group, (list, tuple)):
+                    for a in group:
+                        if isinstance(a, dict):
+                            try:
+                                t = float(a.get("time", 0) or 0)
+                                if t > gmax:
+                                    gmax = t
+                            except (TypeError, ValueError):
+                                pass
+                total += gmax
+        return int(total * 1000)
 
     def setup_character(self, char_id: str, char_info: Dict, char_data: Dict, changeEffect=None):
         form_name = char_info["form"]
@@ -386,17 +461,27 @@ class GameController:
         characters = snapshot.get("characters", {}) or {}
         chatbox_visible = bool(snapshot.get("chatbox_visible", True))
 
-        # 背景
+        # 背景（字符串=背景 id；字典 {"color": [...]} = 纯色背景）
         if bg_name:
-            backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
-            if bg_name in backgrounds:
-                bg_path = backgrounds[bg_name]
-                full_bg_path = self.base_path / bg_path
-                bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
-                if bg_pixmap:
-                    self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
-                    self.main_window.graphics_view.update_bg_pos(self.background_pos)
+            if isinstance(bg_name, dict) and "color" in bg_name:
+                color = bg_name.get("color")
+                if isinstance(color, (list, tuple)) and len(color) >= 3:
+                    w, h = self.logical_size
+                    bg_pixmap = QPixmap(w, h)
+                    bg_pixmap.fill(QColor(int(color[0]), int(color[1]), int(color[2])))
+                    self.background_pos = [0, 0]
+                    self.main_window.graphics_view.update_bg_pos([0, 0])
                     self.main_window.graphics_view.set_background(bg_pixmap)
+            elif isinstance(bg_name, str):
+                backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+                if bg_name in backgrounds:
+                    bg_path = backgrounds[bg_name]
+                    full_bg_path = self.base_path / bg_path
+                    bg_pixmap = self.main_window.load_pixmap(str(full_bg_path))
+                    if bg_pixmap:
+                        self.background_pos = [(self.logical_size[0] - bg_pixmap.width()) // 2, 0]
+                        self.main_window.graphics_view.update_bg_pos(self.background_pos)
+                        self.main_window.graphics_view.set_background(bg_pixmap)
         # 角色（按快照配置直接摆放，无动画）
         char_defs = self.story_data.get("story_and_position", {}).get("character_and_motion", {})
         for char_id, char_info in characters.items():
@@ -455,17 +540,91 @@ class GameController:
         }
         print(f"快照恢复: 页{self.current_page} bg={bg_name} 角色={list(characters.keys())} chatbox={chatbox_visible}")
 
+    def _resolve_next(self, nxt):
+        """解析 next 路由为目标 [line, page]（返回 None 表示无法跳转/无跳转）。
+
+        支持的格式：
+          - 新格式 dict：{"direct": ["线", "页"]} 直接指向；
+                         {"judge": ...} 判定路由（暂未实现，返回 None 占位）
+          - 旧格式数组：["线", "页"]
+        """
+        if isinstance(nxt, dict):
+            if "direct" in nxt and isinstance(nxt["direct"], (list, tuple)) and len(nxt["direct"]) >= 2:
+                return [str(nxt["direct"][0]), int(nxt["direct"][1])]
+            if "judge" in nxt:
+                return self._judge_next(nxt["judge"])
+            return None
+        if isinstance(nxt, (list, tuple)) and len(nxt) >= 2:
+            return [str(nxt[0]), int(nxt[1])]
+        return None
+
+    def _judge_next(self, judge_list):
+        """judge 判定路由：返回 [线id, 页码] 或 None。
+
+        格式：{"judge": [[候选线列表], [保底线]]}
+          - index 0：参加角逐的线（可多条），每条 [线id, 页码]
+          - index 1：保底线，固定一条 [线id, 页码]
+        判定：评比集合 = 候选线 + 保底线，取分值第一的线；
+          第一名 - 第二名 >= score_gap -> 进第一名的线（其指定页）；
+          否则 -> 进保底线（其指定页）。
+        """
+        try:
+            candidates = judge_list[0] if isinstance(judge_list, (list, tuple)) and len(judge_list) >= 1 else None
+            # 保底线：judge_list[1] 为 [[线, 页]]（固定一条），取 [0]
+            fallback = None
+            if isinstance(judge_list, (list, tuple)) and len(judge_list) >= 2:
+                _fb_list = judge_list[1]
+                if isinstance(_fb_list, (list, tuple)) and len(_fb_list) >= 1:
+                    fallback = _fb_list[0]
+            if not fallback or not isinstance(fallback, (list, tuple)) or len(fallback) < 2:
+                print("next.judge 配置无效：缺少保底线")
+                return None
+            fb_line, fb_page = str(fallback[0]), int(fallback[1])
+            # 评比集合：线id -> 页码（保底线并入；候选重复时保留首个）
+            routes = {}
+            if isinstance(candidates, (list, tuple)):
+                for c in candidates:
+                    if isinstance(c, (list, tuple)) and len(c) >= 2:
+                        routes.setdefault(str(c[0]), int(c[1]))
+            routes.setdefault(fb_line, fb_page)
+            # 取各线当前分值（缺分按 0）
+            scored = []
+            for line, page in routes.items():
+                try:
+                    score = float(self.scores.get(line, 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    score = 0.0
+                scored.append((score, line, page))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            first = scored[0]
+            if len(scored) >= 2:
+                second = scored[1]
+                diff = first[0] - second[0]
+                print(f"judge 判定: 候选={[(ln, sc) for sc, ln, _ in scored]} gap={self.score_gap} 第一={first[1]}({first[0]}) 第二={second[1]}({second[0]}) 差={diff}")
+                if diff >= self.score_gap:
+                    print(f"judge 结果: 进入 {first[1]}:{first[2]}")
+                    return [first[1], first[2]]
+            else:
+                print(f"judge 判定: 仅一条线 {first[1]}({first[0]})，直接进入")
+                return [first[1], first[2]]
+            print(f"judge 结果: 分差不足，进入保底 {fb_line}:{fb_page}")
+            return [fb_line, fb_page]
+        except Exception as e:
+            print(f"next.judge 判定失败: {e}")
+            return None
+
     def _jump_to(self, nxt, wait_if_no_autoplay=False):
-        """按 next 路由跳线跳页：nxt = [分支id, 页码]（如 ["main", "20"]）。
+        """按 next 路由跳线跳页：支持 {"direct": [...]} 与旧 ["线", "页"] 格式。
         跳转后把当前画面状态（scene_state）记为目标页初始快照（page_state），
         保证读档/后续翻页的快照链连贯；然后从目标页第 0 场景开始播放。
         wait_if_no_autoplay=True：自动播放关闭时跳到目标页后等待用户点击
         （与正常翻页行为一致），用于"场景播完自动触发"的 next 路由；
         选项点击触发的跳转（wait=False）立即播放，因为用户刚主动选择过。
         """
-        if not nxt or len(nxt) < 2:
+        target = self._resolve_next(nxt)
+        if target is None:
             return
-        line, page = str(nxt[0]), int(nxt[1])
+        line, page = target[0], target[1]
         print(f"跳线路由: {self.current_storyline_id}:{self.current_page} -> {line}:{page}")
         self.current_storyline_id = line
         self.current_page = page
@@ -506,9 +665,10 @@ class GameController:
                 val = 0.0
             self.scores[branch] = self.scores.get(branch, 0.0) + val
             print(f"选择加分: {branch} +{val} = {self.scores[branch]}")
-        # 跳转：next = [分支id, 页码]；无 next 则正常顺序（当前线下一场景/下一页）
+        # 跳转：next 支持 {"direct": [...]} 新格式与旧 ["线", "页"] 数组；
+        # 无 next 或无法解析则正常顺序（当前线下一场景/下一页）
         nxt = option.get("next")
-        if nxt and len(nxt) >= 2:
+        if nxt is not None and self._resolve_next(nxt) is not None:
             self._jump_to(nxt)
         else:
             self.advance_to_next_scene()

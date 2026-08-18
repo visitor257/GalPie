@@ -271,6 +271,26 @@ class GraphicsView(QGraphicsView):
             self.scene.removeItem(i)
         self.itemList = []
 
+    @staticmethod
+    def _parse_change_effect(changeEffect):
+        """解析 change 配置，返回 (效果名, 时长毫秒)。
+        旧格式：字符串 "gradient" -> ("gradient", 1000)
+        新格式：列表 ["gradient", 秒数] -> ("gradient", 秒数*1000)
+        无效配置 -> (None, None)
+        """
+        if isinstance(changeEffect, str):
+            return changeEffect, 1000
+        if isinstance(changeEffect, (list, tuple)) and len(changeEffect) >= 1:
+            name = changeEffect[0]
+            dur_ms = 1000
+            if len(changeEffect) >= 2:
+                try:
+                    dur_ms = int(float(changeEffect[1]) * 1000)
+                except (TypeError, ValueError):
+                    dur_ms = 1000
+            return name, max(dur_ms, 1)
+        return None, None
+
     def set_background(self, pixmap: QPixmap, changeEffect=None):
         if self.background_item:
             self.scene.removeItem(self.background_item)
@@ -287,7 +307,47 @@ class GraphicsView(QGraphicsView):
                 self.logical_size[0], self.logical_size[1], self.bg_pos)
 
     def add_character(self, char_id: str, pixmap: QPixmap, pos: List[int], zoom: float = 1.0, animations: List = None, changeEffect=None):
-        if char_id in self.character_items:
+        old_item = self.character_items.get(char_id)
+        change_name, change_ms = self._parse_change_effect(changeEffect)
+        if change_name == "gradient" and old_item is not None:
+            # 渐变替换（增量更新）：旧图保留在底层，新图叠加淡入，淡入完成后移除旧图。
+            # 与背景/新角色淡入同机制（QGraphicsOpacityEffect），真机渲染稳定。
+            # 渐变时长 = change 指定（新格式 ["gradient", 秒数]），旧格式默认 1s
+            item = AnimatedPixmapItem(pixmap)
+            item.set_original_position(QPointF(pos[0], pos[1]))
+            item.set_zoom(zoom)
+            if animations:
+                item.set_animations(animations)
+            self.scene.addItem(item)
+            self.character_items[char_id] = item
+            # 旧图压到新图之下（背景 z=-1 之上），并停止其动画
+            old_item.setZValue(item.zValue() - 0.5)
+            old_item.animation_timer.stop()
+            # 记录待移除旧图：淡入完成（或清场）时统一移除，避免中途再次替换造成残留
+            if not hasattr(self, "_stale_characters"):
+                self._stale_characters = {}
+            self._stale_characters.setdefault(char_id, []).append(old_item)
+            # 新图淡入（0 -> 1），时长 = change 指定值
+            effect = QGraphicsOpacityEffect()
+            item.setGraphicsEffect(effect)
+            animate = QPropertyAnimation(effect, b"opacity")
+            animate.setDuration(change_ms)
+            animate.setStartValue(0.0)
+            animate.setEndValue(1.0)
+            animate.setEasingCurve(QEasingCurve.InOutQuad)
+
+            def _on_finished(char_id=char_id, item=item):
+                # 淡入完成：若该角色当前显示的仍是此新图，则移除所有待移除旧图
+                if self.character_items.get(char_id) is item:
+                    stale = self._stale_characters.pop(char_id, [])
+                    for s in stale:
+                        if s.scene() is not None:
+                            self.scene.removeItem(s)
+            animate.finished.connect(_on_finished)
+            self.pending_animations.append(animate)
+            return
+        # 无渐变或首次添加：原逻辑直接替换
+        if old_item is not None:
             self.remove_character(char_id)
         item = AnimatedPixmapItem(pixmap)
         item.set_original_position(QPointF(pos[0], pos[1]))
@@ -300,7 +360,8 @@ class GraphicsView(QGraphicsView):
             self.prepare_change_effect(char_id, changeEffect, "add", "character")
 
     def prepare_change_effect(self, char_id=None, changeEffect=None, mode="remove", item="character"):
-        if changeEffect == "gradient":
+        change_name, change_ms = self._parse_change_effect(changeEffect)
+        if change_name == "gradient":
             if item == "character":
                 if char_id not in self.character_items:
                     return
@@ -322,7 +383,7 @@ class GraphicsView(QGraphicsView):
                 start_value = 1.0 if mode == "remove" else 0.0
                 end_value = 0.0 if mode == "remove" else 1.0
                 animate = QPropertyAnimation(effect, b"opacity")
-                animate.setDuration(1000)
+                animate.setDuration(change_ms)
                 animate.setStartValue(start_value)
                 animate.setEndValue(end_value)
                 animate.setEasingCurve(QEasingCurve.InOutQuad)
@@ -354,10 +415,21 @@ class GraphicsView(QGraphicsView):
                 character_item.animation_timer.stop()
             self.scene.removeItem(self.character_items[char_id])
             del self.character_items[char_id]
+        # 顺带清理该角色的待移除旧图（渐变替换残留）
+        stale = getattr(self, "_stale_characters", {}).pop(char_id, [])
+        for s in stale:
+            if s.scene() is not None:
+                self.scene.removeItem(s)
 
     def clear_characters(self):
         for char_id in list(self.character_items.keys()):
             self.remove_character(char_id)
+        # 清理渐变替换残留的旧图（淡入未完成时被清场）
+        for char_id, stale_list in list(getattr(self, "_stale_characters", {}).items()):
+            for s in stale_list:
+                if s.scene() is not None:
+                    self.scene.removeItem(s)
+        self._stale_characters = {}
 
     def clear_bg(self):
         if self.background_item:
