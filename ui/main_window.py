@@ -434,6 +434,39 @@ class GalGameWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self._clear_scene_and_show_menu)
 
+    def fade_to_menu(self):
+        """剧情结束（end 线播完）回主菜单：与开始游戏（fade_out_menu）对称的转场——
+        渐变到 transition_color 色块后清场景显示主菜单。"""
+        print("剧情结束，渐变返回主菜单")
+        # 停止自动播放/快进、重置剧情状态（同 _back_to_menu 前半）
+        if self.controller.skip_mode:
+            self.controller.skip_mode = False
+            self.controller.skip_timer.stop()
+        if self.controller.auto_play:
+            self.controller.auto_play = False
+        self._auto_play_paused = False
+        self.controller.is_in_game = False
+        self.controller.is_waiting_for_next_page = False
+        self.controller.audio_timer.stop()
+        self.controller.current_page = 1
+        self.controller.current_scene_index = 0
+        self.controller.backlog_entries = []
+        self.controller.backlog_start_page = 1
+        self.controller._in_ending = False
+        # 转场色块（transition_color，与 fade_out_menu 一致）
+        tc = self.controller.transition_color
+        if not tc:
+            tc = [0, 0, 0]
+        w, h = self.controller.logical_size
+        color_block = QPixmap(w, h)
+        color_block.fill(QColor(tc[0], tc[1], tc[2]))
+        self.graphics_view.clear_items()
+        self.graphics_view.add_item(color_block, [0, 0])
+        self.graphics_view.show_items("gradient")
+        self.graphics_view.start_pending_animations()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(1500, self._clear_scene_and_show_menu)
+
     def _clear_scene_and_show_menu(self):
         """（事件循环空闲时）清空场景并显示主菜单。"""
         # 先停掉逐字 timer 并断开信号：scene.clear() 删除 QGraphicsProxyWidget 时
@@ -1388,12 +1421,10 @@ class GalGameWindow(QMainWindow):
     def start_game_after_fade(self):
         self.graphics_view.clear_items()
         self.setup_dialog_area()
-        # 重置选择状态：选项页返回主菜单后残留的 is_waiting_for_selection 会拦截点击/快进，
-        # 开始游戏（不走 goto_storyline_by_check_value）必须显式清理
-        self.controller.is_waiting_for_selection = False
-        self.controller.pending_next = None
-        self.controller.current_page = 1
-        self.controller.current_scene_index = 0
+        # 重置剧情状态并回到主线第一页：goto_storyline_by_check_value 会重置
+        # current_storyline_id（main_storyline）、current_page、scores、选择/结局状态等，
+        # 防止上次剧情停在 end 线时残留导致"开始游戏从 end:1 播放"
+        self.controller.goto_storyline_by_check_value()
         self.controller.play_current_page()
         self.controller.is_in_game = True
 

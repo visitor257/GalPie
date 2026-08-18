@@ -724,9 +724,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "你有什么推荐的吗？",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Do you have any recommendations?",
+                "ja": "何かおすすめはある？",
+                "ru": "Что-нибудь порекомендуешь?"
               }
             }
           }
@@ -743,9 +743,9 @@
               },
               "words": {
                 "zh": "他家的拿铁很不错。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Their latte is really good.",
+                "ja": "ここのカフェラテはすごく美味しいよ。",
+                "ru": "У них отличный латте."
               }
             }
           }
@@ -757,9 +757,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "那就来一杯拿铁吧。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Then I'll have a latte.",
+                "ja": "じゃあカフェラテをもらうよ。",
+                "ru": "Тогда мне латте."
               }
             }
           }
@@ -778,9 +778,9 @@
               },
               "words": {
                 "zh": "两杯拿铁。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Two lattes, please.",
+                "ja": "カフェラテを2つ。",
+                "ru": "Два латте."
               }
             }
           }
@@ -797,9 +797,9 @@
               },
               "words": {
                 "zh": "我们端着咖啡坐到靠窗的位置。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "We carried our coffees and sat by the window.",
+                "ja": "コーヒーを持って、窓際の席に座った。",
+                "ru": "Мы взяли кофе и сели у окна."
               }
             }
           }
@@ -829,9 +829,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "这里确实很舒服。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "This place really is cozy.",
+                "ja": "ここは本当に落ち着くなあ。",
+                "ru": "Здесь действительно уютно."
               }
             }
           }
@@ -848,9 +848,9 @@
               },
               "words": {
                 "zh": "是啊，很适合聊天。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Yeah, it's perfect for chatting.",
+                "ja": "うん、話すのにぴったりだね。",
+                "ru": "Да, отлично подходит для разговора."
               }
             }
           }
@@ -880,9 +880,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "说起来，我还不知道你叫什么名字。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "By the way, I don't think I ever caught your name.",
+                "ja": "そういえば、君の名前まだ聞いてなかったね。",
+                "ru": "Кстати, я так и не узнал твоё имя."
               }
             }
           }
@@ -899,9 +899,9 @@
               },
               "words": {
                 "zh": "我叫林越，你呢？",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "I'm Lin Yue. And you?",
+                "ja": "俺は林越。君は？",
+                "ru": "Меня зовут Линь Юэ. А ты?"
               }
             }
           }
@@ -956,9 +956,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "我叫苏晴。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "I'm Su Qing.",
+                "ja": "私は蘇晴。",
+                "ru": "Я Су Цин."
               }
             }
           }
@@ -993,9 +993,9 @@
               },
               "words": {
                 "zh": "我们一边喝着咖啡，一边聊了起来。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "We chatted away as we sipped our coffee.",
+                "ja": "コーヒーを飲みながら、俺たちはいろいろ話した。",
+                "ru": "Попивая кофе, мы разговорились."
               }
             }
           }
@@ -1025,9 +1025,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "你平时喜欢做什么？",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "What do you usually like to do?",
+                "ja": "普段は何をするのが好きなの？",
+                "ru": "Чем ты обычно любишь заниматься?"
               }
             }
           }
@@ -1044,9 +1044,9 @@
               },
               "words": {
                 "zh": "偶尔会去书店逛逛。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "I browse bookstores every now and then.",
+                "ja": "たまに本屋さんをぶらぶらするかな。",
+                "ru": "Иногда заглядываю в книжные магазины."
               }
             }
           }
@@ -1106,9 +1106,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "好巧，我也喜欢逛书店。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "What a coincidence—I love bookstores too.",
+                "ja": "偶然だね、僕も本屋巡りが好きなんだ。",
+                "ru": "Какое совпадение, я тоже люблю книжные."
               }
             }
           }
@@ -1125,9 +1125,9 @@
               },
               "words": {
                 "zh": "那下次可以一起去。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "We should go together sometime.",
+                "ja": "じゃあ今度一緒に行こうよ。",
+                "ru": "Тогда в следующий раз можем сходить вместе."
               }
             }
           }
@@ -1189,9 +1189,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "好呀好呀，我知道一家不错的书店！",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Sure, sure! I know a nice bookstore—",
+                "ja": "いいねいいね！いい本屋さんを知ってるんだ、",
+                "ru": "Да, конечно! Я знаю одну хорошую книжную—"
               }
             }
           }
@@ -1210,9 +1210,9 @@
               },
               "words": {
                 "zh": "不知不觉，咖啡已经喝完了。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Before we knew it, our coffee was gone.",
+                "ja": "気がつけば、コーヒーは飲み終わっていた。",
+                "ru": "Незаметно кофе закончился."
               }
             }
           }
@@ -1242,9 +1242,9 @@
               "speaking_name": "girl",
               "words": {
                 "zh": "时间不早了，我得走了。我们下次见吧。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "It's getting late—I should get going. See you next time.",
+                "ja": "もう遅いし、そろそろ帰るね。また会おう。",
+                "ru": "Уже поздно, мне пора. До встречи."
               }
             }
           }
@@ -1261,9 +1261,9 @@
               },
               "words": {
                 "zh": "嗯，下次见。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Mm, see you next time.",
+                "ja": "うん、またね。",
+                "ru": "Да, до встречи."
               }
             }
           }
@@ -1282,9 +1282,9 @@
               },
               "words": {
                 "zh": "随后我们交换了联系方式，就这样分开了。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "We exchanged contact info, and then went our separate ways.",
+                "ja": "その後、連絡先を交換して、俺たちは別れた。",
+                "ru": "Затем мы обменялись контактами и расстались."
               }
             },
             "next": {"judge": [[["girl", "1"]], [["main", "41"]]]}
@@ -1302,6 +1302,7 @@
         "42": [
           {
             "clear_all": true,
+            "change": "gradient",
             "bg": {"color": [0,0,0]},
             "characters": {
               "": {
@@ -1317,6 +1318,7 @@
           },
           {
             "clear_all": true,
+            "change": "gradient",
             "bg": "家_主角",
             "chatbox": {
               "visible": true,
@@ -1325,11 +1327,31 @@
             "content": {
               "words": {
                 "zh": "回到家后，我打开电脑。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Back home, I turned on my computer.",
+                "ja": "家に帰って、パソコンを開いた。",
+                "ru": "Вернувшись домой, я включил компьютер."
               }
             }
+          }
+        ],
+        "43": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "继续学习吧。",
+                "en": "Time to keep studying.",
+                "ja": "勉強を続けよう。",
+                "ru": "Пора продолжать учёбу."
+              }
+            },
+            "next": {"direct": ["end", "1"]}
           }
         ]
       },
@@ -1453,11 +1475,39 @@
             "content": {
               "words": {
                 "zh": "到家没多久，我便收到了苏晴发来的信息。",
-                "en": "",
-                "ja": "",
-                "ru": ""
+                "en": "Not long after getting home, I got a message from Su Qing.",
+                "ja": "家に着いて間もなく、蘇晴からメッセージが届いた。",
+                "ru": "Вскоре после возвращения домой я получил сообщение от Су Цин."
               }
             }
+          }
+        ]
+      },
+      "end": {
+        "1": [
+          {
+            "clear_all": false,
+            "characters": {
+              "": {
+                "animate": [
+                  [
+                    {
+                      "time": 1
+                    }
+                  ]
+                ]
+              }
+            },
+            "chatbox": {
+              "visible": false,
+              "change": "gradient"
+            }
+          },
+          {
+            "clear_all": true,
+            "change": ["gradient", 2],
+            "bg": {"color": [0,0,0]},
+            "next": "end"
           }
         ]
       }

@@ -65,6 +65,9 @@ class GameController:
         # 已生成的按页快照字典：{页号: page_state副本}，供存档时取当前页快照
         self.page_snapshots = {}
 
+        # 结局模式：end 线播放期间为 True（禁快进），播完自动回主菜单
+        self._in_ending = False
+
         # 计分（分支分数）：初始值来自 storyline_id_score（各分支的初始分），
         # 剧情中由选择（selection 的 score）增减，运行时仅存内存，存档时写入 data[12]。
         # 结构：{"main": 1.0, "girl": 1.0, ...}
@@ -145,6 +148,8 @@ class GameController:
         self.is_waiting_for_selection = False
         self.pending_next = None
         self.main_window.hide_selection()
+        # 重置结局模式（重新开始游戏时清除）
+        self._in_ending = False
         # 故事线配置：story_and_position.storyline_settings
         #   main_storyline：主线（游戏开始首先播放的线，缺省 "main"）
         #   storyline_id_score：各分支初始分数（计分用，缺省空 dict）
@@ -548,6 +553,9 @@ class GameController:
                          {"judge": ...} 判定路由（暂未实现，返回 None 占位）
           - 旧格式数组：["线", "页"]
         """
+        # 结局标记：字符串 "end" 表示整个剧情的最后一页，播完自动回主菜单
+        if isinstance(nxt, str) and nxt == "end":
+            return ["__end__", 0]
         if isinstance(nxt, dict):
             if "direct" in nxt and isinstance(nxt["direct"], (list, tuple)) and len(nxt["direct"]) >= 2:
                 return [str(nxt["direct"][0]), int(nxt["direct"][1])]
@@ -625,11 +633,22 @@ class GameController:
         if target is None:
             return
         line, page = target[0], target[1]
+        # 结局标记：剧情播放完毕，自动回主菜单（带转场渐变）
+        if line == "__end__":
+            self._finish_ending()
+            return
         print(f"跳线路由: {self.current_storyline_id}:{self.current_page} -> {line}:{page}")
         self.current_storyline_id = line
         self.current_page = page
         self.current_scene_index = 0
         self.is_waiting_for_next_page = False
+        # 结局线：进入 end 线即结局模式（禁快进），且不等待点击、直接强制自动播放
+        if line == "end":
+            self._in_ending = True
+            if not self.auto_play:
+                self.auto_play = True
+                self.main_window._update_auto_play_icon()
+                print("结局线：强制开启自动播放")
         # 目标页初始快照 = 当前画面状态（跳转瞬间 scene_state）
         self.page_state = {
             "bg": self.scene_state.get("bg"),
@@ -648,6 +667,13 @@ class GameController:
             print("自动播放已关闭，跳转后等待用户点击进入")
             return
         self.play_current_page()
+
+    def _finish_ending(self):
+        """结局播放完毕：自动返回主菜单（带 transition_color 渐变转场）。"""
+        print("剧情结束，返回主菜单")
+        self.pending_next = None
+        self.is_waiting_for_next_page = False
+        self.main_window.fade_to_menu()
 
     def on_selection_chosen(self, option: Dict):
         """选择回调：玩家点了一个选项后调用。
@@ -714,6 +740,11 @@ class GameController:
         print(f"处理点击事件，文本完成: {self.is_text_finished}, 音频完成: {self.is_audio_finished}")
         print(f"等待下一页: {self.is_waiting_for_next_page}")
         if self.is_waiting_for_next_page:
+            # 结局线：进入后强制正常速度自动播放（用户点击/自动进入均可）
+            if self._in_ending and not self.auto_play:
+                self.auto_play = True
+                self.main_window._update_auto_play_icon()
+                print("结局线：强制开启自动播放")
             print("正在等待进入下一页，立即进入下一页")
             self.is_waiting_for_next_page = False
             self.play_current_page()
@@ -750,6 +781,9 @@ class GameController:
         if self.main_window.is_in_settings:
             return
         if self.is_waiting_for_selection:
+            return
+        if self._in_ending:
+            print("结局线：快进不可用")
             return
         self.handle_click()
 

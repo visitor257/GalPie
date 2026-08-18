@@ -171,14 +171,23 @@ def save_game(controller, slot_index=0):
     render_page = controller.current_page
     if getattr(controller, "is_waiting_for_next_page", False):
         render_page = max(1, render_page - 1)
-    page_content = controller.story_data.get("story_and_position", {}).get("story", {}).get(
-        controller.current_storyline_id, {}).get(str(render_page), [{}])[0].get("content", None)
+    page_scenes = controller.story_data.get("story_and_position", {}).get("story", {}).get(
+        controller.current_storyline_id, {}).get(str(render_page), [{}])
+    page_content = None
+    if isinstance(page_scenes, list) and page_scenes and isinstance(page_scenes[0], dict):
+        page_content = page_scenes[0].get("content", None)
     if page_content:
         if "speaking" in page_content:
             data[6] = page_content.get("speaking", None)
         else:
             data[6] = page_content.get("speaking_name", None)
         data[7] = page_content.get("words", None)
+    else:
+        # 无 content：若本页有选择（selection），存档格显示"选择：<选项1>/<选项2>/..."
+        sel_cfg = None
+        if isinstance(page_scenes, list) and page_scenes and isinstance(page_scenes[0], dict):
+            sel_cfg = page_scenes[0].get("selection", None)
+        data[7] = _selection_summary_text(controller, sel_cfg)
     # 格子存档：文件名 {标题}_{识别码}_SLOT{index}.gpsave，data 末尾记录 index
     data.append(slot_index)
     # data[11]：当前页初始画面快照（翻页时记录的 page_state），读档按此构建画面
@@ -223,14 +232,23 @@ def quick_save_game(controller):
     render_page = controller.current_page
     if getattr(controller, "is_waiting_for_next_page", False):
         render_page = max(1, render_page - 1)
-    page_content = controller.story_data.get("story_and_position", {}).get("story", {}).get(
-        controller.current_storyline_id, {}).get(str(render_page), [{}])[0].get("content", None)
+    page_scenes = controller.story_data.get("story_and_position", {}).get("story", {}).get(
+        controller.current_storyline_id, {}).get(str(render_page), [{}])
+    page_content = None
+    if isinstance(page_scenes, list) and page_scenes and isinstance(page_scenes[0], dict):
+        page_content = page_scenes[0].get("content", None)
     if page_content:
         if "speaking" in page_content:
             data[6] = page_content.get("speaking", None)
         else:
             data[6] = page_content.get("speaking_name", None)
         data[7] = page_content.get("words", None)
+    else:
+        # 无 content：若本页有选择（selection），存档格显示"选择：<选项1>/<选项2>/..."
+        sel_cfg = None
+        if isinstance(page_scenes, list) and page_scenes and isinstance(page_scenes[0], dict):
+            sel_cfg = page_scenes[0].get("selection", None)
+        data[7] = _selection_summary_text(controller, sel_cfg)
     # 快速存档：index = -1（不在保存面板显示）
     data.append(-1)
     # data[11]：当前页初始画面快照
@@ -290,7 +308,15 @@ def load_save(controller, load_file_name=None):
     # 兜底：旧档异常值（如 0 或负数）修正为 1
     if controller.current_page < 1:
         controller.current_page = 1
+    # 结局模式：读档恢复到 end 线时同样禁快进（播完自动回主菜单由 next="end" 驱动）
+    controller._in_ending = (controller.current_storyline_id == "end")
     controller.current_scene_index = 0
+    # 读档后重置播放模式：关闭快进/自动播放（回到手动模式，避免读档后继续自动推进）
+    controller.skip_mode = False
+    controller.skip_timer.stop()
+    controller.auto_play = False
+    controller.main_window._update_skip_icon()
+    controller.main_window._update_auto_play_icon()
     # 读档时清空日志：只保留读档后新播的对话
     controller.backlog_entries = []
     controller.backlog_start_page = controller.current_page
@@ -314,6 +340,48 @@ def load_save(controller, load_file_name=None):
     controller.restore_snapshot(snapshot)
     controller.play_current_page()
     return True
+
+
+def _selection_summary_text(controller, sel_cfg):
+    """选项页存档格台词："选择：<选项1>/<选项2>/..."（多语言 dict）。
+    前缀"选择："预设 UI 仅支持 zh/en/ja，其余语言用英文；选项文字取对应语言。
+    无有效选项返回 None（存档格留空）。"""
+    options = None
+    if isinstance(sel_cfg, dict):
+        options = sel_cfg.get("selection")
+    elif isinstance(sel_cfg, list):
+        options = sel_cfg
+    if not isinstance(options, list) or not options:
+        return None
+    # 前缀翻译：预设 UI 支持 zh/en/ja，其余语言回落英文
+    prefix = {"zh": "选择：", "en": "Choose: ", "ja": "選択："}
+    # 支持的语言集合（settings.language 的键，缺省 zh）
+    langs = []
+    try:
+        lang_cfg = (controller.story_data or {}).get("settings", {}).get("language", {})
+        if isinstance(lang_cfg, dict):
+            langs = list(lang_cfg.keys())
+    except Exception:
+        pass
+    if not langs:
+        langs = ["zh"]
+    result = {}
+    for lang in langs:
+        texts = []
+        for opt in options:
+            t = ""
+            if isinstance(opt, dict):
+                td = opt.get("text")
+                if isinstance(td, dict):
+                    t = td.get(lang) or td.get("zh") or next(iter(td.values()), "")
+                elif isinstance(td, str):
+                    t = td
+            if t:
+                texts.append(str(t))
+        if not texts:
+            continue
+        result[lang] = prefix.get(lang, prefix["en"]) + "/".join(texts)
+    return result if result else None
 
 
 def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_check=False):
