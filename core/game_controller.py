@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, QDateTime, QByteArray, QBuffer
 from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
+from core.audio_player import AudioPlayer
 
 
 class GameController:
@@ -26,6 +27,8 @@ class GameController:
         self.audio_timer = QTimer()
         self.audio_timer.setSingleShot(True)
         self.audio_timer.timeout.connect(self.on_audio_finished)
+        # 音频播放器（audio.play_in_order 顺序+并行组播放）
+        self.audio_player = AudioPlayer()
         # 空 id 角色动画的停留等待时长（毫秒）：无文本场景 + 空动画时使用
         self._pending_empty_anim_ms = 0
 
@@ -79,6 +82,8 @@ class GameController:
         self.is_waiting_for_selection = False
         # 场景级 next 路由（如 ["main", "20"]）：当前场景播完后跳线跳页
         self.pending_next = None
+        # 用户点击推进标志：文本显示完后点击 -> 停音频并立即进入下一页（跳过翻页等待）
+        self._force_advance_immediate = False
 
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
@@ -150,6 +155,10 @@ class GameController:
         self.main_window.hide_selection()
         # 重置结局模式（重新开始游戏时清除）
         self._in_ending = False
+        # 重新开始：停止可能残留的音频
+        self.audio_player.stop()
+        self.audio_timer.stop()
+        self._force_advance_immediate = False
         # 故事线配置：story_and_position.storyline_settings
         #   main_storyline：主线（游戏开始首先播放的线，缺省 "main"）
         #   storyline_id_score：各分支初始分数（计分用，缺省空 dict）
@@ -174,6 +183,14 @@ class GameController:
         if self.is_in_menu:
             print("警告：在开始菜单中尝试播放页面，已阻止")
             return
+        # 结局线：真正开始播放 end 页时强制自动播放（点击进入/读档进入均生效）
+        if getattr(self, "_in_ending", False) and not self.auto_play:
+            self.auto_play = True
+            print("结局线：强制开启自动播放")
+            try:
+                self.main_window._update_auto_play_icon()
+            except Exception:
+                pass
         if "story_and_position" not in self.story_data:
             print("JSON格式错误：缺少story_and_position")
             return
@@ -201,7 +218,9 @@ class GameController:
             if self.pending_next:
                 nxt = self.pending_next
                 self.pending_next = None
-                self._jump_to(nxt, wait_if_no_autoplay=True)
+                immediate = self._force_advance_immediate
+                self._force_advance_immediate = False
+                self._jump_to(nxt, wait_if_no_autoplay=not immediate)
                 return
             # 把逐场景状态 scene_state（a 页最终画面）记为 page_state（新页初始状态），
             # 并存为按页快照。读档时直接用该页快照构建画面。
@@ -220,7 +239,8 @@ class GameController:
             self.current_page = new_page
             self.current_scene_index = 0
             print(f"准备下一页: {self.current_page}")
-            if self.auto_play:
+            if self.auto_play or self._force_advance_immediate:
+                self._force_advance_immediate = False
                 self.play_current_page()
             else:
                 self.is_waiting_for_next_page = True
@@ -333,35 +353,129 @@ class GameController:
             self.main_window.show_selection(scene["selection"], self.on_selection_chosen)
             return
 
-        # 显示对话内容
+        # 显示对话内容（文本逐字显示，完成后回调置 is_text_finished）
         if "content" in scene:
             content = scene["content"]
             self.main_window.display_dialog(content)
-            if self.has_audio(content):
-                audio_duration = 2000  # 默认2秒
-                self.audio_timer.start(audio_duration)
-            else:
-                print("场景中没有音频，立即标记音频完成")
-                self.on_audio_finished()
         else:
+            print("场景中没有对话内容，直接标记文本完成")
+            self.is_text_finished = True
+
+        # 音频播放（场景级 audio 配置）：
+        #   json_mode=normal -> play_in_order 为多语言 dict，取当前语言，无文件则不播
+        #   json_mode=judge   -> play_in_order 为模板二维列表，替换 <line>/<page>/<lang_id>，
+        #                        当前语言无文件时回退 settings.default_audio_lang_id
+        # 组内并行、组间顺序，全部播完回调 on_audio_finished
+        audio_cfg = scene.get("audio")
+        groups = self._resolve_audio_playlist(audio_cfg) if audio_cfg else None
+        if groups:
+            print(f"播放音频: {len(groups)} 组，共 {sum(len(g) for g in groups)} 路")
+            self.is_audio_finished = False
+            self.audio_player.play(groups, self.on_audio_finished)
+        else:
+            # 无有效音频：停止上一场景残留音频
+            self.audio_player.stop()
             if self._pending_empty_anim_ms > 0:
                 # 空动画等待：无文本场景 + 空 id 角色动画 -> 停留动画时长再继续
                 # （复用音频计时机制：点击可跳过等待）
                 wait = self._pending_empty_anim_ms
                 self._pending_empty_anim_ms = 0
-                print(f"场景中没有对话内容，空动画停留 {wait}ms")
-                self.is_text_finished = True
+                print(f"场景中没有音频，空动画停留 {wait}ms")
                 self.is_audio_finished = False
                 self.audio_timer.start(wait)
             else:
-                print("场景中没有对话内容，直接标记文本和音频完成")
-                self.is_text_finished = True
+                print("场景中没有音频，立即标记音频完成")
                 self.is_audio_finished = True
                 self.check_auto_advance()
 
-    def has_audio(self, content: Dict) -> bool:
-        # 音频功能暂未实现
-        return False
+    # ---------- 音频配置解析 ----------
+
+    def _resolve_audio_playlist(self, audio_cfg):
+        """解析场景 audio 配置为播放组列表 [[绝对路径, ...], ...]，无有效音频返回 None。
+
+        json_mode=normal：play_in_order 为多语言 dict，只取当前语言（该语言无文件则不播放）；
+        json_mode=judge  ：play_in_order 为模板二维列表，替换 <line>/<page>/<lang_id>，
+                           当前语言文件缺失时回退 settings.default_audio_lang_id。
+        """
+        if not isinstance(audio_cfg, dict):
+            return None
+        mode = audio_cfg.get("json_mode", "normal")
+        pio = audio_cfg.get("play_in_order")
+        if mode == "judge":
+            return self._resolve_judge_playlist(pio)
+        # normal：多语言 dict，取当前语言
+        if isinstance(pio, dict):
+            pio = pio.get(self.language or "zh")
+        return self._resolve_common_playlist(pio)
+
+    def _resolve_common_playlist(self, pio):
+        """通用解析：二维列表 [[path,...],...]，逐元素检查文件存在，组全空则跳过。"""
+        if not isinstance(pio, list):
+            return None
+        groups = []
+        for group in pio:
+            if not isinstance(group, list):
+                continue
+            files = []
+            for item in group:
+                if not isinstance(item, str):
+                    continue
+                p = self._audio_full_path(item)
+                if p is not None and p.exists():
+                    files.append(str(p))
+            if files:
+                groups.append(files)
+        return groups or None
+
+    def _resolve_judge_playlist(self, pio):
+        """judge 模式：替换 <line>/<page>/<lang_id>，先当前语言，缺失回退默认语言。"""
+        if not isinstance(pio, list):
+            return None
+        line = self.current_storyline_id or "main"
+        page = str(self.current_page)
+        lang = self.language or "zh"
+        groups = self._resolve_template_playlist(pio, line, page, lang)
+        if groups:
+            return groups
+        # 当前语言无有效文件：尝试 default_audio_lang_id
+        default_lang = None
+        try:
+            default_lang = (self.story_data or {}).get("settings", {}).get("default_audio_lang_id")
+        except Exception:
+            pass
+        if default_lang and str(default_lang) != lang:
+            groups = self._resolve_template_playlist(pio, line, page, str(default_lang))
+            if groups:
+                print(f"音频回退默认语言: {lang} -> {default_lang}")
+                return groups
+        return None
+
+    def _resolve_template_playlist(self, pio, line, page, lang):
+        """judge 模板替换：<line>/<page>/<lang_id> -> 实际值，逐元素检查文件存在。"""
+        groups = []
+        for group in pio:
+            if not isinstance(group, list):
+                continue
+            files = []
+            for item in group:
+                if not isinstance(item, str):
+                    continue
+                path = item.replace("<line>", line).replace("<page>", page).replace("<lang_id>", lang)
+                p = self._audio_full_path(path)
+                if p is not None and p.exists():
+                    files.append(str(p))
+            if files:
+                groups.append(files)
+        return groups or None
+
+    def _audio_full_path(self, rel):
+        """音频相对路径基于 base_path（剧情 story 目录）解析，返回 Path 或 None。"""
+        if not rel or not isinstance(rel, str):
+            return None
+        p = Path(rel)
+        if p.is_absolute():
+            return p
+        return self.base_path / rel
 
     def _calc_anim_duration(self, anims) -> int:
         """计算动画总时长（毫秒）：组内取最大 time，组间求和。
@@ -452,6 +566,9 @@ class GameController:
         }
 
     def restore_snapshot(self, snapshot: Dict):
+        # 读档：停止可能残留的音频
+        self.audio_player.stop()
+        self.audio_timer.stop()
         """读档后按快照恢复画面状态：清空场景、设置背景、摆放角色（无动画）、设置对话框可见性。
         同时更新 scene_state/page_state，使后续翻页快照链保持连贯。
         """
@@ -642,13 +759,11 @@ class GameController:
         self.current_page = page
         self.current_scene_index = 0
         self.is_waiting_for_next_page = False
-        # 结局线：进入 end 线即结局模式（禁快进），且不等待点击、直接强制自动播放
+        # 结局线：进入 end 线即结局模式（禁快进）。
+        # 注意：不在这里强制自动播放——从剧情页 next 跳入时（wait_if_no_autoplay=True）
+        # 应先等待用户点击进入 end 页，点击后由 play_current_page 强制自动播放。
         if line == "end":
             self._in_ending = True
-            if not self.auto_play:
-                self.auto_play = True
-                self.main_window._update_auto_play_icon()
-                print("结局线：强制开启自动播放")
         # 目标页初始快照 = 当前画面状态（跳转瞬间 scene_state）
         self.page_state = {
             "bg": self.scene_state.get("bg"),
@@ -726,7 +841,9 @@ class GameController:
         if self.pending_next:
             nxt = self.pending_next
             self.pending_next = None
-            self._jump_to(nxt, wait_if_no_autoplay=True)
+            immediate = self._force_advance_immediate
+            self._force_advance_immediate = False
+            self._jump_to(nxt, wait_if_no_autoplay=not immediate)
             return
         self.current_scene_index += 1
         self.play_scene_sequence()
@@ -750,14 +867,18 @@ class GameController:
             self.play_current_page()
             return
         if not self.is_text_finished:
+            # 文本未显示完：只显示全文，不推进剧情
             print("文本未完成，立即完成显示")
             self.main_window.text_display.complete_display()
-        elif not self.is_audio_finished:
-            print("文本已完成，音频未完成，立即完成音频")
-            self.on_audio_finished()
-        else:
-            print("文本和音频都已完成，进入下一个场景")
-            self.advance_to_next_scene()
+            return
+        # 文本已显示完：停止音频（如有）并立即进入下一场景/下一页
+        if not self.is_audio_finished:
+            print("文本已完成，停止音频并进入下一页")
+            self.audio_player.stop()
+            self.audio_timer.stop()
+            self.is_audio_finished = True
+        self._force_advance_immediate = True
+        self.advance_to_next_scene()
 
     def toggle_auto_play(self):
         # 互斥：开自动播放时，若快进开着则关闭快进（两模式不可同时开启）

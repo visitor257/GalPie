@@ -157,7 +157,11 @@ def save_game(controller, slot_index=0):
         None,
         (controller.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}).get("storyline_id_score", None),
         controller.current_storyline_id,
-        str(controller.current_page - 1),
+        # data[5]：画面所在页 - 1（等待点击进入下一页时 current_page 已是下一页，
+        # 回退一页与台词/缩略图一致，保证读档回到玩家看到的画面页）
+        str((max(1, controller.current_page - 1)
+             if getattr(controller, "is_waiting_for_next_page", False)
+             else controller.current_page) - 1),
         None,
         None,
         QDateTime.currentDateTime().toString("yyyy-MM-dd"),
@@ -218,7 +222,11 @@ def quick_save_game(controller):
         None,
         (controller.story_data.get("story_and_position", {}).get("storyline_settings", {}) or {}).get("storyline_id_score", None),
         controller.current_storyline_id,
-        str(controller.current_page - 1),
+        # data[5]：画面所在页 - 1（等待点击进入下一页时 current_page 已是下一页，
+        # 回退一页与台词/缩略图一致，保证读档回到玩家看到的画面页）
+        str((max(1, controller.current_page - 1)
+             if getattr(controller, "is_waiting_for_next_page", False)
+             else controller.current_page) - 1),
         None,
         None,
         QDateTime.currentDateTime().toString("yyyy-MM-dd"),
@@ -315,6 +323,9 @@ def load_save(controller, load_file_name=None):
     controller.skip_mode = False
     controller.skip_timer.stop()
     controller.auto_play = False
+    # 读档：停止可能残留的音频
+    controller.audio_player.stop()
+    controller.audio_timer.stop()
     controller.main_window._update_skip_icon()
     controller.main_window._update_auto_play_icon()
     # 读档时清空日志：只保留读档后新播的对话

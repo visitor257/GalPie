@@ -13,7 +13,8 @@
     ],
     "window_title": "Sample story",
     "identify_code": "sample_identify",
-    "transition_color": [0,0,0]
+    "transition_color": [0,0,0],
+    "default_audio_lang_id": "zh"
   },
   "ui": {
     "confirm_ui": {
@@ -264,6 +265,15 @@
                 "ja": "こんにちは、ここに誰か座っていますか？",
                 "ru": "Здравствуйте, это место занято?"
               }
+            },
+            "audio": {
+              "json_mode": "normal",
+              "play_in_order": {
+                "zh": [["./res/audio/audio_girl_main_2_zh.wav"]],
+                "en": [["./res/audio/audio_girl_main_2_en.wav"]],
+                "ja": [["./res/audio/audio_girl_main_2_ja.wav"]],
+                "ru": [["./res/audio/audio_girl_main_2_ru.wav"]]
+              }
             }
           }
         ],
@@ -335,6 +345,10 @@
                 "ja": "ありがとう。いつも一人でここに座っているのを見かけますが、何か考えているんですか？",
                 "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -387,6 +401,10 @@
                 "ja": "気分転換に来ました。最近勉強が忙しくて、リラックスが必要なんです。",
                 "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -533,6 +551,10 @@
                 "ja": "いいですね、ぜひ！",
                 "ru": "Хорошо, с удовольствием!"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -625,6 +647,10 @@
                 "ja": "よくここに来るんですか？",
                 "ru": "Вы часто сюда приходите?"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -678,6 +704,10 @@
                 "ja": "いい感じだね。",
                 "ru": "Выглядит неплохо."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -728,6 +758,10 @@
                 "ja": "何かおすすめはある？",
                 "ru": "Что-нибудь порекомендуешь?"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -761,6 +795,10 @@
                 "ja": "じゃあカフェラテをもらうよ。",
                 "ru": "Тогда мне латте."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -833,6 +871,10 @@
                 "ja": "ここは本当に落ち着くなあ。",
                 "ru": "Здесь действительно уютно."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -884,6 +926,10 @@
                 "ja": "そういえば、君の名前まだ聞いてなかったね。",
                 "ru": "Кстати, я так и не узнал твоё имя."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -960,6 +1006,10 @@
                 "ja": "私は蘇晴。",
                 "ru": "Я Су Цин."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -1029,6 +1079,10 @@
                 "ja": "普段は何をするのが好きなの？",
                 "ru": "Чем ты обычно любишь заниматься?"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -1110,6 +1164,10 @@
                 "ja": "偶然だね、僕も本屋巡りが好きなんだ。",
                 "ru": "Какое совпадение, я тоже люблю книжные."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -1193,6 +1251,10 @@
                 "ja": "いいねいいね！いい本屋さんを知ってるんだ、",
                 "ru": "Да, конечно! Я знаю одну хорошую книжную—"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -1246,6 +1308,10 @@
                 "ja": "もう遅いし、そろそろ帰るね。また会おう。",
                 "ru": "Уже поздно, мне пора. До встречи."
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             }
           }
         ],
@@ -1432,6 +1498,10 @@
                 "ja": "そうなの？私も初めてなんだけど、いいお店を選んだね！",
                 "ru": "Правда? Я тоже впервые здесь, и ты выбрал хорошее место!"
               }
+            },
+            "audio": {
+              "json_mode": "judge",
+              "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
             },
             "next": {"direct": ["main", "20"]}
           }

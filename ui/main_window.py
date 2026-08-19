@@ -422,6 +422,7 @@ class GalGameWindow(QMainWindow):
         self.controller.is_in_game = False
         self.controller.is_waiting_for_next_page = False
         self.controller.audio_timer.stop()
+        self.controller.audio_player.stop()
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
         # 退出剧情时清空日志（回到主菜单即丢弃本次对话记录）
@@ -448,6 +449,7 @@ class GalGameWindow(QMainWindow):
         self.controller.is_in_game = False
         self.controller.is_waiting_for_next_page = False
         self.controller.audio_timer.stop()
+        self.controller.audio_player.stop()
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
         self.controller.backlog_entries = []
