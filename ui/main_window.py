@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF
 from PySide6.QtGui import QPixmap, QColor, QFont, QBrush, QPen, QTextCursor, QFontMetrics
 
 from core.game_controller import GameController
+from core.bgm_player import BgmPlayer
 from ui.graphics_view import GraphicsView, MenuButtonItem
 from ui.widgets import TextDisplayWidget
 from ui.settings_panel import SettingsPanel, SettingsButtonItem, BacklogPanel, SavePanel, FULLSCREEN_KEY, ConfirmDialog
@@ -63,6 +64,8 @@ class GalGameWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.controller = GameController(self)
+        self.bgm_player = BgmPlayer(self)
+        self._menu_bgm_out = None  # 主菜单 BGM 的 out 效果（离开菜单时用）
         self.resource_manager = ResourceManager()
         self.ui_settings = {
             "chatbox_style": None,
@@ -210,6 +213,24 @@ class GalGameWindow(QMainWindow):
         else:
             print(f"设置文件: 分辨率 {saved_res!r} 无效，回落默认")
 
+    @staticmethod
+    def _parse_bgm_fade_seconds(cfg):
+        """解析 BGM in/out 配置 -> 淡变秒数（None=无淡变，直接播/停）。
+        "normal"/缺省 -> None；"gradient" -> 1.0；["gradient", 秒] -> 秒。
+        """
+        if isinstance(cfg, str):
+            return 1.0 if cfg == "gradient" else None
+        if isinstance(cfg, (list, tuple)) and len(cfg) >= 2 and cfg[0] == "gradient":
+            try:
+                return float(cfg[1])
+            except (TypeError, ValueError):
+                return 1.0
+        return None
+
+    def _stop_menu_bgm(self):
+        """按 menu.bgm.out 效果停止主菜单 BGM（离开主菜单时调用）。"""
+        self.bgm_player.stop(self._parse_bgm_fade_seconds(getattr(self, "_menu_bgm_out", None)))
+
     def show_menu(self):
         self.controller.is_in_menu = True
         self.graphics_view.clear_items()
@@ -239,6 +260,22 @@ class GalGameWindow(QMainWindow):
                     title_pos = menu_pos.get("title", [54, 48])
                     self.graphics_view.add_item(title_pixmap, title_pos)
             self.create_menu_buttons(menu_data)
+            # 主菜单 BGM：menu.bgm = {bgm: 路径, in: 入场效果, out: 停止效果}
+            # in/out: "normal"（无淡变）| "gradient"（1秒）| ["gradient", 秒]
+            try:
+                bgm_cfg = menu_data.get("bgm") if isinstance(menu_data, dict) else None
+                self._menu_bgm_out = None
+                if isinstance(bgm_cfg, dict) and bgm_cfg.get("bgm"):
+                    bgm_path = self.controller.base_path / bgm_cfg["bgm"]
+                    self.bgm_player.play(
+                        str(bgm_path),
+                        self._parse_bgm_fade_seconds(bgm_cfg.get("in")))
+                    self._menu_bgm_out = bgm_cfg.get("out")
+                else:
+                    self.bgm_player.stop()
+            except Exception as e:
+                print(f"主菜单 BGM 播放失败: {e}")
+                self.bgm_player.stop()
         except Exception as e:
             print(f"显示开始菜单失败: {e}")
             import traceback
@@ -311,7 +348,17 @@ class GalGameWindow(QMainWindow):
             self.graphics_view.add_item(text_item)
             self.menu_button_items.append(text_item)
 
-        self.graphics_view.show_items(menu_data.get("change", [[], None])[1])
+        # menu.change = [颜色, 效果名]：效果名做淡入转场；颜色作淡入底色
+        # （铺在菜单项底下的纯色块，缺省不铺=露出视口黑色背景）
+        change_cfg = menu_data.get("change", [[], None])
+        change_effect = None
+        change_color = None
+        if isinstance(change_cfg, (list, tuple)) and len(change_cfg) >= 2:
+            change_effect = change_cfg[1]
+            c0 = change_cfg[0]
+            if isinstance(c0, (list, tuple)) and len(c0) >= 3:
+                change_color = [int(v) for v in c0[:3]]
+        self.graphics_view.show_items(change_effect, change_color)
         self.graphics_view.start_pending_animations()
 
     def _set_menu_buttons_visible(self, visible: bool):
@@ -603,6 +650,7 @@ class GalGameWindow(QMainWindow):
             return
         if self.controller.is_in_menu:
             # 主菜单读档：fade 转场后进入剧情（与加载面板一致）
+            self._stop_menu_bgm()
             self.controller.is_in_menu = False
             tc = self.controller.transition_color
             if not tc:
@@ -990,6 +1038,7 @@ class GalGameWindow(QMainWindow):
                 pass
         if self.controller.is_in_menu:
             # from main menu: fade to transition color block, then into story
+            self._stop_menu_bgm()
             self.controller.is_in_menu = False
             tc = self.controller.transition_color
             if not tc:
@@ -1407,6 +1456,7 @@ class GalGameWindow(QMainWindow):
             self.fade_out_menu()
 
     def fade_out_menu(self):
+        self._stop_menu_bgm()
         self.controller.is_in_menu = False
         # use transition_color block with gradient fade-in (like old black block)
         tc = self.controller.transition_color

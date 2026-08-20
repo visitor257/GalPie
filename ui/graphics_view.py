@@ -261,10 +261,24 @@ class GraphicsView(QGraphicsView):
             item.set_original_position(QPointF(pos[0], pos[1]))
         self.itemList.append(item)
 
-    def show_items(self, changeEffect=None):
+    def show_items(self, changeEffect=None, bg_color=None):
+        """显示 itemList 中所有项；changeEffect 为转场效果名（如 "gradient" 淡入）。
+        bg_color 非空时：先在底层铺一个纯色块（立即显示、不参与淡入、z=-5），
+        菜单项从该颜色上淡入；缺省不铺（露出视口黑色背景）。
+        """
+        if bg_color is not None:
+            w, h = self.logical_size
+            block = QPixmap(w, h)
+            block.fill(QColor(bg_color[0], bg_color[1], bg_color[2]))
+            bg_item = AnimatedPixmapItem(block)
+            bg_item.set_original_position(QPointF(0, 0))
+            bg_item.setZValue(-5)
+            bg_item._is_color_block = True
+            self.itemList.insert(0, bg_item)
         for i in self.itemList:
             self.scene.addItem(i)
-        self.prepare_change_effect(None, changeEffect, "add", self.itemList)
+        targets = [i for i in self.itemList if not getattr(i, "_is_color_block", False)]
+        self.prepare_change_effect(None, changeEffect, "add", targets)
 
     def clear_items(self):
         for i in self.itemList:

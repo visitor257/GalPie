@@ -79,11 +79,16 @@
   },
   "menu": {
     "bg": "./res/menu/bg.png",
+    "bgm": {
+      "bgm": "./res/audio/bgm_menu.mp3",
+      "in": "normal",
+      "out": "gradient"
+    },
     "change": [
       [
-        255,
-        255,
-        255
+        0,
+        0,
+        0
       ],
       "gradient"
     ],
@@ -217,6 +222,11 @@
       "天空": "./res/bg/sky.png",
       "咖啡馆": "./res/bg/cafe.png",
       "家_主角": "./res/bg/home_main.png"
+    },
+    "bgm": {
+      "bgm1": "./res/audio/bgm_1.mp3",
+      "bgm2": "./res/audio/bgm_2.mp3",
+      "bgm3": "./res/audio/bgm_3.mp3"
     },
     "selection_button": {
       "text_color": [255, 255, 255],
