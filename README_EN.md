@@ -2,7 +2,6 @@
 Language: [中文](./README.md) | [**English**]
 <br><br>
 A galgame maker/reader based on PySide6<br>
-<b>(Still under development)</b>
 <br><br>
 Main program: GalPie.py<br>
 It can currently read story JSON files written according to the rules to play the game.<br>
