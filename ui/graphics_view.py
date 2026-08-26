@@ -260,6 +260,7 @@ class GraphicsView(QGraphicsView):
             item = AnimatedPixmapItem(pixmap)
             item.set_original_position(QPointF(pos[0], pos[1]))
         self.itemList.append(item)
+        return item
 
     def show_items(self, changeEffect=None, bg_color=None):
         """显示 itemList 中所有项；changeEffect 为转场效果名（如 "gradient" 淡入）。
@@ -275,6 +276,10 @@ class GraphicsView(QGraphicsView):
             bg_item.setZValue(-5)
             bg_item._is_color_block = True
             self.itemList.insert(0, bg_item)
+            # 转场淡入完成后移除黑块，避免残留（如从设置返回主菜单时旧黑块还在）
+            _eff, _dur = self._parse_change_effect(changeEffect)
+            if _eff == "gradient" and _dur:
+                QTimer.singleShot(_dur + 200, lambda bi=bg_item: self._remove_color_block(bi))
         for i in self.itemList:
             self.scene.addItem(i)
         targets = [i for i in self.itemList if not getattr(i, "_is_color_block", False)]
@@ -284,6 +289,18 @@ class GraphicsView(QGraphicsView):
         for i in self.itemList:
             self.scene.removeItem(i)
         self.itemList = []
+
+    def _remove_color_block(self, item):
+        """转场完成后移除纯色底块（若还在场景中/列表中）。"""
+        try:
+            if item.scene() is not None:
+                self.scene.removeItem(item)
+        except Exception:
+            pass
+        try:
+            self.itemList.remove(item)
+        except ValueError:
+            pass
 
     @staticmethod
     def _parse_change_effect(changeEffect):

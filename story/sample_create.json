@@ -26,6 +26,8 @@
     },
     "chatbox_and_words_position": {
       "chatbox": "./res/ui/chatbox.png",
+      "text_color": [255, 255, 255],
+      "readed_text_color": [255, 255, 0],
       "name_show_region": [
         [
           76,
@@ -261,7 +263,17 @@
                 "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
                 "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
               }
-            }
+            },
+            "bgm": [
+              {
+                "id": "",
+                "out": "gradient"
+              },
+              {
+                "id": "bgm1",
+                "in": "normal"
+              }
+            ]
           }
         ],
         "2": [
@@ -621,7 +633,18 @@
           {
             "clear_all": true,
             "change": "gradient",
-            "bg": "咖啡馆"
+            "bg": "咖啡馆",
+            "bgm": [
+              {
+                "id": "bgm1",
+                "out": ["gradient", 0.5]
+              },
+              {
+                "id": "bgm2",
+                "in": "normal",
+                "delay": 0.5
+              }
+            ]
           }
         ],
         "16": [
@@ -1390,7 +1413,13 @@
                   ]
                 ]
               }
-            }
+            },
+            "bgm": [
+              {
+                "id": "bgm2",
+                "out": ["gradient", 0.5]
+              }
+            ]
           },
           {
             "clear_all": true,
@@ -1407,7 +1436,14 @@
                 "ja": "家に帰って、パソコンを開いた。",
                 "ru": "Вернувшись домой, я включил компьютер."
               }
-            }
+            },
+            "bgm": [
+              {
+                "id": "bgm3",
+                "in": "normal",
+                "delay": 0.5
+              }
+            ]
           }
         ],
         "43": [
@@ -1581,7 +1617,13 @@
             "chatbox": {
               "visible": false,
               "change": "gradient"
-            }
+            },
+            "bgm": [
+              {
+                "id": "",
+                "out": "gradient"
+              }
+            ]
           },
           {
             "clear_all": true,

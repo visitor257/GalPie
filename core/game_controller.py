@@ -4,6 +4,7 @@ from PySide6.QtCore import QTimer, QDateTime, QByteArray, QBuffer
 from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
 from core.audio_player import AudioPlayer
+from core.bgm_player import BgmPlayer
 
 
 class GameController:
@@ -54,6 +55,8 @@ class GameController:
         self.background_pos = [0, 0]
         self.language = None
         self.transition_color = [0, 0, 0]  # 转场底色（settings.transition_color），默认黑
+        # 跳过已读文本开关（设置面板配置，随 .gpsetting 持久化；功能待接入）
+        self.skip_readed = True  # 默认开（无 .gpsettings 记录时跳过已读生效）
 
         # 画面状态双变量（存档快照用）：
         #   scene_state（a）：随场景执行逐场景记录当前画面（bg id / 角色配置 / chatbox 可见性）
@@ -63,13 +66,22 @@ class GameController:
         #   {"bg": "咖啡馆",
         #    "characters": {"girl": {"form": "校服", "face": "平常", "pos": [x,y], "zoom": 1.5}},
         #    "chatbox_visible": True}
-        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True}
-        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True, "bgm": []}
+        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True, "bgm": []}
         # 已生成的按页快照字典：{页号: page_state副本}，供存档时取当前页快照
         self.page_snapshots = {}
+        # 剧情 BGM 播放器（多路，与主菜单 bgm_player 分实例）：
+        #   scene_state["bgm"]/page_state["bgm"] = 在播 bgm id 列表（随画面快照机制同步）
+        self.story_bgm = BgmPlayer()
+        # 读档跳过场景0 BGM 执行标志：读档时已按存档模拟恢复 BGM，
+        # 重播读档页场景0 时跳过其 bgm 操作，避免与恢复状态冲突
+        self._skip_scene0_bgm = False
 
         # 结局模式：end 线播放期间为 True（禁快进），播完自动回主菜单
         self._in_ending = False
+
+        # 跳过转场中标志：跳至下一选项的黑屏静默模拟期间置 True，拦截点击/快进推进
+        self._is_skipping = False
 
         # 计分（分支分数）：初始值来自 storyline_id_score（各分支的初始分），
         # 剧情中由选择（selection 的 score）增减，运行时仅存内存，存档时写入 data[12]。
@@ -85,9 +97,24 @@ class GameController:
         # 用户点击推进标志：文本显示完后点击 -> 停音频并立即进入下一页（跳过翻页等待）
         self._force_advance_immediate = False
 
+        # 已读文本记录（READED）：set of "line:page:scene_idx"，全局加载，不随存档删。
+        # 快进遇到未读场景自动关闭（不跳过未读内容）。
+        self.read_history = set()
+        # 已读文本：上一个已播完场景的 key（进入新场景时标记它，播完才记）。
+        # 中断（返回主菜单/退出）时最后播的场景保持未标记，重开快进会停在中断处。
+        self._prev_read_key = None
+        # 已读记录延迟写盘定时器（防抖：有新标记才启动，3 秒后写盘；退出时由 closeEvent 兜底）
+        self._read_history_timer = QTimer()
+        self._read_history_timer.setSingleShot(True)
+        self._read_history_timer.setInterval(3000)
+        self._read_history_timer.timeout.connect(self._flush_read_history)
+
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
         self.base_path = base_path
+        # 加载已读记录（story_data 就绪后立即加载；与存档无关的全局记录）
+        from data_management.read_history import load_read_history
+        self.read_history = load_read_history(self)
 
     def apply_settings(self):
         if not self.story_data:
@@ -142,12 +169,14 @@ class GameController:
     def goto_storyline_by_check_value(self):
         self.current_page = 1
         self.current_scene_index = 0
+        # 已读文本：重新开始游戏，丢弃上一个场景残留（避免把旧进度末场景误标记）
+        self._prev_read_key = None
         # 进入剧情：重置日志（起始页记录 + 清空条目）
         self.backlog_start_page = 1
         self.backlog_entries = []
         # 进入剧情：重置画面状态（第 1 页初始：空背景、无角色、chatbox 可见）
-        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True}
-        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True}
+        self.scene_state = {"bg": None, "characters": {}, "chatbox_visible": True, "bgm": []}
+        self.page_state = {"bg": None, "characters": {}, "chatbox_visible": True, "bgm": []}
         self.page_snapshots = {}
         # 重置选择状态（选项页返回主菜单后，再进剧情时避免残留拦截点击/快进）
         self.is_waiting_for_selection = False
@@ -155,9 +184,11 @@ class GameController:
         self.main_window.hide_selection()
         # 重置结局模式（重新开始游戏时清除）
         self._in_ending = False
-        # 重新开始：停止可能残留的音频
+        # 重新开始：停止可能残留的音频与剧情 BGM
         self.audio_player.stop()
         self.audio_timer.stop()
+        self.story_bgm.stop()
+        self._skip_scene0_bgm = False
         self._force_advance_immediate = False
         # 故事线配置：story_and_position.storyline_settings
         #   main_storyline：主线（游戏开始首先播放的线，缺省 "main"）
@@ -229,11 +260,13 @@ class GameController:
                 "bg": self.scene_state.get("bg"),
                 "characters": {k: dict(v) for k, v in self.scene_state.get("characters", {}).items()},
                 "chatbox_visible": bool(self.scene_state.get("chatbox_visible", True)),
+                "bgm": self.story_bgm.playing_ids(),
             }
             self.page_snapshots[new_page] = {
                 "bg": self.page_state["bg"],
                 "characters": {k: dict(v) for k, v in self.page_state["characters"].items()},
                 "chatbox_visible": self.page_state["chatbox_visible"],
+                "bgm": list(self.page_state["bgm"]),
             }
             print(f"翻页快照: 页{new_page} 初始状态={self.page_state}")
             self.current_page = new_page
@@ -254,6 +287,22 @@ class GameController:
 
     def execute_scene(self, scene: Dict):
         print(f"执行场景 {self.current_scene_index}: {scene}")
+        # 已读文本：播完才记——进入新场景时标记上一个已播完的场景。
+        # 中断（返回主菜单/退出）时最后播的场景保持未标记，重开快进会停在中断处。
+        if self._prev_read_key is not None:
+            self.read_history.add(self._prev_read_key)
+            if not self._read_history_timer.isActive():
+                self._read_history_timer.start()
+        self._prev_read_key = self._read_key()
+        # 已读文本（开关开时）：快进中遇到未读场景 -> 静默关闭快进（停在此处让玩家正常阅读，不跳过未读内容）
+        # 开关关时：未读也可快进，不拦截
+        if self.skip_readed and self.skip_mode and not self._is_scene_read():
+            self.skip_mode = False
+            self.skip_timer.stop()
+            try:
+                self.main_window._update_skip_icon()
+            except Exception:
+                pass
         self.is_text_finished = False
         self.is_audio_finished = False
         self._pending_empty_anim_ms = 0
@@ -361,6 +410,18 @@ class GameController:
             print("场景中没有对话内容，直接标记文本完成")
             self.is_text_finished = True
 
+        # BGM 控制（场景级 bgm 数组）：多路播放器，与画面/对话音频解耦，不阻塞推进。
+        # 读档恢复标志：仅读档后重播的场景0 消费（跳过其 bgm 操作，已由读档模拟），
+        # 其他场景（含场景0 之后）一律正常执行。
+        if self.current_scene_index != 0:
+            self._skip_scene0_bgm = False
+        if "bgm" in scene:
+            if self._skip_scene0_bgm:
+                print("读档页场景0：BGM 已由读档模拟恢复，跳过执行")
+            else:
+                self._apply_scene_bgm(scene["bgm"])
+            self._skip_scene0_bgm = False
+
         # 音频播放（场景级 audio 配置）：
         #   json_mode=normal -> play_in_order 为多语言 dict，取当前语言，无文件则不播
         #   json_mode=judge   -> play_in_order 为模板二维列表，替换 <line>/<page>/<lang_id>，
@@ -387,6 +448,245 @@ class GameController:
                 print("场景中没有音频，立即标记音频完成")
                 self.is_audio_finished = True
                 self.check_auto_advance()
+
+    # ---------- BGM 配置解析与执行 ----------
+
+    def _apply_scene_bgm(self, ops):
+        """执行场景级 bgm 操作数组：[{id, in/out, delay}]。
+        delay（秒）>0 的操作延迟到点执行（迟到执行：翻页不影响已排定的操作）；
+        delay=0 或缺省立即执行。每个操作执行后同步 scene_state["bgm"]。"""
+        if not isinstance(ops, list):
+            return
+        bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            op_id = op.get("id")
+            delay_s = 0.0
+            try:
+                delay_s = float(op.get("delay", 0) or 0)
+            except (TypeError, ValueError):
+                delay_s = 0.0
+            if delay_s > 0:
+                QTimer.singleShot(
+                    int(delay_s * 1000),
+                    lambda o=op, i=op_id, d=bgm_defs: self._exec_bgm_op(o, i, d))
+            else:
+                self._exec_bgm_op(op, op_id, bgm_defs)
+
+    def _exec_bgm_op(self, op, op_id, bgm_defs):
+        """执行单个 bgm 操作并同步 scene_state。"""
+        try:
+            if op.get("out") is not None:
+                fade = self._parse_bgm_fade(op.get("out"))
+                self.story_bgm.stop(op_id, fade)
+            elif op.get("in") is not None and op_id:
+                path = bgm_defs.get(op_id)
+                if path:
+                    fade = self._parse_bgm_fade(op.get("in"))
+                    self.story_bgm.play(op_id, str(self.base_path / path), fade)
+                else:
+                    print(f"BGM 未定义: {op_id}")
+        except Exception as e:
+            print(f"BGM 操作执行失败: {e}")
+        self.scene_state["bgm"] = self.story_bgm.playing_ids()
+
+    def _parse_bgm_fade(self, cfg):
+        """解析 in/out 效果 -> 淡变秒数（None=无淡变直接播/停）。
+        normal/None -> None；"gradient" -> 1.0；["gradient", 秒] -> 秒。"""
+        if cfg is None or cfg == "normal":
+            return None
+        if cfg == "gradient":
+            return 1.0
+        if isinstance(cfg, (list, tuple)) and len(cfg) >= 2:
+            try:
+                return float(cfg[1])
+            except (TypeError, ValueError):
+                return 1.0
+        return None
+
+    def _page_scene0_bgm(self):
+        """当前页第 0 场景的 bgm 数组（无则 None）。"""
+        story = self.story_data.get("story_and_position", {}).get("story", {}).get(
+            self.current_storyline_id, {})
+        scenes = story.get(str(self.current_page), [])
+        if isinstance(scenes, list) and scenes and isinstance(scenes[0], dict):
+            return scenes[0].get("bgm")
+        return None
+
+    def _simulate_bgm_ops(self, ops, initial_ids, bgm_defs=None):
+        """通用 BGM 静默模拟：以初始在播 id 列表为输入，模拟操作数组，
+        返回全部操作执行完后的在播 id 列表（delay 忽略，只算最终态）。
+        规则：id=""+out -> 清空全部；id=""+in -> 定义表全部 id 加入（去重）；
+              id=X+in -> 加入（去重）；id=X+out -> 移除（不在则跳过）。"""
+        ids = list(initial_ids or [])
+        if not isinstance(ops, list):
+            return ids
+        if bgm_defs is None:
+            bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            op_id = op.get("id")
+            if op.get("out") is not None:
+                if op_id in (None, ""):
+                    ids = []
+                elif op_id in ids:
+                    ids.remove(op_id)
+            elif op.get("in") is not None:
+                if op_id in (None, ""):
+                    for bid in (bgm_defs or {}):
+                        if bid not in ids:
+                            ids.append(bid)
+                elif op_id and op_id not in ids:
+                    ids.append(op_id)
+        return ids
+
+    def _simulate_scene0_bgm(self, ops, initial_ids):
+        """方案 C：以初始在播列表为输入，模拟场景0 的 bgm 操作，
+        返回全部操作执行完后的在播 id 列表（delay 忽略，只算最终态）。
+        复用通用 _simulate_bgm_ops。"""
+        bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        return self._simulate_bgm_ops(ops, initial_ids, bgm_defs)
+
+    # ---------- 跳至下一选项（跳过功能）：静默模拟 ----------
+
+    def _update_scene_state(self, scene: Dict, state: Dict):
+        """静默模拟用：仅按场景更新画面状态字典 state（bg/characters/chatbox_visible），
+        不碰 UI、不播音频、不启动动画。与 execute_scene 的状态记录逻辑保持一致。
+        state 结构同 scene_state：{"bg", "characters", "chatbox_visible"}。"""
+        if scene.get("clear_all", False):
+            state["bg"] = None
+            state["characters"] = {}
+        if "bg" in scene:
+            bg_name = scene["bg"]
+            if isinstance(bg_name, dict) and "color" in bg_name:
+                color = bg_name.get("color")
+                if isinstance(color, (list, tuple)) and len(color) >= 3:
+                    state["bg"] = {"color": [int(c) for c in color[:3]]}
+            elif isinstance(bg_name, str):
+                backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+                if bg_name in backgrounds:
+                    state["bg"] = bg_name
+        if "characters" in scene:
+            characters_data = scene["characters"]
+            character_defs = self.story_data.get("story_and_position", {}).get("character_and_motion", {})
+            for char_id, char_info in characters_data.items():
+                if char_id == "":
+                    continue
+                if char_id not in character_defs:
+                    continue
+                new_final = self._character_final_state(char_id, char_info)
+                state["characters"][char_id] = new_final
+        if "chatbox" in scene:
+            chatbox_config = scene["chatbox"]
+            visible = chatbox_config.get("visible", True)
+            state["chatbox_visible"] = bool(visible)
+
+    def scan_ahead_for_selection(self) -> bool:
+        """预检：从当前页当前场景开始，沿当前线逐页逐场景扫
+        "未读场景 或 selection 场景"（任一即视为有可跳目标）。
+        只扫当前线（不跟随 next 路由），轻量。找到返回 True。"""
+        try:
+            story = self.story_data.get("story_and_position", {}).get("story", {})
+            line_story = story.get(self.current_storyline_id, {})
+            if not isinstance(line_story, dict):
+                return False
+            page_keys = sorted(line_story.keys(), key=lambda k: int(k) if str(k).isdigit() else 0)
+            cur_key = str(self.current_page)
+            start_idx = 0
+            for i, k in enumerate(page_keys):
+                if k == cur_key:
+                    start_idx = i
+                    break
+            line_id = str(self.current_storyline_id or "main")
+            for i in range(start_idx, len(page_keys)):
+                scenes = line_story[page_keys[i]]
+                if not isinstance(scenes, list):
+                    continue
+                start_scene = self.current_scene_index if i == start_idx else 0
+                for j in range(start_scene, len(scenes)):
+                    s = scenes[j]
+                    if not isinstance(s, dict):
+                        continue
+                    if "selection" in s:
+                        return True
+                    # 已读文本（开关开时）：未读场景也是可跳目标（快进到未读边界）
+                    # 开关关时：未读也可跳过，只有 selection 才算目标
+                    if self.skip_readed and f"{line_id}:{page_keys[i]}:{j}" not in self.read_history:
+                        return True
+        except Exception as e:
+            print(f"预检失败: {e}")
+        return False
+
+    def _simulate_to_next_selection(self):
+        """静默模拟核心：从当前页当前场景开始，逐场景应用状态（纯内存），
+        跟随 next 路由（direct/judge），直到遇到 selection 场景或第一个未读场景。
+        当前场景（起点）只参与未读检查：未读 -> 原地停；已读 -> 从它之后继续找目标。
+        返回 (目标line, 目标page, 目标scene_index, 最终state, 最终bgm_ids, target_type)
+        target_type："selection"=停在选项页；"unread"=停在未读边界（未读场景）。
+        失败返回 None（取消）。"""
+        story = self.story_data.get("story_and_position", {}).get("story", {})
+        bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        state = {
+            "bg": self.scene_state.get("bg"),
+            "characters": {k: dict(v) for k, v in self.scene_state.get("characters", {}).items()},
+            "chatbox_visible": bool(self.scene_state.get("chatbox_visible", True)),
+        }
+        bgm_ids = list(self.story_bgm.playing_ids())
+        line = self.current_storyline_id
+        page = self.current_page
+        scene_idx = self.current_scene_index
+        # 起点场景（玩家当前场景）只做未读检查：不消费 bgm/selection/next，
+        # 避免“站在未读场景按跳过”时把当前场景排除导致未读页被跳过
+        first = True
+        guard = 0
+        max_guard = 5000
+        while guard < max_guard:
+            guard += 1
+            line_story = story.get(line, {})
+            if not isinstance(line_story, dict):
+                return None
+            page_key = str(page)
+            if page_key not in line_story:
+                return None
+            scenes = line_story[page_key]
+            if not isinstance(scenes, list):
+                return None
+            while scene_idx < len(scenes):
+                s = scenes[scene_idx]
+                if not isinstance(s, dict):
+                    scene_idx += 1
+                    continue
+                self._update_scene_state(s, state)
+                if not first:
+                    if "bgm" in s:
+                        bgm_ids = self._simulate_bgm_ops(s["bgm"], bgm_ids, bgm_defs)
+                    if "selection" in s:
+                        return (line, page, scene_idx, state, bgm_ids, "selection")
+                # 已读文本（开关开时）：遇到未读场景 -> 停在未读边界（当前场景未读 = 原地）
+                # 开关关时：未读也可跳过，继续向后找 selection
+                if self.skip_readed and f"{line}:{page}:{scene_idx}" not in self.read_history:
+                    return (line, page, scene_idx, state, bgm_ids, "unread")
+                if not first and "next" in s:
+                    target = self._resolve_next(s["next"])
+                    if target is None:
+                        return None
+                    if target[0] == "__end__":
+                        return None
+                    line, page = target[0], target[1]
+                    scene_idx = 0
+                    first = False
+                    break
+                first = False
+                scene_idx += 1
+            else:
+                page += 1
+                scene_idx = 0
+                first = False
+                continue
+        return None
+
 
     # ---------- 音频配置解析 ----------
 
@@ -565,17 +865,14 @@ class GameController:
             "zoom": zoom,
         }
 
-    def restore_snapshot(self, snapshot: Dict):
-        # 读档：停止可能残留的音频
-        self.audio_player.stop()
-        self.audio_timer.stop()
-        """读档后按快照恢复画面状态：清空场景、设置背景、摆放角色（无动画）、设置对话框可见性。
-        同时更新 scene_state/page_state，使后续翻页快照链保持连贯。
-        """
+    def _restore_visual_state(self, snapshot: Dict, bgm_ids):
+        """按快照恢复画面状态（不播放 BGM）：清空场景、设置背景、摆放角色（无动画）、
+        设置对话框可见性；同时更新 scene_state/page_state/page_snapshots。
+        bgm_ids：恢复后的最终在播列表（由调用方模拟计算好传入）。"""
         # 先清空当前画面（背景+角色），避免旧状态残留
         self.main_window.graphics_view.clear_all()
-        # 清理残留选择项：读档时若处于选择页，旧选项按钮必须移除，
-        # 读到的目标页若也是选择页，会由 execute_scene 重新显示
+        # 清理残留选择项：恢复时若处于选择页，旧选项按钮必须移除，
+        # 目标页若也是选择页，会由 execute_scene 重新显示
         self.main_window.hide_selection()
         self.is_waiting_for_selection = False
         self.pending_next = None
@@ -649,18 +946,114 @@ class GameController:
             "bg": bg_name,
             "characters": {k: dict(v) for k, v in characters.items()},
             "chatbox_visible": chatbox_visible,
+            "bgm": list(bgm_ids),
         }
         self.page_state = {
             "bg": bg_name,
             "characters": {k: dict(v) for k, v in characters.items()},
             "chatbox_visible": chatbox_visible,
+            "bgm": list(bgm_ids),
         }
         self.page_snapshots[self.current_page] = {
             "bg": bg_name,
             "characters": {k: dict(v) for k, v in characters.items()},
             "chatbox_visible": chatbox_visible,
+            "bgm": list(bgm_ids),
         }
         print(f"快照恢复: 页{self.current_page} bg={bg_name} 角色={list(characters.keys())} chatbox={chatbox_visible}")
+
+    def restore_snapshot(self, snapshot: Dict):
+        # 已读文本：读档丢弃当前进度，重置上一个场景（读档页场景0 不被旧残留标记）
+        self._prev_read_key = None
+        # 读档：停止可能残留的音频与剧情 BGM
+        self.audio_player.stop()
+        self.audio_timer.stop()
+        self.story_bgm.stop()
+        """读档后按快照恢复画面状态：BGM 模拟恢复 + 画面布设（复用 _restore_visual_state）。
+        同时更新 scene_state/page_state，使后续翻页快照链保持连贯。
+        """
+        # BGM 恢复（方案 C）：以存档记录的页初始在播列表为输入，
+        # 模拟读档页场景0 的 bgm 操作，直接播放最终列表（正常音量、循环）；
+        # 场景0 的 bgm 操作在重播时跳过（_skip_scene0_bgm），避免与恢复状态冲突。
+        bgm_ids = list(snapshot.get("bgm") or [])
+        scene0_bgm = self._page_scene0_bgm()
+        final_bgm_ids = self._simulate_scene0_bgm(scene0_bgm, bgm_ids)
+        bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        for bid in final_bgm_ids:
+            bpath = bgm_defs.get(bid)
+            if bpath:
+                self.story_bgm.play(bid, str(self.base_path / bpath))
+        self._skip_scene0_bgm = bool(scene0_bgm)
+        print(f"读档 BGM 恢复: 存档={bgm_ids} 场景0模拟后={final_bgm_ids} 跳过场景0执行={bool(scene0_bgm)}")
+        self._restore_visual_state(snapshot, final_bgm_ids)
+
+    def jump_to_next_selection(self):
+        """跳至下一选项主入口（跳过功能）：
+        1. 预检当前线剩余页是否有 selection -> 无则返回 False（无反应）
+        2. 静默模拟（状态 + BGM + 跟随 next 路由）直到 selection 页
+        3. 布设目标画面（_restore_visual_state）+ 按最终 bgm 列表播放
+        4. 显示目标 selection 场景的选项
+        返回 True=成功停在选项页；False=取消（无下一选项/模拟失败）。
+        """
+        if getattr(self, "_in_ending", False):
+            print("跳过：结局线不可用")
+            return False
+        if not self.scan_ahead_for_selection():
+            print("跳过：无下一选项，无反应")
+            return False
+        result = self._simulate_to_next_selection()
+        if result is None:
+            print("跳过：模拟失败/未找到目标，取消")
+            return False
+        line, page, scene_idx, state, bgm_ids, target_type = result
+        # 已读文本：目标即当前场景（当前就是未读边界）-> 原地停，
+        # 不布设、不打断播放，黑屏撤屏后回到原地（“不管按多少次跳过都在当前页”）
+        if (target_type == "unread"
+                and line == self.current_storyline_id
+                and page == self.current_page
+                and scene_idx == self.current_scene_index):
+            print("跳过：当前场景即未读边界，停在原地")
+            return True
+        print(f"跳过：目标 {line}:{page} 场景{scene_idx}（{target_type}） bgm={bgm_ids}")
+        # 切到目标页/场景
+        self.current_storyline_id = line
+        self.current_page = page
+        self.current_scene_index = scene_idx
+        self.is_waiting_for_next_page = False
+        self.is_waiting_for_selection = False
+        self.pending_next = None
+        self._in_ending = False
+        # 停掉当前音频与 BGM
+        self.audio_player.stop()
+        self.audio_timer.stop()
+        self.story_bgm.stop()
+        # 布设目标画面（含 scene_state/page_state/page_snapshots 同步）
+        self._restore_visual_state(state, bgm_ids)
+        # 按最终 bgm 列表播放（正常音量、循环）
+        bgm_defs = (self.story_data.get("story_and_position", {}) or {}).get("bgm", {}) or {}
+        for bid in bgm_ids:
+            bpath = bgm_defs.get(bid)
+            if bpath:
+                self.story_bgm.play(bid, str(self.base_path / bpath))
+        self._skip_scene0_bgm = False
+        story = self.story_data.get("story_and_position", {}).get("story", {})
+        scenes = story.get(line, {}).get(str(page), [])
+        self.current_page_data = scenes
+        if not (isinstance(scenes, list) and scene_idx < len(scenes)):
+            return False
+        target_scene = scenes[scene_idx]
+        if not isinstance(target_scene, dict):
+            return False
+        if target_type == "unread":
+            # 已读文本：未读边界——正常播放该场景，玩家从这里继续阅读
+            self.play_scene_sequence()
+            return True
+        # selection 目标：显示选项
+        if "selection" not in target_scene:
+            return False
+        self.is_waiting_for_selection = True
+        self.main_window.show_selection(target_scene["selection"], self.on_selection_chosen)
+        return True
 
     def _resolve_next(self, nxt):
         """解析 next 路由为目标 [line, page]（返回 None 表示无法跳转/无跳转）。
@@ -769,11 +1162,13 @@ class GameController:
             "bg": self.scene_state.get("bg"),
             "characters": {k: dict(v) for k, v in self.scene_state.get("characters", {}).items()},
             "chatbox_visible": bool(self.scene_state.get("chatbox_visible", True)),
+            "bgm": self.story_bgm.playing_ids(),
         }
         self.page_snapshots[self.current_page] = {
             "bg": self.page_state["bg"],
             "characters": {k: dict(v) for k, v in self.page_state["characters"].items()},
             "chatbox_visible": self.page_state["chatbox_visible"],
+            "bgm": list(self.page_state["bgm"]),
         }
         print(f"跳线快照: 页{self.current_page} 初始状态={self.page_state}")
         # 自动播放关闭且要求等待：跳到目标页但不立即播放（与正常翻页一致）
@@ -851,6 +1246,9 @@ class GameController:
     def handle_click(self):
         if not self.is_in_game:
             return
+        if getattr(self, "_is_skipping", False):
+            print("跳过转场中，忽略点击")
+            return
         if self.is_waiting_for_selection:
             print("选择等待中，忽略点击")
             return
@@ -892,6 +1290,22 @@ class GameController:
         print(f"自动播放已{status}")
         if self.auto_play and self.is_waiting_for_next_page:
             self.play_current_page()
+
+    # ---------- 已读文本记录（READED） ----------
+
+    def _read_key(self):
+        """当前场景的已读 key：{line}:{page}:{scene_idx}（页 key 只在单线内唯一，必须带线前缀）。"""
+        line = str(self.current_storyline_id or "main")
+        return f"{line}:{self.current_page}:{self.current_scene_index}"
+
+    def _is_scene_read(self):
+        """当前场景是否已读。"""
+        return self._read_key() in self.read_history
+
+    def _flush_read_history(self):
+        """立即把已读记录写盘（延迟定时器触发 / 退出游戏时由 main_window.closeEvent 兜底调用）。"""
+        from data_management.read_history import save_read_history
+        save_read_history(self, self.read_history)
 
     def _skip_tick(self):
         """快进定时器 tick：模拟长按空格，周期性触发 handle_click。

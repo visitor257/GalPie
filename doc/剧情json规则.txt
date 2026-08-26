@@ -15,7 +15,7 @@
 
 "settings": 字典（选填，缺失时使用默认值）
     说明：用于设置语言支持、窗口大小、标题等。缺失或为空时程序使用默认值（语言回退 "zh"、窗口 1280x720、标题 "GalPie"）。
-    "settings"内的keys："language", "window_size", "window_title", "identify_code", "transition_color"
+    "settings"内的keys："language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id"
 
     "language": 字典（选填，缺失时默认 "zh"）
         说明：设置所支持的语言。当前格式为字典：{语言标签: 语言显示名称}。
@@ -43,6 +43,9 @@
         - 从主菜单确认读档后：同样先渐变成此颜色，再渐变进入读档场景。
         - 空白/清空场景（无任何元素）时，窗口底色亦为此颜色。
 
+    "default_audio_lang_id"：字符串（选填）
+        "default_audio_lang_id"的内容解释：音频回退语言标签。当场景音频（audio）的当前语言文件缺失时，回退使用此语言标签对应的音频文件（仅对 json_mode=judge 的音频生效，见下方场景级 audio 说明）。缺省时不回退（当前语言无文件则不播放）。
+
 "ui": 字典（选填，缺失时使用默认UI）
     说明：用于设置交互界面，如对话框、底部菜单。缺失时使用默认UI设置（默认对话框样式/名字区域/字幕区域）。
     "ui"内的keys："confirm_ui", "chatbox_and_words_position", "bottom_menu"
@@ -69,11 +72,18 @@
 
     "chatbox_and_words_position": 字典（选填，缺省时使用默认对话框样式与区域）
         说明：对话框样式的设置。缺省时使用默认对话框样式/名字区域 [[76,60],[270,149]]/字幕区域 [[310,60],[805,149]]。
-        其内部三个 key 均为选填，缺省各自使用默认值。
-        "chatbox_and_words_position"内的keys："chatbox", "name_show_region", "words_show_region"
+        其内部五个 key 均为选填，缺省各自使用默认值。
+        "chatbox_and_words_position"内的keys："chatbox", "text_color", "readed_text_color", "name_show_region", "words_show_region"
 
         "chatbox": 字符串（选填，缺省时使用默认对话框样式）
             "chatbox"的内容解释：对话框样式（应为图片）的储存位置，填写的应为从json文件所在位置开始的相对路径，如："./res/ui/chatbox.png"
+
+        "text_color"：列表（选填，默认 [255, 255, 255] 白色）
+            "text_color"的内容解释：未读文本（首次播放的台词）的颜色，RGB格式，三个0~255的整数，如：[255, 255, 255]。
+
+        "readed_text_color"：列表（选填，默认 [255, 255, 255] 白色）
+            "readed_text_color"的内容解释：已读文本（已播放过的场景台词）的颜色，RGB格式，三个0~255的整数，如：[255, 255, 0]。
+            程序根据已读记录（.gpreaded）判断当前场景是否已读：已读场景的台词用此颜色，未读场景的台词用上方"text_color"。
 
         "name_show_region"：列表（选填，缺省时使用默认区域 [[76,60],[270,149]]）
             "name_show_region"内的元素解释：列表内应有两个列表，两个列表分别代表对话框内说话人名字显示区域的左上角坐标和右下角坐标，坐标系基于对话框样式"chatbox"的图片，图片左上角为0点，x轴像右增加，y轴向下增加，格式如此：[[76,60],[270,149]]，代表以对话框样式（图片）上，位于(76, 60)的像素为左上，位于(270, 149)的像素为右下的区域作为说话人名字的显示区域。
@@ -135,10 +145,23 @@
 "menu": 字典（选填）
     说明：设置主菜单（开始界面）。不填写则启动后直接进入剧情（从当前故事线第一页开始播放），不显示主菜单。
     填写则启动后先显示主菜单，点击"start"按钮后才进入剧情。
-    "menu"内的keys："bg", "change", "title", "button", "button_touched", "text_rgb", "menu_pos"
+    "menu"内的keys："bg", "bgm", "change", "title", "button", "button_touched", "text_rgb", "menu_pos"
 
     "bg"：字符串（选填）
         "bg"的内容解释：主菜单背景图片路径（相对json），如："./res/menu/bg.png"。
+
+    "bgm"：字典（选填）
+        说明：主菜单背景音乐。进入主菜单时播放，离开主菜单时停止。
+        "bgm"内的keys："bgm", "in", "out"
+
+        "bgm"：字符串（必填，只要写了 menu.bgm 就必须有）
+            "bgm"的内容解释：主菜单背景音乐文件路径（相对json），如："./res/audio/bgm_menu.mp3"。
+
+        "in"：字符串（选填，默认直接播放）
+            "in"的内容解释：音乐入场（开始播放）时的淡入效果，支持 "normal"（直接播放）与 "gradient"（渐变淡入）。
+
+        "out"：字符串（选填，默认直接停止）
+            "out"的内容解释：音乐退场（离开主菜单）时的淡出效果，支持 "normal"（直接停止）与 "gradient"（渐变淡出）。
 
     "change"：列表（选填）
         "change"的内容解释：主菜单出现的转场效果。格式为 [[r,g,b], "gradient"]，
@@ -187,7 +210,7 @@
 
 "story_and_position"：字典（必填）
     说明：设置剧情内容、人物、背景等
-    "story_and_position"内的keys："character_and_motion", "backgrounds", "storyline_id", "story"
+    "story_and_position"内的keys："character_and_motion", "backgrounds", "bgm", "selection_button", "storyline_settings", "story"
 
     "character_and_motion"：字典（选填，缺失时场景中引用角色会报"角色未定义"）
         说明：设置有形象的人物
@@ -224,19 +247,47 @@
         <背景标签>: 字符串（必填）
             内容说明：该背景所指向的图片文件路径，如："公园": "./res/bg/park.png"
 
-    "storyline_id"：字典（选填，缺失时默认进入 "main" 故事线）
-        说明：设置各故事线的标签
-        "storyline_id"内的keys说明：自定义的故事线标签
+    "bgm"：字典（选填）
+        说明：设置剧情 BGM 的定义表。场景级 bgm 操作（见下方场景内 "bgm"）通过 id 引用此处的路径。
+        "bgm"内的keys说明：自定义的 BGM 标签
 
-        <故事线标签>：浮点数（必填）
-            内容说明：值的大小决定了开启哪一条故事线。程序在剧情开始时判断各标签值的大小，将自动进入值最大的故事线。
-            比如说，这里设置了{"main": 1.0, "girl": 0.5}，开始时将进入标签为"main"的故事线。
-            注意，尽量避免出现两个标签的值相等且皆为所有标签中的最大值的情况，若存在此情况，程序将进入其中第一个出现的标签对应的故事线。
-            （注：旧文档中的场景内调整故事线值功能 edit_storylineID_value / check_storyline 目前尚未在代码中实现，仅为预留。）
+        <BGM标签>：字符串（必填）
+            内容说明：该 BGM 所指向的音频文件路径，如："bgm1": "./res/audio/bgm_1.mp3"
+
+    "selection_button"：字典（选填）
+        说明：设置选择场景中选项按钮的外观。缺省时使用默认按钮样式。
+        "selection_button"内的keys："text_color", "normal", "touched"
+
+        "text_color"：列表（选填，默认 [255, 255, 255] 白色）
+            "text_color"的内容解释：选项按钮文字的颜色，RGB格式。
+
+        "normal"：字符串（选填）
+            "normal"的内容解释：选项按钮普通状态（未悬停）的图片路径（相对json），如："./res/ui/selection.png"。
+
+        "touched"：字符串（选填）
+            "touched"的内容解释：选项按钮悬停状态的图片路径（相对json），如："./res/ui/selection_touched.png"。
+
+    "storyline_settings"：字典（选填，缺失时默认主线 "main"）
+        说明：设置故事线配置：开局主线、选线判定阈值、各分支初始分。
+        "storyline_settings"内的keys："main_storyline", "score_gap", "storyline_id_score"
+
+        "main_storyline"：字符串（选填，默认 "main"）
+            "main_storyline"的内容解释：主线标签（游戏开始首先播放的故事线），如："main"。
+
+        "score_gap"：浮点数（选填，默认 0）
+            "score_gap"的内容解释：选线判定阈值。judge 路由判定时，第一名与第二名的分数差 >= score_gap 才进入第一名的线，否则进入保底线（详见场景内 "next" 的 judge 格式）。
+
+        "storyline_id_score"：字典（选填）
+            说明：各分支线的初始分数（计分用）。选项的 "score" 会累加到对应线的分数上。
+            "storyline_id_score"内的keys说明：故事线标签
+
+            <故事线标签>：浮点数（必填）
+                内容说明：该故事线的初始分数，如："main": 1.0
 
     "story"：字典（选填，但故事线标签必须对应此处一个key，否则该故事线无内容）
         说明：各故事线的剧情内容。若缺失或某故事线标签无对应内容，播放时打印"故事结束"。
-        "story"内的keys说明：上面"storyline_id"中设置的故事线标签
+        "story"内的keys说明：故事线标签（如 "main"、"cafe_girl"、"girl"、"end"）。
+        开局主线由上方"storyline_settings"中"main_storyline"指定；其余线由选项"next"/场景"next"跳转进入（"end"为结局线）。
 
         <故事线标签>：字典（必填）
             说明：故事、剧情内容，以及场景、字幕的设定。注意，在"clear_all": false的情况下，上一页设置的场景在不再次设置的情况下，会继续存在，若重新设置了某部分，该部分的内容会被替换成新设置的内容（其中"bg"整体替换，"characters"按人物标签逐个替换：被重新设置的人物标签替换成新设置，未设置的其余人物保留）。具体可在第2部分的示例json解析中了解。
@@ -248,22 +299,26 @@
 
                 列表内的元素：字典（必填）
                     说明：场景的设置
-                    字典内的keys："clear_all", "change", "bg", "characters", "chatbox", "content"
+                    字典内的keys："clear_all", "change", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
 
                     "clear_all": bool（选填，默认false；但每一个故事线的第一页的"clear_all"都必须为true）
                         说明：是否清空上一页场景中的内容，true为是，false为否。每一个故事线的第一页的"clear_all"都必须为true，否则会残留上一个故事线/页面的内容。
 
-                    "change"：字符串（选填）
+                    "change"：字符串或列表（选填）
                         "change"的内容说明：设置转场效果，默认直接变化
                         目前支持的效果有：
                             渐变  "gradient"
+                        字符串写法：直接填效果名，如："change": "gradient"。
+                        列表写法：两个元素，第一个为效果名，第二个为效果持续秒数（浮点数），如："change": ["gradient", 0.2]（渐变 0.2 秒）、"change": ["gradient", 2]（渐变 2 秒）。
 
-                    "bg"：字符串（选填）
-                        "bg"的内容说明：设置背景，内容应为上面"backgrounds"中所设置的背景标签，如："bg": "公园"
+                    "bg"：字符串或字典（选填）
+                        "bg"的内容说明：设置背景，有两种写法。
+                        字符串写法：内容应为上面"backgrounds"中所设置的背景标签，如："bg": "公园"。
+                        字典写法：{"color": [r,g,b]} 纯色背景，即用 RGB 颜色填充整屏作为背景，如："bg": {"color": [0, 0, 0]}（黑色背景）。
 
                     "characters"：字典（选填）
                         说明：设置有形象的角色上场
-                        "characters"内的keys说明：为上面"character_and_motion"中所设置的人物标签
+                        "characters"内的keys说明：为上面"character_and_motion"中所设置的人物标签；也可使用空字符串""作为key（见下方说明）
 
                         <人物标签>：字典（必填）
                             说明：设置上场人物的形态、位置、表情、缩放、动画等
@@ -303,6 +358,10 @@
                                     "move": 列表（选填）
                                         "move"内的元素解释：元素为列表，元素数量无具体上限，各个列表内填有两个数值，对应坐标x和y，x轴像右增加，y轴向下增加，该坐标为基于自己的相对坐标。在动画持续时间内（"time"）将人物按顺序移动到相对坐标上。如此例：将人物向左移动10，然后向下移动10，再往右移动10，最后向上移动10，此时应填入：[[-10,0],[0,10],[10,0],[0,-10]]
 
+                        空字符串""人物标签（key 为 ""）：字典（选填）
+                            说明：无图空角色——不加载任何图片，仅用 "animate" 计算动画总时长作为本场景的停留等待（视觉上画面保持当前状态动画时长）。仅用于无文本且需要停留的场景（如黑屏转场页）。
+                            字典内的keys："animate"（选填，格式同上）
+
                     "chatbox"：字典（选填）
                         说明：控制对话框（以及名字/字幕显示区域）的显示与隐藏
                         "chatbox"内的keys："visible", "change"
@@ -339,6 +398,65 @@
                             "speaking_name"说明：若说话人在上面的"character_and_motion"中有所设置，可在此使用所设置的人物标签直接调用
                             "speaking_name"的内容说明：上面"character_and_motion"中所设置的人物标签。程序从该人物的"name"字典中取当前语言的称呼，若无则回退"zh"，再无可取空字符串。
 
+                    "bgm"：列表（选填）
+                        说明：场景级背景音乐操作，按顺序执行。id 来自上面"story_and_position"中"bgm"定义表（也可用空字符串""表示停止当前 BGM）。
+                        列表内元素说明：元素为字典，每个字典为一次 BGM 操作。
+                        字典内的keys："id", "in", "out", "delay"
+
+                        "id"：字符串（必填）
+                            "id"的内容说明：BGM 标签（来自"story_and_position"中"bgm"定义表）；空字符串""表示停止当前正在播放的 BGM。
+
+                        "in"：字符串或列表（选填）
+                            "in"的内容说明：开始播放时的入场效果，支持 "normal"（直接播放）与 "gradient"（渐变淡入）；也可填列表 ["gradient", 秒数] 指定淡入时长。
+
+                        "out"：字符串或列表（选填）
+                            "out"的内容说明：停止时的退场效果，支持 "normal"（直接停止）与 "gradient"（渐变淡出）；也可填列表 ["gradient", 秒数] 指定淡出时长。
+
+                        "delay"：浮点数（选填，默认 0）
+                            "delay"的值说明：延迟执行秒数。大于 0 时该操作延迟到点执行，翻页不影响已排定的延迟操作。
+
+                    "audio"：字典（选填）
+                        说明：场景级语音/音效配置。播放方式：组内并行、组间顺序，全部播完标记音频完成（可点击跳过）。
+                        "audio"内的keys："json_mode", "play_in_order"
+
+                        "json_mode"：字符串（选填，默认 "normal"）
+                            "json_mode"的内容说明：音频配置的解析模式，支持：
+                            - "normal"："play_in_order" 为多语言字典，只取当前语言的音频列表，该语言无文件则不播放。
+                            - "judge"  ："play_in_order" 为模板二维列表，文件名中的 <line>/<page>/<lang_id> 会被替换为当前线/页/语言；当前语言文件缺失时回退上面"settings"中"default_audio_lang_id"指定的语言。
+
+                        "play_in_order"：字典或二维列表（必填，只要写了 audio 就必须有）
+                            "play_in_order"的内容说明：音频文件列表。
+                            json_mode=normal 时：多语言字典，keys 为语言标签，值为二维列表（组间顺序、组内并行），如：{"zh": [["./res/audio/a_zh.wav"]], "en": [["./res/audio/a_en.wav"]]}。
+                            json_mode=judge 时：模板二维列表，如：[["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]。
+
+                    "selection"：字典（选填）
+                        说明：设置选择场景（选项页）。此场景只显示选项，等待玩家点击后跳转。
+                        "selection"内的keys："change", "selection"
+
+                        "change"：字符串（选填）
+                            "change"的内容说明：选项出现的转场效果，目前支持：渐变 "gradient"。
+
+                        "selection"：列表（必填）
+                            说明：选项列表。
+                            列表内元素说明：元素为字典，每个字典为一个选项。
+                            字典内的keys："text", "score", "next"
+
+                            "text"：字典（必填）
+                                "text"的内容解释：选项文字（按语言标签），如：{"zh": "是的，我经常来", "en": "Yes, I come here often"}。
+
+                            "score"：列表（必填）
+                                "score"的内容解释：两个元素，第一个为故事线标签，第二个为分数值。选中该选项后，此分数累加到对应故事线（计分用，影响后续 judge 判定），如：["main", 0.5]。
+
+                            "next"：字典（必填）
+                                "next"的内容解释：选择该选项后的跳转路由，格式同下方场景内 "next"（如 {"direct": ["main", "18"]}）。
+
+                    "next"：字符串或字典（选填）
+                        说明：场景播完后的跳转路由（本页/本场景结束后跳到哪里）。不填写则按顺序播放下一个场景/下一页。
+                        支持的格式：
+                        - 字符串 "end"：表示整个剧情的最后一页，播完自动返回主菜单。
+                        - 字典 {"direct": [线, 页]}：直接跳转到指定故事线的指定页，如：{"direct": ["main", "41"]}。
+                        - 字典 {"judge": [[候选线列表], [保底线]]}：计分判定路由。候选线列表可含多条 [线, 页]；保底线固定一条 [线, 页]。判定时取各线当前分数（初始值来自"storyline_settings"中"storyline_id_score"，选项"score"会累加）的第一名：第一名与第二名分差 >= "score_gap" 则进入第一名的线，否则进入保底线。如：{"judge": [[["girl", "1"]], [["main", "41"]]]}。
+
 
 
 2. 示例json解析：
@@ -359,7 +477,8 @@
     ],
     "window_title": "Sample story",     <-窗口标题，选填，默认为GalPie
     "identify_code": "sample_identify",  <-剧情识别码，选填
-    "transition_color": [0, 0, 0]        <-转场过渡色（选填，默认黑），开始游戏/读档时先渐变至此色再进剧情
+    "transition_color": [0, 0, 0],        <-转场过渡色（选填，默认黑），开始游戏/读档时先渐变至此色再进剧情
+    "default_audio_lang_id": "zh"          <-音频回退语言标签（选填），当前语言音频文件缺失时回退此语言
   },
   "ui": {                                           <-UI设置
     "confirm_ui": {                                 <-确认框配置（继续游戏/快速加载/退出确认）
@@ -371,6 +490,8 @@
     },
     "chatbox_and_words_position": {                 <-设置对话框样式
       "chatbox": "./res/ui/chatbox.png",            <-对话框样式的图片
+      "text_color": [255, 255, 255],                <-未读文本颜色，RGB（选填，默认白）
+      "readed_text_color": [255, 255, 0],           <-已读文本颜色，RGB（选填，默认白）
       "name_show_region": [[76,60],[270,149]],      <-说话人名字在对话框样式上显示的区域（左上及右下）
       "words_show_region": [[310,60],[805,149]]     <-字幕在对话框样式上显示的区域（左上及右下）
     },
@@ -391,7 +512,12 @@
   },
   "menu": {                                         <-主菜单（选填）
     "bg": "./res/menu/bg.png",                      <-主菜单背景图片
-    "change": [[255, 255, 255], "gradient"],        <-主菜单出现的转场效果，[颜色, 效果名]，程序取第2个元素
+    "bgm": {                                         <-主菜单背景音乐（选填）
+      "bgm": "./res/audio/bgm_menu.mp3",             <-音乐文件路径
+      "in": "normal",                                <-入场效果：normal（直接播）或 gradient（淡入）
+      "out": "gradient"                              <-退场效果：normal（直接停）或 gradient（淡出）
+    },
+    "change": [[0, 0, 0], "gradient"],        <-主菜单出现的转场效果，[颜色, 效果名]，程序取第2个元素
     "title": {"zh": "./res/menu/title.png"},        <-标题图片，按语言标签给图，当前语言无图则回退 zh
     "button": "./res/menu/button.png",              <-按钮普通样式图片
     "button_touched": "./res/menu/button_touched.png",  <-按钮悬停/按下样式图片
@@ -445,13 +571,29 @@
     "backgrounds": {                <-设置背景标签，及其对应的背景图片
       "公园": "./res/bg/park.png",
       "天空": "./res/bg/sky.png",
-      "咖啡馆": "./res/bg/cafe.png"
+      "咖啡馆": "./res/bg/cafe.png",
+      "家_主角": "./res/bg/home_main.png"
     },
-    "storyline_id": {               <-故事线标签及初始值，程序取最大值的故事线进入
-      "main": 1.0
+    "bgm": {                        <-剧情 BGM 定义表（选填），场景级 bgm 操作通过 id 引用
+      "bgm1": "./res/audio/bgm_1.mp3",
+      "bgm2": "./res/audio/bgm_2.mp3",
+      "bgm3": "./res/audio/bgm_3.mp3"
+    },
+    "selection_button": {           <-选项按钮外观（选填）
+      "text_color": [255, 255, 255],  <-选项文字颜色，RGB
+      "normal": "./res/ui/selection.png",        <-按钮普通状态图片
+      "touched": "./res/ui/selection_touched.png"  <-按钮悬停状态图片
+    },
+    "storyline_settings": {         <-故事线配置（选填）：开局主线、选线阈值、各分支初始分
+      "main_storyline": "main",     <-主线标签（游戏开始首先播放的故事线）
+      "score_gap": 0.5,             <-选线判定阈值（judge 路由用）
+      "storyline_id_score": {       <-各分支线初始分数（计分用，选项 score 会累加）
+        "main": 1.0,
+        "girl": 1.0
+      }
     },
     "story": {                                                            <-故事剧情，以及各故事线、页、场景的设置
-      "main": {                                                           <-上面"storyline_id"中的故事线标签，此为"main"，并设置此故事线的剧情
+      "main": {                                                           <-上面"storyline_settings"中"main_storyline"指定的故事线标签，此为"main"，并设置此故事线的剧情
         "1": [{                                                           <-key为页数，从1开始。注意，key的类型为字符串。
           "clear_all": true,                                              <-是否清空上一页的所有内容，true为是，false为否。每一个故事线的第一页的"clear_all"都必须为true。
           "change": "gradient",                                           <-设置转场效果，这里的"gradient"代表效果为渐变
@@ -469,7 +611,11 @@
               "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
               "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
             }
-          }
+          },
+          "bgm": [                                                        <-场景级 BGM 操作（选填），按顺序执行
+            {"id": "", "out": "gradient"},                              <-空 id 表示停止当前 BGM，out 为退场效果（淡出）
+            {"id": "bgm1", "in": "normal"}                              <-播放 bgm1（id 来自上方 bgm 定义表），in 为入场效果（直接播）
+          ]
         }],
         "2": [{                                                           <-第2页
           "clear_all": false,
@@ -480,6 +626,15 @@
               "en": "Hello, is this seat taken?",
               "ja": "こんにちは、ここに誰か座っていますか？",
               "ru": "Здравствуйте, это место занято?"
+            }
+          },
+          "audio": {                                                      <-场景级音频（选填）：语音/音效，组内并行、组间顺序播完
+            "json_mode": "normal",                                       <-解析模式 normal：play_in_order 为多语言字典，只取当前语言
+            "play_in_order": {
+              "zh": [["./res/audio/audio_girl_main_2_zh.wav"]],           <-二维列表：组间顺序、组内并行
+              "en": [["./res/audio/audio_girl_main_2_en.wav"]],
+              "ja": [["./res/audio/audio_girl_main_2_ja.wav"]],
+              "ru": [["./res/audio/audio_girl_main_2_ru.wav"]]
             }
           }
         }],
@@ -537,6 +692,10 @@
               "ja": "ありがとう。いつも一人でここに座っているのを見かけますが、何か考えているんですか？",
               "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
             }
+          },
+          "audio": {                                                      <-场景级音频（选填）
+            "json_mode": "judge",                                        <-解析模式 judge：play_in_order 为模板二维列表
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "6": [{                               <-第6页
@@ -583,6 +742,10 @@
               "ja": "気分転換に来ました。最近勉強が忙しくて、リラックスが必要なんです。",
               "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
             }
+          },
+          "audio": {                                                      <-场景级音频（选填）
+            "json_mode": "judge",
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "9": [{                                               <-第9页
@@ -665,6 +828,10 @@
               "ja": "いいですね、ぜひ！",
               "ru": "Хорошо, с удовольствием!"
             }
+          },
+          "audio": {                                                      <-场景级音频（选填）
+            "json_mode": "judge",
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "12": [{
@@ -713,7 +880,11 @@
         "15": [{                                                           <-第15页：切换背景到咖啡馆
           "clear_all": true,
           "change": "gradient",
-          "bg": "咖啡馆"
+          "bg": "咖啡馆",
+          "bgm": [                                                        <-场景级 BGM 操作（选填）
+            {"id": "bgm1", "out": ["gradient", 0.5]},                 <-停止 bgm1：out 列表写法，渐变 0.5 秒淡出
+            {"id": "bgm2", "in": "normal", "delay": 0.5}              <-延迟 0.5 秒后播放 bgm2（in 直接播）
+          ]
         }],
         "16": [{                                                           <-第16页：恢复对话框并让角色出场
           "clear_all": false,
@@ -738,12 +909,39 @@
               "ja": "よくここに来るんですか？",
               "ru": "Вы часто сюда приходите?"
             }
+          },
+          "audio": {                                                      <-场景级音频（选填）
+            "json_mode": "judge",                                        <-解析模式 judge：play_in_order 为模板二维列表
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]  <-<line>/<page>/<lang_id> 会被替换；当前语言无文件时回退 default_audio_lang_id
+          }
+        }],
+        "17": [{                                                          <-第17页：选择场景（选项页）
+          "clear_all": false,
+          "chatbox": {                                                     <-选项页通常隐藏对话框
+            "visible": false,
+            "change": "gradient"
+          },
+          "selection": {                                                   <-选择场景：显示选项，等待玩家点击后跳转
+            "change": "gradient",                                          <-选项出现的转场效果
+            "selection": [                                                 <-选项列表
+              {
+                "text": {"zh": "是的，我经常来", "en": "Yes, I come here often", "ja": "うん、よく来てるよ", "ru": "Да, я часто сюда прихожу"},  <-选项文字（按语言标签）
+                "score": ["main", 0.5],                                    <-选中后累加到"main"线的分数（计分用）
+                "next": {"direct": ["main", "18"]}                       <-选中后跳转到 main 线第18页
+              },
+              {
+                "text": {"zh": "没有，这是我第一次来", "en": "No, this is my first time", "ja": "いや、初めて来たんだ", "ru": "Нет, я здесь впервые"},
+                "score": ["girl", 0.5],
+                "next": {"direct": ["cafe_girl", "1"]}                   <-跳转到 cafe_girl 线第1页（分支线）
+              }
+            ]
           }
         }]
       }
     }
   }
 }
+（后续页省略：next 路由还有 "end"（结局）与 {"judge": ...}（计分判定）两种格式，以及场景级 bgm/纯色背景/空 id 角色动画等用法，均见上文规则解释。）
 
 ---
 

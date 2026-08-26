@@ -31,6 +31,20 @@ class TextDisplayWidget(QTextEdit):
         self.char_delay = 30
         self.on_display_complete = None
 
+    def set_display_color(self, rgb):
+        """设置字幕文字颜色（RGB 列表，如 [255,255,255]）。
+        用样式表覆盖默认白色；逐字 setPlainText 不受影响。
+        """
+        r, g, b = int(rgb[0]), int(rgb[1]), int(rgb[2])
+        self.setStyleSheet(f"""
+            QTextEdit {{
+                background: transparent;
+                color: rgb({r},{g},{b});
+                border: none;
+                padding: 10px;
+            }}
+        """)
+
     def set_text(self, text: str, on_complete=None):
         self.full_text = text
         self.displayed_text = ""

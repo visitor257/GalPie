@@ -15,6 +15,12 @@ def load_ui_settings_from_data(main_window):
         if "words_show_region" in chatbox_data:
             main_window.ui_settings["words_show_region"] = chatbox_data["words_show_region"]
             print(f"加载文本显示区域: {main_window.ui_settings['words_show_region']}")
+        if "text_color" in chatbox_data:
+            main_window.ui_settings["text_color"] = chatbox_data["text_color"]
+            print(f"加载文本颜色: {main_window.ui_settings['text_color']}")
+        if "readed_text_color" in chatbox_data:
+            main_window.ui_settings["readed_text_color"] = chatbox_data["readed_text_color"]
+            print(f"加载已读文本颜色: {main_window.ui_settings['readed_text_color']}")
     # ui.bottom_menu：底部菜单（剧情中对话框下方紧贴窗口底部的菜单条）
     if "bottom_menu" in ui_data:
         main_window.ui_settings["bottom_menu"] = ui_data["bottom_menu"]

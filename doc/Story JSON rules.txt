@@ -15,7 +15,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
 "settings": dictionary (optional; defaults are used when missing)
     Description: Used to configure language support, window size, title, etc. When missing or empty, the program uses defaults (language falls back to "zh", window 1280x720, title "GalPie").
-    Keys inside "settings": "language", "window_size", "window_title", "identify_code", "transition_color"
+    Keys inside "settings": "language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id"
 
     "language": dictionary (optional; defaults to "zh" when missing)
         Description: Sets the supported languages. The current format is a dictionary: {language tag: language display name}.
@@ -43,6 +43,9 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
         - After confirming a load from the main menu: likewise first fades into this color, then fades into the loaded scene.
         - When the scene is blank/cleared (no elements at all), the window background is also this color.
 
+    "default_audio_lang_id": string (optional)
+        Explanation of "default_audio_lang_id": The fallback language tag for audio. When the audio file for the current language is missing in a scene's audio config, the program falls back to the audio file of this language tag (only effective for audio with json_mode=judge; see the scene-level "audio" explanation below). When missing, there is no fallback (if the current language has no file, nothing is played).
+
 "ui": dictionary (optional; the default UI is used when missing)
     Description: Used to configure the interactive interface, such as the dialogue box and bottom menu. When missing, the default UI settings are used (default dialogue box style / name region / words region).
     Keys inside "ui": "confirm_ui", "chatbox_and_words_position", "bottom_menu"
@@ -69,11 +72,18 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "chatbox_and_words_position": dictionary (optional; the default dialogue box style and regions are used when missing)
         Description: Settings of the dialogue box style. When missing, the default dialogue box style / name region [[76,60],[270,149]] / words region [[310,60],[805,149]] are used.
-        All three keys inside it are optional, each using its default value when missing.
-        Keys inside "chatbox_and_words_position": "chatbox", "name_show_region", "words_show_region"
+        All five keys inside it are optional, each using its default value when missing.
+        Keys inside "chatbox_and_words_position": "chatbox", "text_color", "readed_text_color", "name_show_region", "words_show_region"
 
         "chatbox": string (optional; the default dialogue box style is used when missing)
             Explanation of "chatbox": The storage location of the dialogue box style (should be an image). The path should be relative to the location of the JSON file, e.g., "./res/ui/chatbox.png"
+
+        "text_color": list (optional; default [255, 255, 255] white)
+            Explanation of "text_color": The color of unread text (lines played for the first time), RGB format, three integers from 0 to 255, e.g., [255, 255, 255].
+
+        "readed_text_color": list (optional; default [255, 255, 255] white)
+            Explanation of "readed_text_color": The color of read text (lines of scenes that have already been played), RGB format, three integers from 0 to 255, e.g., [255, 255, 0].
+            The program determines whether the current scene has been read from the read history (.gpreaded): lines of read scenes use this color, lines of unread scenes use "text_color" above.
 
         "name_show_region": list (optional; the default region [[76,60],[270,149]] is used when missing)
             Explanation of elements inside "name_show_region": The list should contain two lists, representing respectively the top-left and bottom-right coordinates of the region where the speaker's name is displayed inside the dialogue box. The coordinate system is based on the image of the dialogue box style "chatbox". The top-left corner of the image is the origin (0 point); the x axis increases to the right and the y axis increases downward. Format example: [[76,60],[270,149]], meaning the pixel at (76, 60) on the dialogue box style (image) is the top-left and the pixel at (270, 149) is the bottom-right of the region where the speaker's name is displayed.
@@ -135,10 +145,23 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 "menu": dictionary (optional)
     Description: Sets the main menu (start screen). If not provided, the story starts directly on launch (playing from the first page of the current storyline) without showing a main menu.
     If provided, the main menu is shown first on launch, and the story starts only after clicking the "start" button.
-    Keys inside "menu": "bg", "change", "title", "button", "button_touched", "text_rgb", "menu_pos"
+    Keys inside "menu": "bg", "bgm", "change", "title", "button", "button_touched", "text_rgb", "menu_pos"
 
     "bg": string (optional)
         Explanation of "bg": The path of the main menu background image (relative to the JSON file), e.g., "./res/menu/bg.png".
+
+    "bgm": dictionary (optional)
+        Description: The background music of the main menu. It plays when entering the main menu and stops when leaving it.
+        Keys inside "bgm": "bgm", "in", "out"
+
+        "bgm": string (required; as long as menu.bgm is written, it must be present)
+            Explanation of "bgm": The path of the main menu background music file (relative to the JSON file), e.g., "./res/audio/bgm_menu.mp3".
+
+        "in": string (optional; defaults to playing directly)
+            Explanation of "in": The fade-in effect when the music starts playing. Supports "normal" (play directly) and "gradient" (fade in).
+
+        "out": string (optional; defaults to stopping directly)
+            Explanation of "out": The fade-out effect when the music stops (leaving the main menu). Supports "normal" (stop directly) and "gradient" (fade out).
 
     "change": list (optional)
         Explanation of "change": The transition effect when the main menu appears. Format is [[r,g,b], "gradient"],
@@ -187,7 +210,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
 "story_and_position": dictionary (required)
     Description: Sets the story content, characters, backgrounds, etc.
-    Keys inside "story_and_position": "character_and_motion", "backgrounds", "storyline_id", "story"
+    Keys inside "story_and_position": "character_and_motion", "backgrounds", "bgm", "selection_button", "storyline_settings", "story"
 
     "character_and_motion": dictionary (optional; referencing a character in a scene prints "character not defined" when missing)
         Description: Sets the characters that have sprites
@@ -224,19 +247,47 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
         <background tag>: string (required)
             Content explanation: The image file path the background points to, e.g., "公园": "./res/bg/park.png"
 
-    "storyline_id": dictionary (optional; defaults to entering the "main" storyline when missing)
-        Description: Sets the tags of the storylines
-        Explanation of keys inside "storyline_id": Custom storyline tags
+    "bgm": dictionary (optional)
+        Description: Sets the definition table of the story BGM. Scene-level bgm operations (see "bgm" inside a scene below) reference the paths here by id.
+        Explanation of keys inside "bgm": Custom BGM tags
 
-        <storyline tag>: float (required)
-            Content explanation: The magnitude of the value decides which storyline is opened. When the story starts, the program compares the values of the tags and automatically enters the storyline with the largest value.
-            For example, if {"main": 1.0, "girl": 0.5} is set here, the story will start by entering the storyline tagged "main".
-            Note: Try to avoid two tags having equal values when they are both the largest among all tags. If this situation exists, the program enters the storyline of the first such tag that appears.
-            (Note: The scene-level storyline value adjustment feature edit_storylineID_value / check_storyline from the old document is not yet implemented in the code; it is reserved only.)
+        <BGM tag>: string (required)
+            Content explanation: The audio file path the BGM points to, e.g., "bgm1": "./res/audio/bgm_1.mp3"
+
+    "selection_button": dictionary (optional)
+        Description: Sets the appearance of the option buttons in selection scenes. The default button style is used when missing.
+        Keys inside "selection_button": "text_color", "normal", "touched"
+
+        "text_color": list (optional; default [255, 255, 255] white)
+            Explanation of "text_color": The color of the option button text, RGB format.
+
+        "normal": string (optional)
+            Explanation of "normal": The path of the option button image in the normal state (not hovered), relative to the JSON file, e.g., "./res/ui/selection.png".
+
+        "touched": string (optional)
+            Explanation of "touched": The path of the option button image in the hovered state, relative to the JSON file, e.g., "./res/ui/selection_touched.png".
+
+    "storyline_settings": dictionary (optional; the main storyline defaults to "main" when missing)
+        Description: Sets the storyline configuration: the starting main storyline, the route-selection threshold, and the initial scores of the branches.
+        Keys inside "storyline_settings": "main_storyline", "score_gap", "storyline_id_score"
+
+        "main_storyline": string (optional; default "main")
+            Explanation of "main_storyline": The tag of the main storyline (the storyline played first when the game starts), e.g., "main".
+
+        "score_gap": float (optional; default 0)
+            Explanation of "score_gap": The route-selection threshold. In judge routing, if the score difference between the first and the second place >= score_gap, the first-place storyline is entered; otherwise the fallback storyline is entered (see the "next" judge format inside a scene below).
+
+        "storyline_id_score": dictionary (optional)
+            Description: The initial scores of the branch storylines (for scoring). The "score" of an option is added to the score of the corresponding storyline.
+            Explanation of keys inside "storyline_id_score": storyline tags
+
+            <storyline tag>: float (required)
+                Content explanation: The initial score of that storyline, e.g., "main": 1.0
 
     "story": dictionary (optional, but a storyline tag must correspond to a key here, otherwise that storyline has no content)
         Description: The story content of each storyline. If missing, or a storyline tag has no corresponding content, "story over" is printed when playing.
-        Explanation of keys inside "story": The storyline tags set in "storyline_id" above
+        Explanation of keys inside "story": storyline tags (e.g., "main", "cafe_girl", "girl", "end").
+        The starting main storyline is specified by "main_storyline" in "storyline_settings" above; the other storylines are entered via the "next" of an option / the "next" of a scene ("end" is the ending storyline).
 
         <storyline tag>: dictionary (required)
             Description: Story and plot content, as well as the settings of scenes and subtitles. Note that with "clear_all": false, the scene settings of the previous page continue to exist if not set again; if some part is set again, that part is replaced with the new settings (where "bg" is replaced as a whole, and "characters" is replaced tag by tag: the character tags that are set again are replaced with the new settings, while other characters that are not set are kept). You can learn more in the example JSON parsing in Part 2.
@@ -248,22 +299,26 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
                 Element inside the list: dictionary (required)
                     Description: The settings of a scene
-                    Keys inside the dictionary: "clear_all", "change", "bg", "characters", "chatbox", "content"
+                    Keys inside the dictionary: "clear_all", "change", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
 
                     "clear_all": bool (optional, default false; but the "clear_all" of the first page of every storyline must be true)
                         Description: Whether to clear the content of the previous page's scenes. true means yes, false means no. The "clear_all" of the first page of every storyline must be true, otherwise the content of the previous storyline/page will remain.
 
-                    "change": string (optional)
+                    "change": string or list (optional)
                         Explanation of "change": Sets the transition effect; by default it changes directly
                         Currently supported effects:
                             Gradient  "gradient"
+                        String form: Fill in the effect name directly, e.g., "change": "gradient".
+                        List form: two elements, the first is the effect name and the second is the effect duration in seconds (float), e.g., "change": ["gradient", 0.2] (gradient 0.2 s), "change": ["gradient", 2] (gradient 2 s).
 
-                    "bg": string (optional)
-                        Explanation of "bg": Sets the background; the content should be a background tag set in "backgrounds" above, e.g., "bg": "公园"
+                    "bg": string or dictionary (optional)
+                        Explanation of "bg": Sets the background; there are two ways to write it.
+                        String form: the content should be a background tag set in "backgrounds" above, e.g., "bg": "公园".
+                        Dictionary form: {"color": [r,g,b]} a solid-color background, i.e., the whole screen is filled with an RGB color as the background, e.g., "bg": {"color": [0, 0, 0]} (black background).
 
                     "characters": dictionary (optional)
                         Description: Sets the characters with sprites to appear on stage
-                        Explanation of keys inside "characters": The character tags set in "character_and_motion" above
+                        Explanation of keys inside "characters": The character tags set in "character_and_motion" above; the empty string "" can also be used as a key (see below)
 
                         <character tag>: dictionary (required)
                             Description: Sets the form, position, expression, zoom, animation, etc. of the character appearing on stage
@@ -303,6 +358,10 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                                     "move": list (optional)
                                         Explanation of elements inside "move": The elements are lists with no specific upper limit on the number of elements; each list contains two numbers, corresponding to the x and y coordinates. The x axis increases to the right and the y axis increases downward. The coordinates are relative to the character itself. Within the animation duration ("time"), the character moves to the relative coordinates in order. Example: to move the character left 10, then down 10, then right 10, then up 10, fill in: [[-10,0],[0,10],[10,0],[0,-10]]
 
+                        Empty-string "" character tag (key is ""): dictionary (optional)
+                            Description: An image-less empty character — no image is loaded; only "animate" is used to compute the total animation duration as the stay/wait of this scene (visually the picture stays at its current state for the animation duration). It is used only in scenes without text that need a stay (such as a black-screen transition page).
+                            Keys inside the dictionary: "animate" (optional, same format as above)
+
                     "chatbox": dictionary (optional)
                         Description: Controls the showing and hiding of the dialogue box (and the name/subtitle display regions)
                         Keys inside "chatbox": "visible", "change"
@@ -339,6 +398,66 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                             Explanation of "speaking_name": If the speaker is set in "character_and_motion" above, the character tag set there can be used directly here
                             Content explanation of "speaking_name": The character tag set in "character_and_motion" above. The program takes the title for the current language from the "name" dictionary of that character; if absent, it falls back to "zh"; if still absent, an empty string.
 
+                    "bgm": list (optional)
+                        Description: Scene-level background music operations, executed in order. The id comes from the "bgm" definition table in "story_and_position" above (the empty string "" can also be used to stop the current BGM).
+                        Explanation of elements inside the list: The elements are dictionaries; each dictionary is one BGM operation.
+                        Keys inside the dictionary: "id", "in", "out", "delay"
+
+                        "id": string (required)
+                            Explanation of "id": The BGM tag (from the "bgm" definition table in "story_and_position"); the empty string "" stops the BGM currently playing.
+
+                        "in": string or list (optional)
+                            Explanation of "in": The entrance effect when starting to play. Supports "normal" (play directly) and "gradient" (fade in); a list ["gradient", seconds] can also be filled in to specify the fade-in duration.
+
+                        "out": string or list (optional)
+                            Explanation of "out": The exit effect when stopping. Supports "normal" (stop directly) and "gradient" (fade out); a list ["gradient", seconds] can also be filled in to specify the fade-out duration.
+
+                        "delay": float (optional; default 0)
+                            Explanation of the value of "delay": The delay in seconds before execution. When greater than 0, the operation is executed later at the scheduled time; page turning does not affect already-scheduled delayed operations.
+
+                    "audio": dictionary (optional)
+                        Description: Scene-level voice/sound-effect configuration. Playback: parallel within a group, sequential between groups; when all have finished, the audio is marked as finished (can be skipped by clicking).
+                        Keys inside "audio": "json_mode", "play_in_order"
+
+                        "json_mode": string (optional; default "normal")
+                            Explanation of "json_mode": The parsing mode of the audio config. Supports:
+                            - "normal": "play_in_order" is a multi-language dictionary; only the audio list of the current language is taken. If that language has no file, nothing is played.
+                            - "judge"  : "play_in_order" is a template 2D list; <line>/<page>/<lang_id> in the file names are replaced with the current storyline/page/language. When the file of the current language is missing, it falls back to the language specified by "default_audio_lang_id" in "settings" above.
+
+                        "play_in_order": dictionary or 2D list (required; as long as "audio" is written, it must be present)
+                            Explanation of "play_in_order": The audio file list.
+                            With json_mode=normal: a multi-language dictionary whose keys are language tags and values are 2D lists (sequential between groups, parallel within a group), e.g., {"zh": [["./res/audio/a_zh.wav"]], "en": [["./res/audio/a_en.wav"]]}.
+                            With json_mode=judge: a template 2D list, e.g., [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]].
+
+                    "selection": dictionary (optional)
+                        Description: Sets a selection scene (option page). This scene only shows options and waits for the player to click before jumping.
+                        Keys inside "selection": "change", "selection"
+
+                        "change": string (optional)
+                            Explanation of "change": The transition effect when the options appear. Currently supported: gradient "gradient".
+
+                        "selection": list (required)
+                            Description: The option list.
+                            Explanation of elements inside the list: The elements are dictionaries; each dictionary is one option.
+                            Keys inside the dictionary: "text", "score", "next"
+
+                            "text": dictionary (required)
+                                Explanation of "text": The option text (by language tag), e.g., {"zh": "是的，我经常来", "en": "Yes, I come here often"}.
+
+                            "score": list (required)
+                                Explanation of "score": Two elements; the first is a storyline tag and the second is a score value. After this option is selected, this score is added to the corresponding storyline (for scoring, affecting later judge routing), e.g., ["main", 0.5].
+
+                            "next": dictionary (required)
+                                Explanation of "next": The jump route after this option is selected; the format is the same as the scene-level "next" below (e.g., {"direct": ["main", "18"]}).
+
+                    "next": string or dictionary (optional)
+                        Description: The jump route after the scene finishes playing (where to jump after this page/scene ends). If not filled in, the next scene/next page plays in order.
+                        Supported formats:
+                        - String "end": The last page of the whole story; after it finishes, the game automatically returns to the main menu.
+                        - Dictionary {"direct": [storyline, page]}: Directly jumps to the specified page of the specified storyline, e.g., {"direct": ["main", "41"]}.
+                        - Dictionary {"judge": [[candidate storyline list], [fallback]]}: A scoring-based route-selection route. The candidate storyline list may contain multiple [storyline, page] entries; the fallback is a single fixed [storyline, page]. In the judgement, the current scores of the storylines (initial values from "storyline_id_score" in "storyline_settings"; the "score" of options is added) are compared and the first place is taken: if the score difference between the first and the second place >= "score_gap", the first-place storyline is entered; otherwise the fallback is entered. Example: {"judge": [[["girl", "1"]], [["main", "41"]]]}.
+
+
 
 2. Example JSON Parsing:
 The following is the actual content of story/sample_create.json (some translation texts duplicated from above are omitted; the structure is complete).
@@ -358,7 +477,8 @@ The following is the actual content of story/sample_create.json (some translatio
     ],
     "window_title": "Sample story",     <-Window title, optional; defaults to GalPie
     "identify_code": "sample_identify",  <-Story identification code, optional
-    "transition_color": [0, 0, 0]       <-Transition color, optional; defaults to black. After clicking "Start Game" the main menu fades into this color, stays about 1.5 seconds, then fades into the story; the same happens after confirming a load from the main menu
+    "transition_color": [0, 0, 0],        <-Transition color, optional; defaults to black. After clicking "Start Game" the main menu fades into this color, stays about 1.5 seconds, then fades into the story; the same happens after confirming a load from the main menu
+    "default_audio_lang_id": "zh"          <-Audio fallback language tag, optional; when the audio file of the current language is missing, falls back to this language
   },
   "ui": {                                           <-UI settings
     "confirm_ui": {                                 <-Confirm dialog config (continue/quick load/quit confirmations)
@@ -370,6 +490,8 @@ The following is the actual content of story/sample_create.json (some translatio
     },
     "chatbox_and_words_position": {                 <-Sets the dialogue box style
       "chatbox": "./res/ui/chatbox.png",            <-The image of the dialogue box style
+      "text_color": [255, 255, 255],                <-Unread text color, RGB (optional; default white)
+      "readed_text_color": [255, 255, 0],           <-Read text color, RGB (optional; default white)
       "name_show_region": [[76,60],[270,149]],      <-The region where the speaker's name is displayed on the dialogue box style (top-left and bottom-right)
       "words_show_region": [[310,60],[805,149]]     <-The region where the subtitle is displayed on the dialogue box style (top-left and bottom-right)
     },
@@ -390,7 +512,12 @@ The following is the actual content of story/sample_create.json (some translatio
   },
   "menu": {                                         <-Main menu (optional)
     "bg": "./res/menu/bg.png",                      <-Main menu background image
-    "change": [[255, 255, 255], "gradient"],        <-Transition effect of the main menu appearing; [color, effect name]; the program takes the 2nd element
+    "bgm": {                                         <-Main menu background music (optional)
+      "bgm": "./res/audio/bgm_menu.mp3",             <-Music file path
+      "in": "normal",                                <-Entrance effect: normal (play directly) or gradient (fade in)
+      "out": "gradient"                              <-Exit effect: normal (stop directly) or gradient (fade out)
+    },
+    "change": [[0, 0, 0], "gradient"],        <-Transition effect of the main menu appearing; [color, effect name]; the program takes the 2nd element
     "title": {"zh": "./res/menu/title.png"},        <-Title image, given by language tag; falls back to zh if no image for the current language
     "button": "./res/menu/button.png",              <-Normal style image of the button
     "button_touched": "./res/menu/button_touched.png",  <-Style image of the button when hovered/pressed
@@ -405,15 +532,15 @@ The following is the actual content of story/sample_create.json (some translatio
         [115, 310],
         {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}  <-Button text (by language tag)
       ],
-      "load": [                                     <-Load game button: opens the load panel
-        [115, 390],
-        {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},  <-Button text (by language tag)
-        {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Additional config, same structure as bottom_menu.save; sets the appearance of the load panel
-      ],
       "settings": [                                 <-Settings button
         [115, 470],
         {"zh": "设置", "en": "Settings", "ja": "設定", "ru": "Настройки"},
-        {"ui_mode": "default"}                      <-Additional config (ui_mode/color/text_color/button_color)
+        {"ui_mode": "default", "color": [255, 255, 255, 217], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Additional config (panel appearance)
+      ],
+      "load": [                                     <-Load game button: opens the load panel
+        [115, 390],
+        {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},
+        {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Load panel appearance config (same as save panel)
       ],
       "quit": [                                     <-Quit game button
         [115, 550],
@@ -444,13 +571,29 @@ The following is the actual content of story/sample_create.json (some translatio
     "backgrounds": {                <-Sets the background tags and their corresponding background images
       "公园": "./res/bg/park.png",
       "天空": "./res/bg/sky.png",
-      "咖啡馆": "./res/bg/cafe.png"
+      "咖啡馆": "./res/bg/cafe.png",
+      "家_主角": "./res/bg/home_main.png"
     },
-    "storyline_id": {               <-Storyline tags and initial values; the program enters the storyline with the largest value
-      "main": 1.0
+    "bgm": {                        <-Story BGM definition table (optional); scene-level bgm operations reference by id
+      "bgm1": "./res/audio/bgm_1.mp3",
+      "bgm2": "./res/audio/bgm_2.mp3",
+      "bgm3": "./res/audio/bgm_3.mp3"
+    },
+    "selection_button": {           <-Option button appearance (optional)
+      "text_color": [255, 255, 255],  <-Option text color, RGB
+      "normal": "./res/ui/selection.png",        <-Button normal-state image
+      "touched": "./res/ui/selection_touched.png"  <-Button hover-state image
+    },
+    "storyline_settings": {         <-Storyline config (optional): starting main storyline, selection threshold, initial scores of branches
+      "main_storyline": "main",     <-Main storyline tag (the storyline played first when the game starts)
+      "score_gap": 0.5,             <-Selection threshold (for judge routing)
+      "storyline_id_score": {       <-Initial scores of the branch storylines (for scoring; option score is added)
+        "main": 1.0,
+        "girl": 1.0
+      }
     },
     "story": {                                                            <-The story plot, and the settings of storylines, pages and scenes
-      "main": {                                                           <-The storyline tag in "storyline_id" above; this is "main", and the plot of this storyline is set here
+      "main": {                                                           <-The storyline tag specified by "main_storyline" in "storyline_settings" above; this is "main", and the plot of this storyline is set here
         "1": [{                                                           <-The key is the page number, starting from 1. Note: the type of the key is a string.
           "clear_all": true,                                              <-Whether to clear all content of the previous page; true means yes, false means no. The "clear_all" of the first page of every storyline must be true.
           "change": "gradient",                                           <-Sets the transition effect; "gradient" here means the effect is a gradient
@@ -468,7 +611,11 @@ The following is the actual content of story/sample_create.json (some translatio
               "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
               "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
             }
-          }
+          },
+          "bgm": [                                                        <-Scene-level BGM operations (optional), executed in order
+            {"id": "", "out": "gradient"},                              <-Empty id stops the current BGM; out is the exit effect (fade out)
+            {"id": "bgm1", "in": "normal"}                              <-Plays bgm1 (id from the bgm definition table above); in is the entrance effect (play directly)
+          ]
         }],
         "2": [{                                                           <-Page 2
           "clear_all": false,
@@ -479,6 +626,15 @@ The following is the actual content of story/sample_create.json (some translatio
               "en": "Hello, is this seat taken?",
               "ja": "こんにちは、ここに誰か座っていますか？",
               "ru": "Здравствуйте, это место занято?"
+            }
+          },
+          "audio": {                                                      <-Scene-level audio (optional): voice/sound effects; parallel within a group, sequential between groups until finished
+            "json_mode": "normal",                                       <-Parsing mode normal: play_in_order is a multi-language dictionary; only the current language is taken
+            "play_in_order": {
+              "zh": [["./res/audio/audio_girl_main_2_zh.wav"]],           <-2D list: sequential between groups, parallel within a group
+              "en": [["./res/audio/audio_girl_main_2_en.wav"]],
+              "ja": [["./res/audio/audio_girl_main_2_ja.wav"]],
+              "ru": [["./res/audio/audio_girl_main_2_ru.wav"]]
             }
           }
         }],
@@ -536,6 +692,10 @@ The following is the actual content of story/sample_create.json (some translatio
               "ja": "ありがとう。いつも一人でここに座っているのを見かけますが、何か考えているんですか？",
               "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
             }
+          },
+          "audio": {                                                      <-Scene-level audio (optional)
+            "json_mode": "judge",                                        <-Parsing mode judge: play_in_order is a template 2D list
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "6": [{                               <-Page 6
@@ -582,6 +742,10 @@ The following is the actual content of story/sample_create.json (some translatio
               "ja": "気分転換に来ました。最近勉強が忙しくて、リラックスが必要なんです。",
               "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
             }
+          },
+          "audio": {                                                      <-Scene-level audio (optional)
+            "json_mode": "judge",
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "9": [{                                               <-Page 9
@@ -664,6 +828,10 @@ The following is the actual content of story/sample_create.json (some translatio
               "ja": "いいですね、ぜひ！",
               "ru": "Хорошо, с удовольствием!"
             }
+          },
+          "audio": {                                                      <-Scene-level audio (optional)
+            "json_mode": "judge",
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
           }
         }],
         "12": [{
@@ -712,7 +880,11 @@ The following is the actual content of story/sample_create.json (some translatio
         "15": [{                                                           <-Page 15: switch background to the café
           "clear_all": true,
           "change": "gradient",
-          "bg": "咖啡馆"
+          "bg": "咖啡馆",
+          "bgm": [                                                        <-Scene-level BGM operations (optional)
+            {"id": "bgm1", "out": ["gradient", 0.5]},                 <-Stops bgm1: "out" list form, fade out over 0.5 seconds
+            {"id": "bgm2", "in": "normal", "delay": 0.5}              <-Plays bgm2 after a 0.5-second delay ("in" plays directly)
+          ]
         }],
         "16": [{                                                           <-Page 16: restore the dialogue box and bring the character on stage
           "clear_all": false,
@@ -737,25 +909,80 @@ The following is the actual content of story/sample_create.json (some translatio
               "ja": "よくここに来るんですか？",
               "ru": "Вы часто сюда приходите?"
             }
+          },
+          "audio": {                                                      <-Scene-level audio (optional)
+            "json_mode": "judge",                                        <-Parsing mode judge: play_in_order is a template 2D list
+            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]  <-<line>/<page>/<lang_id> are replaced; falls back to default_audio_lang_id when the current language has no file
+          }
+        }],
+        "17": [{                                                          <-Page 17: selection scene (option page)
+          "clear_all": false,
+          "chatbox": {                                                     <-The dialogue box is usually hidden on an option page
+            "visible": false,
+            "change": "gradient"
+          },
+          "selection": {                                                   <-Selection scene: shows options and waits for the player to click before jumping
+            "change": "gradient",                                          <-The transition effect when the options appear
+            "selection": [                                                 <-The option list
+              {
+                "text": {"zh": "是的，我经常来", "en": "Yes, I come here often", "ja": "うん、よく来てるよ", "ru": "Да, я часто сюда прихожу"},  <-Option text (by language tag)
+                "score": ["main", 0.5],                                    <-The score added to the "main" storyline after selection (for scoring)
+                "next": {"direct": ["main", "18"]}                       <-After selection, jump to page 18 of the main storyline
+              },
+              {
+                "text": {"zh": "没有，这是我第一次来", "en": "No, this is my first time", "ja": "いや、初めて来たんだ", "ru": "Нет, я здесь впервые"},
+                "score": ["girl", 0.5],
+                "next": {"direct": ["cafe_girl", "1"]}                   <-Jump to page 1 of the cafe_girl storyline (branch storyline)
+              }
+            ]
           }
         }]
       }
     }
   }
 }
-
+(The following pages are omitted: the "next" route also has "end" (ending) and {"judge": ...} (score-based judgement) formats, as well as scene-level bgm / solid-color backgrounds / empty-character animations, etc.; all of them are explained in the rules above.)
 
 ---
 
 ## Save System (.gpsave)
 
-- Slot saves: `saves/{title}_{identify_code}_SLOT{index}.gpsave`, where index is the slot number (save panel row 1 = 0-3, row 2 = 4-7; with future paging, page 2 = 8-15, and so on).
+- Slot saves: `saves/{title}_{identify_code}_SLOT{index}.gpsave`, where index is the slot number (save panel row 1 = 0-3, row 2 = 4-7; page 2 = 8-15, and so on).
 - Quick save: `saves/{title}_{identify_code}_QSAVE.gpsave`, index is fixed at -1; it is not shown in the save panel and is always listed first when loading (F3).
 - A save file is a pickle-serialized list of 11 elements: title, identify code, thumbnail PNG, storyline config, current storyline, current page-1, speaker, words (multi-language dict), date, time, slot index.
-- Save panel: clicking an empty slot saves to that slot; clicking a slot that has a save asks "Confirm overwrite?" (after confirming, the old save is deleted and the new one is saved); the trash button asks "Confirm delete?".
-- Load panel: clicking a slot that has a save asks "Confirm load?"; after confirming, the game fades into the transition color and then enters the loaded scene. The load panel has no "+ add page" button on the bottom toolbar; the trash (delete) icons ARE shown in the load panel too, and deleting a save uses the same confirmation as the save panel.
-- Paging: each page shows 8 slots; the toolbar at the bottom-left has ◀ page-prev, the page number (current/total), ▶ page-next (right-paging is circular: on an empty page it returns to page 1, on page 1 paging left goes to the last page), and "+" (only in the save panel) adds a page; the total page count is derived from the largest existing slot index (max_index // 8 + 1, at least 1). The bottom-right has "Main Menu" and "Back" buttons.
-- When a panel is opened, the bottom menu bar and the main-menu buttons are hidden, and auto-play / skip are paused; they resume after returning to the story.
-- Bottom menu bar buttons, from right to left: Log, Settings, Skip (▷▷), Auto-play (▷), Save, Quick Save (Q.Save).
-- Hotkeys: Space / Enter / left mouse button = advance (during typewriter display, clicking completes the display); A = auto-play; S = skip; F2 = save (normal save to slot 0); F3 = load latest save (quick save first); Esc = close the currently open panel.
 - Settings file: `saves/{title}_{identify_code}_SETTINGS.gpsetting` (contents: title, identify code, resolution, language).
+
+### Save panel / Load panel
+
+The save panel and the load panel are the same panel component (SavePanel); the appearance is determined by `ui.bottom_menu.save` (save) or the additional config of `menu.menu_pos.load` on the main menu (load); the two config structures are the same.
+
+- **Save panel** (click the bottom "Save" button during the story, or press F2 for quick save):
+  - The panel shows 8 save slots (2 rows x 4 columns); each slot shows the thumbnail, line text, date and time; an empty slot shows the gray "SAVE" text.
+  - Click an empty slot -> save directly to that slot; click a slot that has a save -> "Confirm overwrite?" appears; after confirming, the old save is deleted and the new one is saved.
+  - A slot that has a save has a trash button at the bottom-right; clicking it shows "Confirm delete?"; click "Confirm" to delete that save, or click "Cancel" / click elsewhere to exit the confirmation.
+- **Load panel** (click the "Load" button on the main menu):
+  - The layout is the same as the save panel, except the title at the top-left is "Load Game" and the bottom toolbar has no "+" button; slots that have saves also have a trash button at the bottom-right, which can delete saves (the delete confirmation works the same as the save panel).
+  - Click a slot that has a save -> "Confirm load?" appears; after confirming, the save is loaded and the story is entered (first fading into transition_color, then into the scene); an empty slot does nothing.
+- **Paging**: the bottom toolbar of the panel has ◀ page-prev ▶ and the page number "current/total" on the left, and "Main Menu" and "Back" buttons on the right. Each page shows 8 slots; the page count is derived from the largest save slot index (index 8-15 is page 2, and so on); the "+" button can add a page (save panel only). Paging is circular: page 1 paging left goes to the last page, and the last page paging right returns to page 1.
+- When a panel is opened, the bottom menu bar and the main-menu buttons are hidden and restored after closing; opening a panel pauses auto-play / skip.
+
+### Bottom menu bar buttons
+
+From right to left during the story:
+
+1. **Log**: opens the backlog panel (shows the lines that have been displayed in the current playthrough, translated according to the current language).
+2. **Settings**: opens the settings panel (language switching, resolution switching; the settings are saved to the .gpsetting file).
+3. **Skip (▷▷)**: quickly skips the story (each page only builds the first scene, does not show dialogue, and turns the page immediately).
+4. **Auto-play (▷)**: advances the story automatically.
+5. **Save**: opens the save panel.
+6. **Quick Save (Q.Save)**: saves directly to the quick save slot (overwriting the old quick save).
+
+Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening a panel pauses both, and they resume after returning to the story.
+
+### Hotkeys
+
+- Space / Enter / left mouse button: advance the story (during typewriter display, clicking completes the display)
+- A: auto-play toggle
+- S: skip toggle
+- F2: save
+- F3: load the latest save (quick save first)

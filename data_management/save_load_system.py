@@ -5,7 +5,7 @@ from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QPainterPath
 
 
 def _render_scene_thumbnail(controller):
-    """按当前页初始快照（controller.page_state）离屏渲染画面，返回 PNG 字节（供存档 data[2] 使用）。
+    """按当前实时画面（controller.scene_state）离屏渲染画面，返回 PNG 字节（供存档 data[2] 使用）。
     不依赖窗口截图，与运行时渲染逻辑一致：
       - 默认逻辑分辨率画布（logical_size）
       - 背景 KeepAspectRatioByExpanding 缩放铺满 + 居中偏移
@@ -24,8 +24,8 @@ def _render_scene_thumbnail(controller):
     try:
         story_data = controller.story_data or {}
         spa = story_data.get("story_and_position", {})
-        # 快照：翻页时记录的当前页初始画面（bg id / 角色最终配置 / chatbox 可见性）
-        snap = getattr(controller, "page_state", {}) or {}
+        # 快照：当前实时画面（bg id / 角色最终配置 / chatbox 可见性）
+        snap = getattr(controller, "scene_state", {}) or {}
         bg_name = snap.get("bg")
         characters = snap.get("characters", {}) or {}
 
@@ -106,7 +106,8 @@ def save_settings_file(controller):
       data[1] = identify_code（净化后）
       data[2] = 分辨率（"WxH" 字符串；全屏时为 FULLSCREEN_KEY "fullscreen"）
       data[3] = 语言（语言 id，如 zh/en/ja）
-    设置一旦变更（分辨率/语言）即调用本函数写盘。
+      data[4] = 跳过已读文本开关（bool，controller.skip_readed）
+    设置一旦变更（分辨率/语言/跳过已读）即调用本函数写盘。
     """
     settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
@@ -118,7 +119,7 @@ def save_settings_file(controller):
     else:
         res = "{}x{}".format(controller.window_size[0], controller.window_size[1])
     lang = controller.language
-    data = [story_name, story_id, res, lang]
+    data = [story_name, story_id, res, lang, bool(getattr(controller, "skip_readed", True))]
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{story_name}_{story_id}_SETTINGS.gpsetting", "wb") as f:
@@ -199,6 +200,7 @@ def save_game(controller, slot_index=0):
         "bg": controller.page_state.get("bg"),
         "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
         "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
+        "bgm": list(controller.page_state.get("bgm", [])),
     })
     # data[12]：计分（分支分数，内存态随剧情增减），读档恢复。
     # 无计分机制的剧情（controller 无 scores 属性）存空 dict，不影响旧档兼容。
@@ -264,6 +266,7 @@ def quick_save_game(controller):
         "bg": controller.page_state.get("bg"),
         "characters": {k: dict(v) for k, v in controller.page_state.get("characters", {}).items()},
         "chatbox_visible": bool(controller.page_state.get("chatbox_visible", True)),
+        "bgm": list(controller.page_state.get("bgm", [])),
     })
     # data[12]：计分（与 save_game 一致，见 save_game 注释）
     data.append(dict(getattr(controller, "scores", None) or {}))
@@ -344,6 +347,7 @@ def load_save(controller, load_file_name=None):
         "bg": snapshot.get("bg"),
         "characters": {k: dict(v) for k, v in (snapshot.get("characters") or {}).items()},
         "chatbox_visible": bool(snapshot.get("chatbox_visible", True)),
+        "bgm": list(snapshot.get("bgm") or []),
     }
     if controller.is_in_menu:
         # 主菜单读档：此时不播放（is_in_menu 会阻止），画面恢复交给 _show_loaded_scene

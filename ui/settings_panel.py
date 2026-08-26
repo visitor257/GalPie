@@ -15,9 +15,10 @@
 import html as _html
 from PySide6.QtWidgets import (
     QGraphicsPathItem, QGraphicsOpacityEffect, QGraphicsTextItem,
-    QGraphicsProxyWidget, QTextEdit, QScrollBar, QGraphicsRectItem
+    QGraphicsProxyWidget, QTextEdit, QScrollBar, QGraphicsRectItem,
+    QGraphicsEllipseItem
 )
-from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF
+from PySide6.QtCore import QRectF, QPropertyAnimation, QEasingCurve, Qt, QPointF, QVariantAnimation
 from PySide6.QtGui import QColor, QBrush, QPen, QFont, QPainter, QPixmap, QPainterPath, QPainterPathStroker, QTextOption
 
 # 预设默认配置（木色圆角矩形）
@@ -75,12 +76,16 @@ LANGUAGE_LABEL = {"zh": "语言", "en": "Language", "ja": "言語", "ru": "Яз�
 FULLSCREEN_LABEL = {"zh": "全屏", "en": "Fullscreen", "ja": "全画面", "ru": "Во весь экран"}
 FULLSCREEN_KEY = "fullscreen"  # 内部标记：全屏选项（显示时用语言化文本）
 
+# "跳过已读文本"开关标签（多语言；预设 UI 支持 zh/en/ja，ru 回落 zh）
+SKIP_READED_LABEL = {"zh": "跳过已读文本", "en": "Skip Read Text", "ja": "既読スキップ", "ru": "Пропустить прочитанный текст"}
+
 
 class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
     def __init__(self, scene, config=None, language="zh", current_resolution="1280x720",
-                 resolution_options=None, language_options=None, parent=None):
+                 resolution_options=None, language_options=None, parent=None,
+                 skip_readed=False):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         # JSON 自定义配色（menu_pos.settings 第 3 项，default 预设模式也可配）：
@@ -131,6 +136,11 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_value = None    # 当前分辨率值文本
         self._resolution_prev = None     # 上一个分辨率按钮
         self._resolution_next = None     # 下一个分辨率按钮
+
+        self._skip_readed_checked = bool(skip_readed)  # "跳过已读文本"开关状态（随 .gpsetting 持久化）
+        self._skip_readed_label = None     # "跳过已读文本" 标签
+        self._skip_readed_toggle = None    # 开关控件
+        self._skip_readed_handler = None   # 开关变更回调（main_window 注册，保存设置）
 
         # 初始占位尺寸（后续 center_in_scene 会按场景重新计算）
         self._size = [100, 100]
@@ -463,6 +473,64 @@ class SettingsPanel(QGraphicsPathItem):
         val_x = gap_mid - rv.width() / 2.0
         self._resolution_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
 
+    def _build_skip_readed(self):
+        """在右列创建"跳过已读文本"开关设置项（右列第 2 个设置项）。
+        布局：
+          - 标签"跳过已读文本"（幼圆加粗）在右列内左侧
+          - 右侧一个开关（ToggleSwitchItem，开=绿/关=灰，点击切换）
+        行位置与左列第 2 项（分辨率）对齐：标题下方 item_gap。
+        """
+        _, right_rect = self._column_rects()
+        inner = self.config["border_offset"] + self.config["border_width"]
+        top = self.config.get("title_top_margin", 15)
+        item_gap = self.config.get("item_gap", 24)
+        item_left_margin = self.config.get("item_left_margin", 10)
+
+        # 第 1 项（标题）底部位置：inner+top + 标题高度（与左列分辨率项同行）
+        title_h = self._title_item.boundingRect().height() if self._title_item else 0
+        row_y = inner + top + title_h + item_gap
+        row_h = 32
+
+        label_text = SKIP_READED_LABEL.get(self.language, SKIP_READED_LABEL["zh"])
+        # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
+        self._skip_readed_label = QGraphicsTextItem()
+        self._skip_readed_label.setPlainText(label_text)
+        tc = self._text_rgb()
+        self._skip_readed_label.setDefaultTextColor(QColor(tc[0], tc[1], tc[2]))
+        lf = QFont("YouYuan")
+        lf.setBold(True)
+        lf.setPointSize(self.config.get("res_label_size", 18))
+        self._skip_readed_label.setFont(lf)
+        self._skip_readed_label.setAcceptHoverEvents(False)
+        self._skip_readed_label.setTextInteractionFlags(Qt.NoTextInteraction)  # 禁止文本交互，避免拦截鼠标
+        self._skip_readed_label.setCursor(Qt.ArrowCursor)  # 悬停保持箭头，避免 IBeam
+        self._skip_readed_label.setParentItem(self)
+        self._skip_readed_label.setTextWidth(-1)
+        rl = self._skip_readed_label.boundingRect()
+        label_x = right_rect.left() + item_left_margin
+        self._skip_readed_label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
+
+        # 开关：放在右列右侧（与语言/分辨率项的 ◀ ▶ 按钮同侧对齐）
+        sw_w = 56
+        sw_h = 28
+        sw_x = right_rect.right() - item_left_margin - sw_w
+        sw_y = row_y + (row_h - sw_h) / 2
+        self._skip_readed_toggle = ToggleSwitchItem(
+            QRectF(sw_x, sw_y, sw_w, sw_h), "skip_readed", self,
+            checked=self._skip_readed_checked)
+        self._skip_readed_toggle.setPos(sw_x, sw_y)  # 轨道局部坐标 (0,0) 起点，这里定位到面板位置
+        self._skip_readed_toggle.set_click_handler(self._on_skip_readed_toggled)
+
+    def _on_skip_readed_toggled(self, checked: bool):
+        """开关状态变更：记录状态并回调（main_window 接入保存设置/功能）。"""
+        self._skip_readed_checked = bool(checked)
+        if self._skip_readed_handler:
+            self._skip_readed_handler(self._skip_readed_checked)
+
+    def set_skip_readed_handler(self, handler):
+        """绑定开关变更回调（main_window 中调用，保存设置到 .gpsetting）。"""
+        self._skip_readed_handler = handler
+
     def _on_res_prev(self):
         idx = self._res_options.index(self.current_resolution)
         self.current_resolution = self._res_options[(idx - 1) % len(self._res_options)]
@@ -506,6 +574,14 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_value = None
         self._resolution_prev = None
         self._resolution_next = None
+
+    def _clear_skip_readed_items(self):
+        """移除"跳过已读文本"设置项的标签与开关（尺寸变化/关闭/语言切换重建时调用）。"""
+        for item in (self._skip_readed_label, self._skip_readed_toggle):
+            if item is not None and item.scene():
+                self._scene.removeItem(item)
+        self._skip_readed_label = None
+        self._skip_readed_toggle = None
 
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
@@ -573,10 +649,12 @@ class SettingsPanel(QGraphicsPathItem):
         self._title_item = None
         self._clear_resolution_items()
         self._clear_language_items()
+        self._clear_skip_readed_items()
         self._build_buttons()
         self._build_title()
         self._build_resolution()
         self._build_language()
+        self._build_skip_readed()
         x = scene_rect.left() + (w_avail - w) / 2
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
@@ -598,6 +676,15 @@ class SettingsPanel(QGraphicsPathItem):
     def fade_out(self, on_finished=None, duration=None):
         """渐变消失：透明度 100 -> 0。动画结束后调用 on_finished（若有），
         并保留面板（由调用方在回调中移除以配合后续动画）。"""
+        # stop any leftover animation first (e.g. fade_in still running), so its
+        # finished signal cannot fire later and confuse the fade-out callback
+        if self._anim is not None:
+            try:
+                self._anim.stop()
+                self._anim.disconnect()
+            except Exception:
+                pass
+            self._anim = None
         if duration is None:
             duration = self.config["fade_duration"]
         effect = self.graphicsEffect()
@@ -629,6 +716,7 @@ class SettingsPanel(QGraphicsPathItem):
             self._title_item = None
         self._clear_resolution_items()
         self._clear_language_items()
+        self._clear_skip_readed_items()
         if self.scene() == scene:
             scene.removeItem(self)
 
@@ -648,6 +736,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._title_item = None
         self._clear_resolution_items()
         self._clear_language_items()
+        self._clear_skip_readed_items()
         # 重建底部按钮（文字随语言变）
         for b in list(self.buttons):
             label = getattr(b, "_text_label", None)
@@ -660,6 +749,7 @@ class SettingsPanel(QGraphicsPathItem):
         self._build_title()
         self._build_resolution()
         self._build_language()
+        self._build_skip_readed()
 
     def _btn_text_normal_rgb(self):
         """按钮正常态文字色：有 button_color 时按亮度（sum<383 白 / ≥383 黑）；
@@ -804,6 +894,100 @@ class SettingsButtonItem(QGraphicsPathItem):
             return
         if event.button() == Qt.LeftButton and self.click_handler:
             self.click_handler()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
+class ToggleSwitchItem(QGraphicsPathItem):
+    """开关控件（设置面板设置项用）：iOS 风格圆角轨道 + 正圆滑块。
+    点击一下即切换开/关（滑块带左右滑动动画，视觉像拖拽，实际无需拖拽）。
+    状态变更通过 click_handler(checked) 回调（功能接入方注册）。
+    注意：动画用 QVariantAnimation 手动 setPos，不能把 QGraphicsItem
+    传给 QPropertyAnimation（非 QObject，会卡死）。
+    """
+    _ON_COLOR = [76, 175, 80]      # 开：亮绿轨道
+    _OFF_COLOR = [176, 176, 176]   # 关：灰轨道
+    _SLIDE_MS = 150                # 滑块滑动动画时长 (ms)
+
+    def __init__(self, rect: QRectF, key: str, parent=None, checked=False,
+                 on_color=None, off_color=None):
+        # 轨道 path 以局部坐标 (0,0) 为起点（只取宽高），
+        # 位置由调用方 setPos 定位；子项滑块坐标也基于局部 (0,0)，两者才能对齐。
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, rect.width(), rect.height()),
+                            rect.height() / 2.0, rect.height() / 2.0)
+        super().__init__(path, parent)
+        self.key = key
+        self.checked = bool(checked)
+        self.click_handler = None
+        self._rect = rect
+        self._on_color = list(on_color) if on_color else list(self._ON_COLOR)
+        self._off_color = list(off_color) if off_color else list(self._OFF_COLOR)
+        self._slide_anim = None
+        self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.ArrowCursor)  # 悬停保持箭头光标
+        # 滑块（子项，正圆），轨道内缩 pad；滑块带细边框增加立体感
+        pad = 2
+        knob_d = rect.height() - 2 * pad
+        self._knob = QGraphicsEllipseItem(0, 0, knob_d, knob_d, self)
+        self._knob.setBrush(QBrush(QColor(255, 255, 255)))
+        self._knob.setPen(QPen(QColor(0, 0, 0, 50), 1))
+        self._knob.setPos(pad, pad)
+        self._update_visual(animate=False)
+
+    def _knob_x(self):
+        """滑块目标 x：开=右端，关=左端（轨道内缩 pad）。统一返回 float，
+        避免 QVariantAnimation 起止值类型不一致（float vs int）导致动画不发射。"""
+        pad = 2
+        knob_w = self._knob.boundingRect().width()
+        return float(self._rect.width() - knob_w - pad) if self.checked else float(pad)
+
+    def _update_visual(self, animate=True):
+        c = self._on_color if self.checked else self._off_color
+        self.setBrush(QBrush(QColor(c[0], c[1], c[2])))
+        self.setPen(QPen(QColor(0, 0, 0, 40), 1))  # 轨道细边框，增强轮廓
+        target_x = self._knob_x()
+        if animate:
+            # 滑块平滑滑动到另一侧（视觉像拖拽）；QVariantAnimation 只传数值，
+            # 手动 setPos，避免 QPropertyAnimation 对 QGraphicsItem 的未定义行为
+            if self._slide_anim is not None:
+                try:
+                    self._slide_anim.stop()
+                except Exception:
+                    pass
+            start_x = self._knob.pos().x()
+            y = self._knob.pos().y()
+            anim = QVariantAnimation()
+            anim.setDuration(self._SLIDE_MS)
+            anim.setStartValue(start_x)
+            anim.setEndValue(target_x)
+            anim.setEasingCurve(QEasingCurve.InOutQuad)
+            anim.valueChanged.connect(lambda v: self._knob.setPos(v, y))
+            anim.start()
+            self._slide_anim = anim
+        else:
+            self._knob.setPos(target_x, self._knob.pos().y())
+
+    def set_checked(self, checked: bool):
+        if self.checked != bool(checked):
+            self.checked = bool(checked)
+            self._update_visual()
+
+    def toggle(self):
+        self.set_checked(not self.checked)
+        if self.click_handler:
+            self.click_handler(self.checked)
+
+    def set_click_handler(self, handler):
+        self.click_handler = handler
+
+    def mousePressEvent(self, event):
+        if not self.isVisible():
+            event.ignore()
+            return
+        if event.button() == Qt.LeftButton:
+            self.toggle()
             event.accept()
             return
         super().mousePressEvent(event)

@@ -71,6 +71,8 @@ class GalGameWindow(QMainWindow):
             "chatbox_style": None,
             "name_show_region": [[76, 60], [270, 149]],
             "words_show_region": [[310, 60], [805, 149]],
+            "text_color": [255, 255, 255],      # ui.chatbox_and_words_position.text_color，未读文本颜色，缺省白
+            "readed_text_color": [255, 255, 255],  # ui.chatbox_and_words_position.readed_text_color，已读文本颜色，缺省白
             "bottom_menu": None,   # ui.bottom_menu 配置（mode/color 等），None=不显示底部菜单
         }
         self.name_label = None
@@ -212,6 +214,10 @@ class GalGameWindow(QMainWindow):
                 print(f"设置文件: 分辨率 {saved_res!r} 无效，回落默认")
         else:
             print(f"设置文件: 分辨率 {saved_res!r} 无效，回落默认")
+        # 跳过已读文本：文件 data[4]（旧文件无此项 -> 默认开 True）
+        saved_skip = data[4] if len(data) > 4 else True
+        self.controller.skip_readed = bool(saved_skip)
+        print(f"设置文件: 跳过已读文本 {'开' if self.controller.skip_readed else '关'}")
 
     @staticmethod
     def _parse_bgm_fade_seconds(cfg):
@@ -229,9 +235,9 @@ class GalGameWindow(QMainWindow):
 
     def _stop_menu_bgm(self):
         """按 menu.bgm.out 效果停止主菜单 BGM（离开主菜单时调用）。"""
-        self.bgm_player.stop(self._parse_bgm_fade_seconds(getattr(self, "_menu_bgm_out", None)))
+        self.bgm_player.stop(None, self._parse_bgm_fade_seconds(getattr(self, "_menu_bgm_out", None)))
 
-    def show_menu(self):
+    def show_menu(self, animate=True):
         self.controller.is_in_menu = True
         self.graphics_view.clear_items()
         self.menu_button_items = []  # 重建菜单，清空旧按钮记录
@@ -259,7 +265,7 @@ class GalGameWindow(QMainWindow):
                     menu_pos = menu_data.get("menu_pos", {})
                     title_pos = menu_pos.get("title", [54, 48])
                     self.graphics_view.add_item(title_pixmap, title_pos)
-            self.create_menu_buttons(menu_data)
+            self.create_menu_buttons(menu_data, animate=animate)
             # 主菜单 BGM：menu.bgm = {bgm: 路径, in: 入场效果, out: 停止效果}
             # in/out: "normal"（无淡变）| "gradient"（1秒）| ["gradient", 秒]
             try:
@@ -267,9 +273,11 @@ class GalGameWindow(QMainWindow):
                 self._menu_bgm_out = None
                 if isinstance(bgm_cfg, dict) and bgm_cfg.get("bgm"):
                     bgm_path = self.controller.base_path / bgm_cfg["bgm"]
-                    self.bgm_player.play(
-                        str(bgm_path),
-                        self._parse_bgm_fade_seconds(bgm_cfg.get("in")))
+                    # 已在播同一曲目则不重播（主菜单内进设置再返回等场景）
+                    if self.bgm_player.playing_path("menu") != str(bgm_path):
+                        self.bgm_player.play(
+                            "menu", str(bgm_path),
+                            self._parse_bgm_fade_seconds(bgm_cfg.get("in")))
                     self._menu_bgm_out = bgm_cfg.get("out")
                 else:
                     self.bgm_player.stop()
@@ -281,7 +289,7 @@ class GalGameWindow(QMainWindow):
             import traceback
             traceback.print_exc()
 
-    def create_menu_buttons(self, menu_data):
+    def create_menu_buttons(self, menu_data, animate=True):
         """根据 menu_pos 中的按钮定义（start/settings/...）创建菜单按钮"""
         # 先解析 settings 按钮的附加配置（第 3 项），独立于图片加载，保证总能读取
         menu_pos = menu_data.get("menu_pos", {})
@@ -358,8 +366,17 @@ class GalGameWindow(QMainWindow):
             c0 = change_cfg[0]
             if isinstance(c0, (list, tuple)) and len(c0) >= 3:
                 change_color = [int(v) for v in c0[:3]]
-        self.graphics_view.show_items(change_effect, change_color)
-        self.graphics_view.start_pending_animations()
+        if animate == "fade":
+            # main-menu key: fade the menu in WITHOUT the black block (no fullscreen black phase)
+            self.graphics_view.show_items(change_effect, None)
+            self.graphics_view.start_pending_animations()
+        elif animate:
+            # startup / ending: black block + fade in
+            self.graphics_view.show_items(change_effect, change_color)
+            self.graphics_view.start_pending_animations()
+        else:
+            # back key: show directly
+            self.graphics_view.show_items()
 
     def _set_menu_buttons_visible(self, visible: bool):
         """隐藏/显示菜单按钮及其文本。打开设置时隐藏，关闭时恢复。
@@ -399,17 +416,19 @@ class GalGameWindow(QMainWindow):
                               language=self.controller.language,
                               current_resolution=cur_res,
                               resolution_options=res_options,
-                              language_options=lang_options)
+                              language_options=lang_options,
+                              skip_readed=getattr(self.controller, "skip_readed", True))
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
             scene_rect = QRectF(0, 0, self.width(), self.height())
         panel.center_in_scene(scene_rect)
         self.graphics_view.scene.addItem(panel)
-        # 绑定底部按钮行为 + 分辨率变更 + 语言变更
+        # 绑定底部按钮行为 + 分辨率变更 + 语言变更 + 跳过已读开关
         self._bind_settings_buttons(panel)
         panel.set_resolution_handler(self._on_resolution_changed)
         panel.set_language_handler(self._on_language_changed)
+        panel.set_skip_readed_handler(self._on_skip_readed_changed)
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
@@ -454,6 +473,8 @@ class GalGameWindow(QMainWindow):
         """
         print("返回主菜单")
         # 立即标记：设置/保存已关闭（防止期间再操作）
+        # keep panel ref for fade-out transition, then mark closed
+        panel = self.settings_panel if self.settings_panel is not None else self.save_panel
         self.is_in_settings = False
         self.settings_panel = None
         self.is_in_save = False
@@ -469,6 +490,7 @@ class GalGameWindow(QMainWindow):
         self.controller.is_in_game = False
         self.controller.is_waiting_for_next_page = False
         self.controller.audio_timer.stop()
+        self.controller.story_bgm.stop()
         self.controller.audio_player.stop()
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
@@ -480,7 +502,14 @@ class GalGameWindow(QMainWindow):
         # 延后到事件循环空闲：清空场景所有 item（含设置面板/chatbox/proxy/底部
         # 菜单），再重建主菜单。避免在按钮点击回调栈内删除面板导致硬崩溃。
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self._clear_scene_and_show_menu)
+        # fade the panel out (same as back key), then clear scene and show menu (no black block)
+        if panel is not None and hasattr(panel, "fade_out"):
+            try:
+                panel.fade_out(on_finished=lambda: QTimer.singleShot(0, lambda: self._clear_scene_and_show_menu("fade")))
+            except Exception:
+                QTimer.singleShot(0, lambda: self._clear_scene_and_show_menu("fade"))
+        else:
+            QTimer.singleShot(0, lambda: self._clear_scene_and_show_menu("fade"))
 
     def fade_to_menu(self):
         """剧情结束（end 线播完）回主菜单：与开始游戏（fade_out_menu）对称的转场——
@@ -497,6 +526,7 @@ class GalGameWindow(QMainWindow):
         self.controller.is_waiting_for_next_page = False
         self.controller.audio_timer.stop()
         self.controller.audio_player.stop()
+        self.controller.story_bgm.stop()
         self.controller.current_page = 1
         self.controller.current_scene_index = 0
         self.controller.backlog_entries = []
@@ -516,7 +546,7 @@ class GalGameWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1500, self._clear_scene_and_show_menu)
 
-    def _clear_scene_and_show_menu(self):
+    def _clear_scene_and_show_menu(self, animate=True):
         """（事件循环空闲时）清空场景并显示主菜单。"""
         # 先停掉逐字 timer 并断开信号：scene.clear() 删除 QGraphicsProxyWidget 时
         # 会销毁内嵌 QTextEdit；若 timer 还在跑，timeout 信号会触发已失效 Python
@@ -540,7 +570,93 @@ class GalGameWindow(QMainWindow):
         self.bottom_menu_buttons = []
         self.menu_button_items = []
         self.menu_bg_item = None
-        self.show_menu()
+        self.show_menu(animate=animate)
+
+    def _on_bottom_skip_text_clicked(self):
+        """跳过按钮：先弹确认框（确认 -> 跳至下一选项，功能开发中；取消 -> 关闭）。"""
+        print("跳过：弹出确认框")
+        self._open_confirm_dialog(
+            question={
+                "zh": "跳至下一选项？",
+                "en": "Jump to next choice?",
+                "ja": "次の選択肢へ進みますか？",
+            },
+            on_confirm=self._confirm_skip_to_next,
+        )
+
+    def _confirm_skip_to_next(self):
+        """确认：关闭确认框，预检后黑屏转场执行"跳至下一选项"。
+        时序：预检（无则无反应）→ 黑屏渐变淡入 → 全黑后开始静默模拟计算
+        （测耗时 t）→ 全黑持续时长 = max(t+500ms, 1000ms) → 撤屏显示选项页。
+        """
+        from PySide6.QtCore import QTimer
+        dlg = getattr(self, "confirm_dialog", None)
+        if dlg:
+            self.confirm_dialog = None
+            QTimer.singleShot(0, lambda: self._remove_qload_dialog(dlg))
+        ctrl = self.controller
+        # 结局线禁用
+        if getattr(ctrl, "_in_ending", False):
+            print("跳过：结局线不可用")
+            return
+        # 预检：无未读场景且无下一选项 -> 无反应（不开快进、不提示）
+        if not ctrl.scan_ahead_for_selection():
+            print("跳过：无下一选项，无反应")
+            return
+        # 关闭快进/自动播放（互斥保险）
+        if getattr(ctrl, "skip_mode", False):
+            ctrl.skip_mode = False
+            if ctrl.skip_timer.isActive():
+                ctrl.skip_timer.stop()
+            self._update_skip_icon()
+        if getattr(ctrl, "auto_play", False):
+            ctrl.auto_play = False
+            self._update_auto_play_icon()
+        # 黑屏转场：transition_color 全屏色块 + 渐变淡入（z=100 盖过对话框/菜单等所有 UI）
+        tc = ctrl.transition_color
+        if not tc:
+            tc = [0, 0, 0]
+        w, h = ctrl.logical_size
+        color_block = QPixmap(w, h)
+        color_block.fill(QColor(tc[0], tc[1], tc[2]))
+        self.graphics_view.clear_items()
+        block_item = self.graphics_view.add_item(color_block, [0, 0])
+        if block_item is not None:
+            block_item.setZValue(100)
+        self.graphics_view.show_items("gradient")
+        self.graphics_view.start_pending_animations()
+        ctrl._is_skipping = True
+        # 等渐变淡入完成（全黑）后再开始计算：gradient 时长 1000ms
+        QTimer.singleShot(1000, self._run_skip_compute)
+
+    def _run_skip_compute(self):
+        """全黑后开始静默模拟计算，测耗时 t；
+        全黑持续时长 = max(t+500ms, 1000ms)，计算已耗 t，剩余等待
+        max(500, 1000-t) 后撤屏。"""
+        import time as _time
+        from PySide6.QtCore import QTimer
+        ctrl = self.controller
+        t0 = _time.perf_counter()
+        ok = ctrl.jump_to_next_selection()
+        elapsed_ms = (_time.perf_counter() - t0) * 1000
+        # 全黑总时长 = max(t+500, 1000)；已过 t，剩余等待 = max(500, 1000-t)
+        remain = max(500, 1000 - elapsed_ms)
+        total = elapsed_ms + remain
+        print(f"跳过：模拟耗时 {elapsed_ms:.0f}ms，全黑总时长 {total:.0f}ms")
+        QTimer.singleShot(int(remain), lambda: self._finish_skip_to_next(ok))
+
+    def _finish_skip_to_next(self, ok=True):
+        """黑屏时长到：移除色块，恢复底部菜单。
+        成功（ok=True）-> 停在选项页；失败 -> 移除色块恢复原画面。
+        """
+        ctrl = self.controller
+        ctrl._is_skipping = False
+        self.graphics_view.clear_items()
+        self._set_bottom_menu_visible(True)
+        if ok:
+            print("跳过完成：已停在目标位置")
+        else:
+            print("跳过取消：恢复原画面")
 
     def _quit_game(self):
         """退出游戏：先弹确认框（确认 -> 真正退出；取消 -> 关闭）。"""
@@ -713,6 +829,12 @@ class GalGameWindow(QMainWindow):
         # 标记菜单需按新语言重建（关闭面板时执行）
         self._menu_language_dirty = True
 
+    def _on_skip_readed_changed(self, checked):
+        """跳过已读文本开关变更：更新 controller 状态并写盘 .gpsetting。"""
+        self.controller.skip_readed = bool(checked)
+        print(f"跳过已读文本开关: {'开' if self.controller.skip_readed else '关'}")
+        save_settings_file(self.controller)
+
     def close_settings_panel(self):
         """关闭设置面板：设置 UI 先渐变消失（100->0），再让菜单按钮渐变显示。"""
         if self.is_in_settings and self.settings_panel:
@@ -757,7 +879,7 @@ class GalGameWindow(QMainWindow):
             self._menu_language_dirty = False
             if self.controller.is_in_menu:
                 # 主菜单：按新语言重建整个菜单（标题图片/按钮文字）
-                self.show_menu()
+                self.show_menu(animate=False)
             else:
                 # 剧情中：刷新底部菜单按钮文字（若存在）
                 self._refresh_bottom_menu_buttons()
@@ -1272,6 +1394,14 @@ class GalGameWindow(QMainWindow):
         """隐藏模式下任意位置点击：仅恢复显示，不推进剧情。"""
         self._restore_ui()
 
+    def closeEvent(self, event):
+        """窗口关闭：兑底写盘已读记录（延迟定时器未触发时也能保存）。"""
+        try:
+            self.controller._flush_read_history()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _update_skip_icon(self):
         """按当前 skip_mode 状态更新底部菜单快进按钮图标。"""
         icon = "▶▶" if getattr(self.controller, "skip_mode", False) else "▷▷"
@@ -1411,6 +1541,7 @@ class GalGameWindow(QMainWindow):
             self.name_label.setText(speaking_name)
             words_map = content["words"]
             words = words_map.get(lang) or words_map.get("zh", "")
+            self._apply_readed_text_color()
             # 直接写入全文（不动逐字 timer / 回调 / is_text_finished）
             self.text_display.timer.stop()
             self.text_display.full_text = words
@@ -1732,12 +1863,31 @@ class GalGameWindow(QMainWindow):
 
         # --- 快进开关按钮（设置按钮左侧，右3）：▷▷ 关闭 / ▶▶ 开启 ---
         # 先创建图标文字量宽：▷▷ 是双字符，按钮宽需按文字自适应（最小保持方形 btn_h）
+        # --- Skip button (between Settings and Skip): text 跳过(zh) / "Skip"(en/ja/ru); feature TBD ---
+        skip_text = "跳过" if (self.controller.language or "zh") == "zh" else "Skip"
+        skip_text_label = make_label(skip_text, text_color=normal_text_color)
+        sktr = skip_text_label.boundingRect()
+        skip_text_w = max(btn_h, sktr.width() + 24)
+        skip_text_rect = QRectF(x - margin - skip_text_w, y, skip_text_w, btn_h)
+        skip_text_btn = SettingsButtonItem(skip_text_rect, "bottom_skip_text", opacity=200, button_color=button_color)
+        skip_text_btn.setZValue(10)
+        skip_text_btn.set_click_handler(self._on_bottom_skip_text_clicked)
+        self.graphics_view.scene.addItem(skip_text_btn)
+        self.bottom_menu_buttons.append(skip_text_btn)
+
+        skip_text_label.setPos(skip_text_rect.center().x() - sktr.width() / 2,
+                               skip_text_rect.center().y() - sktr.height() / 2)
+        skip_text_label.setZValue(11)
+        self.graphics_view.scene.addItem(skip_text_label)
+        self.bottom_menu_buttons.append(skip_text_label)
+        skip_text_btn._text_label = skip_text_label  # hover color sync
+
         skip_on = getattr(self.controller, "skip_mode", False)
         skip_icon = "▶▶" if skip_on else "▷▷"
         skip_label = make_label(skip_icon, font_size=14, text_color=normal_text_color)
         sr = skip_label.boundingRect()
         skip_btn_w = max(btn_h, sr.width() + 16)
-        skip_rect = QRectF(x - margin - skip_btn_w, y, skip_btn_w, btn_h)
+        skip_rect = QRectF(skip_text_rect.left() - margin - skip_btn_w, y, skip_btn_w, btn_h)
         skip_btn = SettingsButtonItem(skip_rect, "bottom_skip", opacity=200, button_color=button_color)
         skip_btn.setZValue(10)
         skip_btn.set_click_handler(self.toggle_skip_button)
@@ -2110,6 +2260,19 @@ class GalGameWindow(QMainWindow):
         self.is_in_selection = False
         self.selection_on_chosen = None
 
+    def _apply_readed_text_color(self):
+        """按当前场景是否已读设置字幕颜色：已读 -> readed_text_color，未读 -> text_color。
+        在显示/刷新台词前调用。
+        """
+        if self.text_display is None:
+            return
+        if self.controller._is_scene_read():
+            rc = self.ui_settings.get("readed_text_color", [255, 255, 255])
+        else:
+            rc = self.ui_settings.get("text_color", [255, 255, 255])
+        if isinstance(rc, (list, tuple)) and len(rc) >= 3:
+            self.text_display.set_display_color([int(c) for c in rc[:3]])
+
     def display_dialog(self, content: dict):
         lang = self.controller.language or "zh"
         speaking_name = ""
@@ -2129,6 +2292,7 @@ class GalGameWindow(QMainWindow):
         self.name_label.setText(speaking_name)
         words_map = content["words"]
         words = words_map.get(lang) or words_map.get("zh", "")
+        self._apply_readed_text_color()
         self.text_display.set_text(words, self.controller.on_text_display_complete)
         # 记录日志条目（说话人原始标识, 台词多语言字典）——空台词不记。
         # 存原始数据而非翻译后文本：日志面板打开时按当前语言统一翻译，

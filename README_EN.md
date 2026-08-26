@@ -66,6 +66,9 @@ The colors of the menu bar, its buttons, and all panels can be configured in the
 Click the **Settings** button in the bottom menu during the story, or the **settings** button in the main menu if configured, to open the settings panel:<br>
 - **Language**: Switch the game language (options come from settings.language in the story JSON; preset UI text supports Chinese/English/Japanese, falling back to English out of range; in-story dialogue is shown in the translations provided by the story)<br>
 - **Resolution**: Switch the window resolution (options come from settings.window_size in the story JSON, with a "Fullscreen" option appended at the end; the built-in default list is used when not configured)<br>
+- **Skip Read Text** (toggle): Controls whether skip/advance skips read content.<br>
+  - **On** (default): When skipping or fast-advancing, the story stops at **unread** scenes (unread content is not skipped); read scenes are skipped normally. "Skip" (if configured) stops at an unread boundary or the next option page.<br>
+  - **Off**: Both read and unread content can be fast-advanced or skipped — fast-advance runs through unread content until an option page; "Skip" jumps directly to the next option page, and if there is no option page ahead, nothing happens.<br>
 Settings are saved automatically to a settings file and restored the next time the same story is launched.<br>
 <br>
 
@@ -82,10 +85,18 @@ Click the **Save** button in the bottom menu during the story to open the save p
 Click the **Log** button in the bottom menu to open it and view the dialogue history of the current session (shown in the current language); the Back button closes the panel.<br>
 <br>
 
+## Read/Unread Text Colors<br>
+A story can configure the display colors of read and unread lines (**text_color** and **readed_text_color** under **ui.chatbox_and_words_position**, both RGB lists):<br>
+- **text_color**: The color of unread text (lines played for the first time); defaults to white [255, 255, 255]<br>
+- **readed_text_color**: The color of read text (lines of scenes that have already been played); defaults to white [255, 255, 255]<br>
+The program determines whether the current scene has been read from the read history (.gpreaded): lines of read scenes use **readed_text_color**, unread scenes use **text_color**.<br>
+<br>
+
 ## Save System<br>
 Save files are stored in the **saves** folder and are isolated per story automatically (the file name prefix is story title_identify code):<br>
 - **Slot saves**: `{title}_{identify_code}_SLOT{index}.gpsave` (index is the slot number, e.g., 0-7)<br>
 - **Quick save**: `{title}_{identify_code}_QSAVE.gpsave` (takes priority when loading with F3)<br>
-- **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores language/resolution settings)<br>
+- **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores language/resolution/skip-read-text toggle settings)<br>
+- **Read history**: `{title}_{identify_code}_READED.gpreaded` (stores the record of read scenes, used for read-text colors and the "Skip Read Text" judgement; a global record that is not deleted with saves)<br>
 Saves of different stories do not interfere with each other; <b>please give different stories different identify_code values</b>, otherwise they are treated as the same story and share saves.<br>
 <br>
