@@ -107,7 +107,10 @@ def save_settings_file(controller):
       data[2] = 分辨率（"WxH" 字符串；全屏时为 FULLSCREEN_KEY "fullscreen"）
       data[3] = 语言（语言 id，如 zh/en/ja）
       data[4] = 跳过已读文本开关（bool，controller.skip_readed）
-    设置一旦变更（分辨率/语言/跳过已读）即调用本函数写盘。
+      data[5] = 背景音乐音量（0.0~1.0，controller.bgm_volume）
+      data[6] = 语音音量（0.0~1.0，controller.voice_volume）
+      data[7] = 翻页时中断语音开关（bool，controller.interrupt_voice_on_page_turn）
+    设置一旦变更（分辨率/语言/跳过已读/音量/语音中断）即调用本函数写盘。
     """
     settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
@@ -119,7 +122,10 @@ def save_settings_file(controller):
     else:
         res = "{}x{}".format(controller.window_size[0], controller.window_size[1])
     lang = controller.language
-    data = [story_name, story_id, res, lang, bool(getattr(controller, "skip_readed", True))]
+    data = [story_name, story_id, res, lang, bool(getattr(controller, "skip_readed", True)),
+            float(getattr(controller, "bgm_volume", 1.0)),
+            float(getattr(controller, "voice_volume", 1.0)),
+            bool(getattr(controller, "interrupt_voice_on_page_turn", True))]
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{story_name}_{story_id}_SETTINGS.gpsetting", "wb") as f:

@@ -16,7 +16,7 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 - **Continue** (qload): If a save exists, a confirm dialog is shown; after confirmation it loads the newest save (quick save first) and enters the story. If no save exists, clicking does nothing.<br>
 - **Start** (start): Enter the story<br>
 - **Load** (load): Open the load game panel to load a slot save of this story<br>
-- **Settings** (settings): Open the settings panel (language / resolution)<br>
+- **Settings** (settings): Open the settings panel (Display / Sound pages)<br>
 - **Quit** (quit): Show a confirm dialog; exit the program after confirmation<br>
 <br>
 
@@ -55,19 +55,30 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 
 ## Bottom Menu Bar<br>
 During the story, a preset menu bar can be shown at the bottom of the window (controlled by the story's **ui.bottom_menu**). From right to left:<br>
-<b>⊙</b> (hide toggle: hides the dialogue box and the bottom menu; click anywhere to restore) → <b>Log</b> (backlog of past dialogue) → <b>Settings</b> (language/resolution) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Load</b> (opens the load panel) → <b>Save</b> (opens the save panel) → <b>Q.Load</b> (quick load: confirm, then load the newest save) → <b>Q.Save</b> (quick save).<br>
+<b>⊙</b> (hide toggle: hides the dialogue box and the bottom menu; click anywhere to restore) → <b>Log</b> (backlog of past dialogue) → <b>Settings</b> (display/sound) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Load</b> (opens the load panel) → <b>Save</b> (opens the save panel) → <b>Q.Load</b> (quick load: confirm, then load the newest save) → <b>Q.Save</b> (quick save).<br>
 <b>⊙</b> hides the dialogue box and the whole bottom menu (including the bar itself) while the story keeps advancing; pressing anywhere (left or right click) restores them, with the dialogue box restored to its visibility before hiding.<br>
 Skip and Auto-play are mutually exclusive (enabling one automatically disables the other); opening any panel pauses both, and they resume after returning to the story.<br>
 The colors of the menu bar, its buttons, and all panels can be configured in the story JSON (see the rules documents in the **doc** folder).<br>
 <br>
 
 ## Settings Panel<br>
-Click the **Settings** button in the bottom menu during the story, or the **settings** button in the main menu if configured, to open the settings panel:<br>
-- **Language**: Switch the game language (options come from settings.language in the story JSON; preset UI text supports Chinese/English/Japanese, falling back to English out of range; in-story dialogue is shown in the translations provided by the story)<br>
+Click the **Settings** button in the bottom menu during the story, or the **settings** button in the main menu if configured, to open the settings panel.
+The panel has **Display** and **Sound** pages (switchable via the tabs at the top-right):<br>
+<br>
+**Display** page:<br>
 - **Resolution**: Switch the window resolution (options come from settings.window_size in the story JSON, with a "Fullscreen" option appended at the end; the built-in default list is used when not configured)<br>
+- **Language**: Switch the game language (options come from settings.language in the story JSON; preset UI text supports Chinese/English/Japanese, falling back to English out of range; in-story dialogue is shown in the translations provided by the story)<br>
 - **Skip Read Text** (toggle): Controls whether skip/advance skips read content.<br>
   - **On** (default): When skipping or fast-advancing, the story stops at **unread** scenes (unread content is not skipped); read scenes are skipped normally. "Skip" (if configured) stops at an unread boundary or the next option page.<br>
   - **Off**: Both read and unread content can be fast-advanced or skipped — fast-advance runs through unread content until an option page; "Skip" jumps directly to the next option page, and if there is no option page ahead, nothing happens.<br>
+<br>
+**Sound** page:<br>
+- **BGM** (drag slider): Background-music volume (applies to both main-menu and in-story BGM; full volume by default)<br>
+- **Voice** (drag slider): Voice/dubbing volume (full volume by default)<br>
+- **Interrupt Voice** (toggle, on by default):<br>
+  - **On** (default): When text has fully displayed, clicking again stops the current voice immediately and advances to the next scene/page.<br>
+  - **Off**: Clicking still advances, but the voice is **not** interrupted — if the next page/scene has its own voice, the new one replaces the old; if it has no voice, the current voice keeps playing until it finishes naturally.<br>
+<br>
 Settings are saved automatically to a settings file and restored the next time the same story is launched.<br>
 <br>
 
@@ -95,7 +106,7 @@ The program determines whether the current scene has been read from the read his
 Save files are stored in the **saves** folder and are isolated per story automatically (the file name prefix is story title_identify code):<br>
 - **Slot saves**: `{title}_{identify_code}_SLOT{index}.gpsave` (index is the slot number, e.g., 0-7)<br>
 - **Quick save**: `{title}_{identify_code}_QSAVE.gpsave` (takes priority when loading with F3)<br>
-- **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores language/resolution/skip-read-text toggle settings)<br>
+- **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores resolution/language/skip-read-text toggle/volumes/interrupt-voice settings)<br>
 - **Read history**: `{title}_{identify_code}_READED.gpreaded` (stores the record of read scenes, used for read-text colors and the "Skip Read Text" judgement; a global record that is not deleted with saves)<br>
 Saves of different stories do not interfere with each other; <b>please give different stories different identify_code values</b>, otherwise they are treated as the same story and share saves.<br>
 <br>

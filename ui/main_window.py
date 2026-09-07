@@ -218,6 +218,23 @@ class GalGameWindow(QMainWindow):
         saved_skip = data[4] if len(data) > 4 else True
         self.controller.skip_readed = bool(saved_skip)
         print(f"设置文件: 跳过已读文本 {'开' if self.controller.skip_readed else '关'}")
+        # 背景音乐/语音音量：文件 data[5]/data[6]（旧文件缺项 -> 默认 1.0）
+        try:
+            saved_bgm = float(data[5]) if len(data) > 5 else 1.0
+        except (TypeError, ValueError):
+            saved_bgm = 1.0
+        try:
+            saved_voice = float(data[6]) if len(data) > 6 else 1.0
+        except (TypeError, ValueError):
+            saved_voice = 1.0
+        self.controller.bgm_volume = max(0.0, min(1.0, saved_bgm))
+        self.controller.voice_volume = max(0.0, min(1.0, saved_voice))
+        self._apply_volumes_to_players()
+        print(f"设置文件: 背景音乐音量 {self.controller.bgm_volume:.0%}，语音音量 {self.controller.voice_volume:.0%}")
+        # 翻页时中断语音：文件 data[7]（旧文件无此项 -> 默认开 True）
+        saved_vint = data[7] if len(data) > 7 else True
+        self.controller.interrupt_voice_on_page_turn = bool(saved_vint)
+        print(f"设置文件: 翻页时中断语音 {'开' if self.controller.interrupt_voice_on_page_turn else '关'}")
 
     @staticmethod
     def _parse_bgm_fade_seconds(cfg):
@@ -417,18 +434,26 @@ class GalGameWindow(QMainWindow):
                               current_resolution=cur_res,
                               resolution_options=res_options,
                               language_options=lang_options,
-                              skip_readed=getattr(self.controller, "skip_readed", True))
+                              skip_readed=getattr(self.controller, "skip_readed", True),
+                              bgm_volume=getattr(self.controller, "bgm_volume", 1.0),
+                              voice_volume=getattr(self.controller, "voice_volume", 1.0),
+                              voice_interrupt=getattr(self.controller, "interrupt_voice_on_page_turn", True))
         # 居中显示（内部会创建底部按钮）
         scene_rect = self.graphics_view.sceneRect()
         if scene_rect.isNull():
             scene_rect = QRectF(0, 0, self.width(), self.height())
         panel.center_in_scene(scene_rect)
         self.graphics_view.scene.addItem(panel)
-        # 绑定底部按钮行为 + 分辨率变更 + 语言变更 + 跳过已读开关
+        # 绑定底部按钮行为 + 分辨率变更 + 语言变更 + 跳过已读开关 + 音量条
         self._bind_settings_buttons(panel)
         panel.set_resolution_handler(self._on_resolution_changed)
         panel.set_language_handler(self._on_language_changed)
         panel.set_skip_readed_handler(self._on_skip_readed_changed)
+        panel.set_bgm_volume_handler(self._on_bgm_volume_changed)
+        panel.set_bgm_volume_commit_handler(self._save_volume_settings)
+        panel.set_voice_volume_handler(self._on_voice_volume_changed)
+        panel.set_voice_volume_commit_handler(self._save_volume_settings)
+        panel.set_voice_interrupt_handler(self._on_voice_interrupt_changed)
         panel.fade_in()
         self.settings_panel = panel
         self.is_in_settings = True
@@ -833,6 +858,55 @@ class GalGameWindow(QMainWindow):
         """跳过已读文本开关变更：更新 controller 状态并写盘 .gpsetting。"""
         self.controller.skip_readed = bool(checked)
         print(f"跳过已读文本开关: {'开' if self.controller.skip_readed else '关'}")
+        save_settings_file(self.controller)
+
+    # ---------- 音量（声音页音量条） ----------
+
+    def _apply_volumes_to_players(self):
+        """把 controller 中保存的音量应用到实际播放器：
+        bgm_volume -> 主菜单 BGM 与剧情 BGM（两个 BgmPlayer 实例）；
+        voice_volume -> 语音/配音（controller.audio_player）。
+        启动读档 / 音量条拖动时调用。
+        """
+        try:
+            bgm = max(0.0, min(1.0, float(getattr(self.controller, "bgm_volume", 1.0))))
+            voice = max(0.0, min(1.0, float(getattr(self.controller, "voice_volume", 1.0))))
+            # 背景音乐：主菜单 + 剧情两个播放器实例
+            self.bgm_player.set_volume(bgm)
+            self.controller.story_bgm.set_volume(bgm)
+            # 语音/配音
+            self.controller.audio_player.set_volume(voice)
+        except Exception as e:
+            print(f"应用音量失败: {e}")
+
+    def _on_bgm_volume_changed(self, value):
+        """背景音乐音量条拖动中：实时应用到播放器（写盘由拖动结束回调负责）。"""
+        self.controller.bgm_volume = max(0.0, min(1.0, float(value)))
+        try:
+            self.bgm_player.set_volume(self.controller.bgm_volume)
+            self.controller.story_bgm.set_volume(self.controller.bgm_volume)
+        except Exception as e:
+            print(f"应用背景音乐音量失败: {e}")
+        print(f"背景音乐音量: {self.controller.bgm_volume:.0%}")
+
+    def _on_voice_volume_changed(self, value):
+        """语音音量条拖动中：实时应用到播放器（写盘由拖动结束回调负责）。"""
+        self.controller.voice_volume = max(0.0, min(1.0, float(value)))
+        try:
+            self.controller.audio_player.set_volume(self.controller.voice_volume)
+        except Exception as e:
+            print(f"应用语音音量失败: {e}")
+        print(f"语音音量: {self.controller.voice_volume:.0%}")
+
+    def _save_volume_settings(self, value=None):
+        """音量条拖动结束：保存设置到 .gpsetting（避免拖动中频繁写盘）。"""
+        save_settings_file(self.controller)
+        print("音量设置已保存")
+
+    def _on_voice_interrupt_changed(self, checked):
+        """"翻页时中断语音"开关变更：更新 controller 状态并写盘 .gpsetting。"""
+        self.controller.interrupt_voice_on_page_turn = bool(checked)
+        print(f"翻页时中断语音开关: {'开' if self.controller.interrupt_voice_on_page_turn else '关'}")
         save_settings_file(self.controller)
 
     def close_settings_panel(self):

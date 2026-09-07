@@ -17,10 +17,21 @@ class AudioPlayer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._players = []        # 当前组的所有 player
+        self._outs = []           # 与 _players 对应的 QAudioOutput（音量实时调整用）
         self._groups = []         # 剩余组队列
         self._done_count = 0      # 当前组剩余未播完的路数
         self._on_all_finished = None
         self._stopping = False
+        self._volume = 1.0        # 总音量（0.0~1.0，设置面板"语音"音量条）
+
+    def set_volume(self, volume: float):
+        """设置总音量并应用到当前所有在播输出（实时生效）。"""
+        self._volume = max(0.0, min(1.0, float(volume)))
+        for out in self._outs:
+            try:
+                out.setVolume(self._volume)
+            except Exception:
+                pass
 
     def play(self, groups, on_all_finished=None):
         """开始播放。groups 为空时立即触发完成回调。"""
@@ -56,13 +67,14 @@ class AudioPlayer(QObject):
         for path in group:
             player = QMediaPlayer(self)
             out = QAudioOutput(self)
-            out.setVolume(1.0)
+            out.setVolume(self._volume)
             player.setAudioOutput(out)
             player.setSource(QUrl.fromLocalFile(path))
             player.mediaStatusChanged.connect(self._on_status)
             player.errorOccurred.connect(self._on_error)
             player.play()
             self._players.append(player)
+            self._outs.append(out)
 
     def _on_status(self, status):
         if self._stopping:
@@ -95,6 +107,12 @@ class AudioPlayer(QObject):
                 pass
             p.deleteLater()
         self._players = []
+        for out in self._outs:
+            try:
+                out.deleteLater()
+            except Exception:
+                pass
+        self._outs = []
 
     def _all_finished(self):
         cb = self._on_all_finished

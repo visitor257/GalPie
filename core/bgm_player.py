@@ -6,6 +6,12 @@
   - 场景级 bgm（剧情）：[{id, in/out, delay}]，id 来自 story_and_position.bgm 定义表
 in/out 效果："normal"（直接）| "gradient"（1 秒淡变）| ["gradient", 秒]
 每路独立，可同时播放；循环播放；同 id 重复播放 = 重启覆盖。
+
+音量模型（设置面板"背景音乐"音量条）：
+  - 总音量 self._volume（0~1，全局）
+  - 每路内部淡化系数 factor（0~1，仅由淡入/淡出动画驱动）
+  - 实际输出音量 = factor * self._volume
+因此播放中/淡变中调整总音量都实时生效，无需打断动画。
 """
 from PySide6.QtCore import QObject, QUrl, QVariantAnimation
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -16,15 +22,31 @@ class BgmPlayer(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._channels = {}  # {id: {"player": ..., "out": ..., "anim": ...}}
+        self._channels = {}  # {id: {"player","out","anim","path","factor","_fadeout_cb"}}
+        self._volume = 1.0   # 总音量（0.0~1.0）
+
+    def set_volume(self, volume: float):
+        """设置总音量并实时应用到当前所有在播/淡变中通道。
+        淡入/淡出动画按淡化系数继续，输出 = factor * 新总音量。"""
+        volume = max(0.0, min(1.0, float(volume)))
+        self._volume = volume
+        for ch in self._channels.values():
+            out = ch.get("out")
+            if out is not None:
+                try:
+                    out.setVolume(float(ch.get("factor", 1.0)) * self._volume)
+                except Exception:
+                    pass
 
     def play(self, bgm_id, path, fade_in=None):
         """播放指定 id 的 bgm。同 id 重复调用 = 重启覆盖（先停旧的再播）。
-        fade_in 为秒数时从 0 音量淡入，None 直接以 1.0 音量播放。"""
+        fade_in 为秒数时淡化系数从 0 淡入到 1（音量 0->总音量），
+        None 直接以总音量播放。"""
         self._hard_stop_channel(bgm_id)
         player = QMediaPlayer(self)
         out = QAudioOutput(self)
-        out.setVolume(0.0 if fade_in else 1.0)
+        factor = 0.0 if fade_in else 1.0
+        out.setVolume(factor * self._volume)
         player.setAudioOutput(out)
         player.setSource(QUrl.fromLocalFile(path))
         player.errorOccurred.connect(
@@ -32,13 +54,15 @@ class BgmPlayer(QObject):
         player.mediaStatusChanged.connect(
             lambda st, _id=bgm_id: self._on_media_status(_id, st))
         player.play()
-        self._channels[bgm_id] = {"player": player, "out": out, "anim": None, "path": path}
+        self._channels[bgm_id] = {"player": player, "out": out, "anim": None,
+                                  "path": path, "factor": factor,
+                                  "_fadeout_cb": None}
         if fade_in:
-            self._animate_volume(bgm_id, 0.0, 1.0, fade_in)
+            self._animate_factor(bgm_id, 0.0, 1.0, fade_in)
 
     def stop(self, bgm_id=None, fade_out=None):
         """停止指定 id 的 bgm（None/"" = 全部停止）。
-        fade_out 为秒数时先淡出（音量 1->0）再停止，None 直接停。
+        fade_out 为秒数时先淡出（factor 当前值->0，音量->0）再停止，None 直接停。
         指定 id 未在播 -> 空操作。"""
         if bgm_id in (None, ""):
             for cid in list(self._channels.keys()):
@@ -48,9 +72,10 @@ class BgmPlayer(QObject):
             return  # 未在播：空操作
         if fade_out:
             ch = self._channels[bgm_id]
-            cur = ch["out"].volume() if ch["out"] is not None else 1.0
-            self._animate_volume(bgm_id, cur, 0.0, fade_out,
-                                 on_finished=lambda: self._hard_stop_channel(bgm_id))
+            frm = float(ch.get("factor", 1.0))
+            cb = lambda: self._hard_stop_channel(bgm_id)  # noqa: E731
+            ch["_fadeout_cb"] = cb
+            self._animate_factor(bgm_id, frm, 0.0, fade_out, on_finished=cb)
         else:
             self._hard_stop_channel(bgm_id)
 
@@ -69,7 +94,8 @@ class BgmPlayer(QObject):
 
     # ---------- 内部 ----------
 
-    def _animate_volume(self, bgm_id, frm, to, seconds, on_finished=None):
+    def _animate_factor(self, bgm_id, frm, to, seconds, on_finished=None):
+        """淡化系数动画：factor frm->to（0~1），逐帧 _apply_factor。"""
         ch = self._channels.get(bgm_id)
         if ch is None:
             return
@@ -77,17 +103,29 @@ class BgmPlayer(QObject):
         anim.setDuration(max(1, int(seconds * 1000)))
         anim.setStartValue(float(frm))
         anim.setEndValue(float(to))
-        anim.valueChanged.connect(lambda v, _id=bgm_id: self._apply_volume(_id, v))
+        anim.valueChanged.connect(lambda v, _id=bgm_id: self._apply_factor(_id, v))
         if on_finished:
             anim.finished.connect(on_finished)
+        old = ch.get("anim")
+        if old is not None:
+            try:
+                old.stop()
+                old.disconnect()
+            except Exception:
+                pass
         ch["anim"] = anim
         anim.start()
 
-    def _apply_volume(self, bgm_id, v):
+    def _apply_factor(self, bgm_id, factor):
+        """动画帧回调：记录 factor 并输出 factor * 总音量。"""
         ch = self._channels.get(bgm_id)
-        if ch is not None and ch["out"] is not None:
+        if ch is None:
+            return
+        ch["factor"] = float(factor)
+        out = ch.get("out")
+        if out is not None:
             try:
-                ch["out"].setVolume(float(v))
+                out.setVolume(float(factor) * self._volume)
             except Exception:
                 pass
 

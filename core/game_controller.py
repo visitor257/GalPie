@@ -57,6 +57,12 @@ class GameController:
         self.transition_color = [0, 0, 0]  # 转场底色（settings.transition_color），默认黑
         # 跳过已读文本开关（设置面板配置，随 .gpsetting 持久化；功能待接入）
         self.skip_readed = True  # 默认开（无 .gpsettings 记录时跳过已读生效）
+        # 音量设置（声音页音量条，随 .gpsetting 持久化；0.0~1.0，默认满）
+        self.bgm_volume = 1.0    # 背景音乐音量（作用于 BgmPlayer：菜单/剧情共用总音量）
+        self.voice_volume = 1.0  # 语音/配音音量（作用于 AudioPlayer）
+        # 翻页时中断语音开关（声音页；默认开 = 点击推进时立即停掉当前语音，
+        # 关 = 不中断，等语音自然播完再自动前进）
+        self.interrupt_voice_on_page_turn = True
 
         # 画面状态双变量（存档快照用）：
         #   scene_state（a）：随场景执行逐场景记录当前画面（bg id / 角色配置 / chatbox 可见性）
@@ -434,20 +440,30 @@ class GameController:
             self.is_audio_finished = False
             self.audio_player.play(groups, self.on_audio_finished)
         else:
-            # 无有效音频：停止上一场景残留音频
-            self.audio_player.stop()
-            if self._pending_empty_anim_ms > 0:
-                # 空动画等待：无文本场景 + 空 id 角色动画 -> 停留动画时长再继续
-                # （复用音频计时机制：点击可跳过等待）
-                wait = self._pending_empty_anim_ms
+            # 无有效音频。
+            # 延续语音场景（“翻页时中断语音”关 + 上一场景音频未播完被点击带入本场景）：
+            #   不停止，让旧语音自然播完；播完由 on_audio_finished 自动前进。
+            #   本场景若有空动画等待则忽略（语音本身即节奏，文本/语音都完成才前进）。
+            voice_carry = (self.audio_player.is_playing()
+                           and not getattr(self, "interrupt_voice_on_page_turn", True))
+            if voice_carry:
+                print("场景无新音频：延续上一场景语音播放至结束")
                 self._pending_empty_anim_ms = 0
-                print(f"场景中没有音频，空动画停留 {wait}ms")
-                self.is_audio_finished = False
-                self.audio_timer.start(wait)
             else:
-                print("场景中没有音频，立即标记音频完成")
-                self.is_audio_finished = True
-                self.check_auto_advance()
+                # 无有效音频：停止上一场景残留音频
+                self.audio_player.stop()
+                if self._pending_empty_anim_ms > 0:
+                    # 空动画等待：无文本场景 + 空 id 角色动画 -> 停留动画时长再继续
+                    # （复用音频计时机制：点击可跳过等待）
+                    wait = self._pending_empty_anim_ms
+                    self._pending_empty_anim_ms = 0
+                    print(f"场景中没有音频，空动画停留 {wait}ms")
+                    self.is_audio_finished = False
+                    self.audio_timer.start(wait)
+                else:
+                    print("场景中没有音频，立即标记音频完成")
+                    self.is_audio_finished = True
+                    self.check_auto_advance()
 
     # ---------- BGM 配置解析与执行 ----------
 
@@ -1269,12 +1285,20 @@ class GameController:
             print("文本未完成，立即完成显示")
             self.main_window.text_display.complete_display()
             return
-        # 文本已显示完：停止音频（如有）并立即进入下一场景/下一页
+        # 文本已显示完。
+        # 声音页"翻页时中断语音"开关：
+        #   开（默认）= 立即停掉当前语音并进入下一场景/下一页（原行为）；
+        #   关 = 照常进入下一场景/下一页，但不主动停语音：
+        #        下一页/场景有语音 -> 新播放自然顶替旧的（AudioPlayer.play 内部先 stop）；
+        #        下一页/场景无语音 -> 旧语音延续播放至自然播完（execute_scene 无音频分支处理）。
         if not self.is_audio_finished:
-            print("文本已完成，停止音频并进入下一页")
-            self.audio_player.stop()
-            self.audio_timer.stop()
-            self.is_audio_finished = True
+            if getattr(self, "interrupt_voice_on_page_turn", True):
+                print("文本已完成，停止音频并进入下一页")
+                self.audio_player.stop()
+                self.audio_timer.stop()
+                self.is_audio_finished = True
+            else:
+                print("文本已完成（中断语音关）：照常翻页，旧语音延续播放")
         self._force_advance_immediate = True
         self.advance_to_next_scene()
 

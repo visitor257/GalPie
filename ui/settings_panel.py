@@ -79,13 +79,29 @@ FULLSCREEN_KEY = "fullscreen"  # 内部标记：全屏选项（显示时用语�
 # "跳过已读文本"开关标签（多语言；预设 UI 支持 zh/en/ja，ru 回落 zh）
 SKIP_READED_LABEL = {"zh": "跳过已读文本", "en": "Skip Read Text", "ja": "既読スキップ", "ru": "Пропустить прочитанный текст"}
 
+# 声音页音量条标签（多语言；预设 UI 支持 zh/en/ja，ru 回落 zh）
+BGM_VOLUME_LABEL = {"zh": "背景音乐", "en": "BGM", "ja": "背景音楽", "ru": "Фоновая музыка"}
+VOICE_VOLUME_LABEL = {"zh": "语音", "en": "Voice", "ja": "ボイス", "ru": "Голос"}
+# 声音页开关：翻页时中断语音（默认开 = 点击推进立即停掉当前语音；关 = 语音自然播完）
+VOICE_INTERRUPT_LABEL = {"zh": "翻页时中断语音", "en": "Interrupt Voice", "ja": "ボイス中断", "ru": "Прерывать голос"}
+
+# 设置页签（预设 UI 分页；页面顺序与多语言标签）
+#   display: 显示（分辨率/语言/跳过已读文本等画面与文本类设置）
+#   sound:   声音（音量/配音行为等，项后续加入）
+PAGE_KEYS = ["display", "sound"]
+PAGE_LABELS = {
+    "display": {"zh": "显示", "en": "Display", "ja": "表示", "ru": "Отображение"},
+    "sound": {"zh": "声音", "en": "Sound", "ja": "サウンド", "ru": "Звук"},
+}
+
 
 class SettingsPanel(QGraphicsPathItem):
     """设置面板（场景覆盖层）。使用圆角路径实现圆角矩形。"""
 
     def __init__(self, scene, config=None, language="zh", current_resolution="1280x720",
                  resolution_options=None, language_options=None, parent=None,
-                 skip_readed=False):
+                 skip_readed=False, bgm_volume=1.0, voice_volume=1.0,
+                 voice_interrupt=True):
         # 合并配置：优先自定义 config，缺省项回落到预设默认
         self.config = {**DEFAULT_PRESET, **(config or {})}
         # JSON 自定义配色（menu_pos.settings 第 3 项，default 预设模式也可配）：
@@ -141,6 +157,28 @@ class SettingsPanel(QGraphicsPathItem):
         self._skip_readed_label = None     # "跳过已读文本" 标签
         self._skip_readed_toggle = None    # 开关控件
         self._skip_readed_handler = None   # 开关变更回调（main_window 注册，保存设置）
+
+        # 设置分页：当前页（PAGE_KEYS 之一，默认 display）+ 页签按钮 {page_key: SettingsButtonItem}
+        self._current_page = "display"
+        self._page_tabs = {}
+
+        # 声音页音量值（随 .gpsetting 持久化；0.0~1.0，默认满）+ 回调注册位
+        self._bgm_volume = max(0.0, min(1.0, float(bgm_volume)))
+        self._voice_volume = max(0.0, min(1.0, float(voice_volume)))
+        self._bgm_volume_label = None    # "背景音乐" 标签
+        self._voice_volume_label = None  # "语音" 标签
+        self._bgm_volume_slider = None   # 背景音乐滑条
+        self._voice_volume_slider = None  # 语音滑条
+        self._bgm_volume_handler = None   # 背景音乐音量变更回调
+        self._voice_volume_handler = None  # 语音音量变更回调
+        self._bgm_volume_commit = None     # 背景音乐音量拖动结束回调（写盘用）
+        self._voice_volume_commit = None   # 语音音量拖动结束回调（写盘用）
+
+        # 声音页开关："翻页时中断语音"（默认开，随 .gpsetting 持久化）
+        self._voice_interrupt_checked = bool(voice_interrupt)
+        self._voice_interrupt_label = None   # 标签
+        self._voice_interrupt_toggle = None  # 开关控件
+        self._voice_interrupt_handler = None  # 开关变更回调（main_window 注册，保存设置）
 
         # 初始占位尺寸（后续 center_in_scene 会按场景重新计算）
         self._size = [100, 100]
@@ -283,15 +321,17 @@ class SettingsPanel(QGraphicsPathItem):
         return self._title_item
 
     def _build_language(self):
-        """在右列创建语言设置项（右列第 1 个设置项）。
+        """在右列创建语言设置项（右列第 2 个设置项，与左列分辨率项同行）。
         布局与分辨率项一致：标签"语言"（幼圆加粗）+ 左右切换按钮 + 当前值。
         语言选项 = JSON settings.language 中预设 UI 支持的部分（zh/en/ja）。
         """
         _, right_rect = self._column_rects()
         inner = self.config["border_offset"] + self.config["border_width"]
         top = self.config.get("title_top_margin", 15)
-        # 右列第 1 项与左列标题同高区域对齐（顶部同一行）
-        row_y = inner + top
+        item_gap = self.config.get("item_gap", 24)
+        # 右列第 2 项与左列"分辨率"项同行对齐（标题下方 item_gap）
+        title_h = self._title_item.boundingRect().height() if self._title_item else 0
+        row_y = inner + top + title_h + item_gap
         row_h = 32
         item_left_margin = self.config.get("item_left_margin", 10)
 
@@ -474,11 +514,11 @@ class SettingsPanel(QGraphicsPathItem):
         self._resolution_value.setPos(val_x, row_y + (row_h - rv.height()) / 2)
 
     def _build_skip_readed(self):
-        """在右列创建"跳过已读文本"开关设置项（右列第 2 个设置项）。
+        """在右列创建"跳过已读文本"开关设置项（右列第 3 个设置项）。
         布局：
           - 标签"跳过已读文本"（幼圆加粗）在右列内左侧
           - 右侧一个开关（ToggleSwitchItem，开=绿/关=灰，点击切换）
-        行位置与左列第 2 项（分辨率）对齐：标题下方 item_gap。
+        行位置在右列第 2 项（语言）下方 item_gap：语言行顶 + 行高 + item_gap。
         """
         _, right_rect = self._column_rects()
         inner = self.config["border_offset"] + self.config["border_width"]
@@ -486,10 +526,10 @@ class SettingsPanel(QGraphicsPathItem):
         item_gap = self.config.get("item_gap", 24)
         item_left_margin = self.config.get("item_left_margin", 10)
 
-        # 第 1 项（标题）底部位置：inner+top + 标题高度（与左列分辨率项同行）
+        # 右列第 3 项：在右列第 2 项（语言）下方 row_h + item_gap
         title_h = self._title_item.boundingRect().height() if self._title_item else 0
-        row_y = inner + top + title_h + item_gap
         row_h = 32
+        row_y = inner + top + title_h + item_gap + row_h + item_gap
 
         label_text = SKIP_READED_LABEL.get(self.language, SKIP_READED_LABEL["zh"])
         # 标签（幼圆加粗 18pt），距白圈内边界 item_left_margin
@@ -583,6 +623,245 @@ class SettingsPanel(QGraphicsPathItem):
         self._skip_readed_label = None
         self._skip_readed_toggle = None
 
+    # ---------- 设置页签（分页） ----------
+
+    def _build_page_tabs(self):
+        """在右列第 1 行创建设置页签按钮（显示 | 声音），与左列标题垂直居中对齐。
+        页签常驻（不随页切换消失）；文本随面板语言（多语言）。
+        视觉与普通按钮完全一致（无选中态效果）。
+        需在 _build_title 之后调用（取标题高度对齐）。"""
+        if self._page_tabs:
+            return
+        _, right_rect = self._column_rects()
+        inner = self.config["border_offset"] + self.config["border_width"]
+        top = self.config.get("title_top_margin", 15)
+        item_left_margin = self.config.get("item_left_margin", 10)
+        title_h = self._title_item.boundingRect().height() if self._title_item else 0
+        tab_h = 30
+        tab_y = inner + top + max(0, (title_h - tab_h) / 2.0)
+        gap = 10
+        avail_w = right_rect.width() - 2 * item_left_margin
+        tab_w = max(20, (avail_w - gap) / 2.0)
+        font = QFont("Microsoft YaHei", 12, QFont.Bold)
+        for i, key in enumerate(PAGE_KEYS):
+            x = right_rect.left() + item_left_margin + i * (tab_w + gap)
+            btn = SettingsButtonItem(QRectF(x, tab_y, tab_w, tab_h), key, self,
+                                     opacity=255, button_color=self._button_color)
+            btn.set_click_handler(lambda k=key: self._on_page_clicked(k))
+            text = PAGE_LABELS[key].get(self.language, PAGE_LABELS[key]["zh"])
+            self._add_button_text(text, btn, self._btn_text_normal_rgb(), font)
+            self._page_tabs[key] = btn
+
+    def _clear_page_tabs(self):
+        """移除页签按钮及其文本（尺寸变化/关闭/语言切换重建时调用）。"""
+        for btn in list(self._page_tabs.values()):
+            label = getattr(btn, "_text_label", None)
+            if label is not None and label.scene():
+                self._scene.removeItem(label)
+            if btn.scene():
+                self._scene.removeItem(btn)
+        self._page_tabs = {}
+
+    def _on_page_clicked(self, page_key):
+        """点击页签：切换到对应设置页（清旧页项 -> 建新页项）。
+        页签按钮视觉无选中态，与普通按钮一致。"""
+        if page_key not in PAGE_KEYS or page_key == self._current_page:
+            return
+        self._clear_page_items()
+        self._current_page = page_key
+        self._build_page_items()
+
+    # ---------- 页面内容（各页的设置项） ----------
+
+    def _build_page_items(self):
+        """构建当前页（_current_page）的全部设置项。需在标题/页签之后调用。"""
+        if self._current_page == "display":
+            self._build_resolution()
+            self._build_language()
+            self._build_skip_readed()
+        elif self._current_page == "sound":
+            self._build_sound_items()
+
+    def _clear_page_items(self):
+        """移除当前页（_current_page）的全部设置项。"""
+        if self._current_page == "display":
+            self._clear_resolution_items()
+            self._clear_language_items()
+            self._clear_skip_readed_items()
+        elif self._current_page == "sound":
+            self._clear_sound_items()
+
+    def _clear_all_page_items(self):
+        """移除所有页的全部设置项（尺寸变化/关闭面板全量重建时调用）。"""
+        self._clear_resolution_items()
+        self._clear_language_items()
+        self._clear_skip_readed_items()
+        self._clear_sound_items()
+
+    # ---------- 声音页（音量调节） ----------
+
+    def _build_sound_items(self):
+        """构建声音页设置项：
+          - 左列第 2 行："背景音乐"（BGM）音量滑条
+          - 右列第 2 行："翻页时中断语音"开关（与 BGM 音量同行）
+          - 左列第 3 行："语音"（Voice）音量滑条
+        行位置与显示页左列"分辨率"/右列"语言"(第2行)、右列"跳过已读"(第3行) 对齐：
+          第2行 = 标题下方 item_gap；第3行 = 第2行顶 + 行高 + item_gap。
+        """
+        left_rect, right_rect = self._column_rects()
+        inner = self.config["border_offset"] + self.config["border_width"]
+        top = self.config.get("title_top_margin", 15)
+        item_gap = self.config.get("item_gap", 24)
+        item_left_margin = self.config.get("item_left_margin", 10)
+        title_h = self._title_item.boundingRect().height() if self._title_item else 0
+        row_h = 32
+        row2_y = inner + top + title_h + item_gap
+        row3_y = row2_y + row_h + item_gap
+
+        rows = [
+            ("bgm", BGM_VOLUME_LABEL, row2_y, self._bgm_volume, "bgm"),
+            ("voice", VOICE_VOLUME_LABEL, row3_y, self._voice_volume, "voice"),
+        ]
+        label_x = left_rect.left() + item_left_margin
+        # 阶段 1：先建两个标签并测量宽度，取最大宽度作为统一标签区宽度，
+        # 保证两行滑条起点/长度一致（否则“背景音乐”(4字)与“语音”(2字)会错位不等长）
+        built = []
+        max_label_w = 0.0
+        for key, label_dict, row_y, value, _ in rows:
+            label_text = label_dict.get(self.language, label_dict["zh"])
+            label = QGraphicsTextItem()
+            label.setPlainText(label_text)
+            tc = self._text_rgb()
+            label.setDefaultTextColor(QColor(tc[0], tc[1], tc[2]))
+            lf = QFont("YouYuan")
+            lf.setBold(True)
+            lf.setPointSize(self.config.get("res_label_size", 18))
+            label.setFont(lf)
+            label.setAcceptHoverEvents(False)
+            label.setTextInteractionFlags(Qt.NoTextInteraction)
+            label.setCursor(Qt.ArrowCursor)
+            label.setParentItem(self)
+            label.setTextWidth(-1)
+            rl = label.boundingRect()
+            label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
+            built.append((key, label, row_y, value, rl.width()))
+            max_label_w = max(max_label_w, rl.width())
+        # 阶段 2：按统一标签区宽度摆放滑条（两行同起点同宽度）
+        slider_gap = 16
+        slider_h = 22
+        sx = label_x + max_label_w + slider_gap
+        sw = left_rect.right() - item_left_margin - sx
+        sw = max(40, sw)
+        for key, label, row_y, value, _ in built:
+            if key == "bgm":
+                self._bgm_volume_label = label
+            else:
+                self._voice_volume_label = label
+            sy = row_y + (row_h - slider_h) / 2
+            slider = VolumeSliderItem(QRectF(0, 0, sw, slider_h), key, self, value=value)
+            slider.setPos(sx, sy)
+            if key == "bgm":
+                slider.set_change_handler(self._on_bgm_volume_changed)
+                slider.set_release_handler(self._on_bgm_volume_committed)
+                self._bgm_volume_slider = slider
+            else:
+                slider.set_change_handler(self._on_voice_volume_changed)
+                slider.set_release_handler(self._on_voice_volume_committed)
+                self._voice_volume_slider = slider
+
+        # 右列第 2 行："翻页时中断语音"开关（与左列第 2 行 BGM 音量同行）
+        row_y = row2_y
+        label_text = VOICE_INTERRUPT_LABEL.get(self.language, VOICE_INTERRUPT_LABEL["zh"])
+        self._voice_interrupt_label = QGraphicsTextItem()
+        self._voice_interrupt_label.setPlainText(label_text)
+        tc = self._text_rgb()
+        self._voice_interrupt_label.setDefaultTextColor(QColor(tc[0], tc[1], tc[2]))
+        lf = QFont("YouYuan")
+        lf.setBold(True)
+        lf.setPointSize(self.config.get("res_label_size", 18))
+        self._voice_interrupt_label.setFont(lf)
+        self._voice_interrupt_label.setAcceptHoverEvents(False)
+        self._voice_interrupt_label.setTextInteractionFlags(Qt.NoTextInteraction)
+        self._voice_interrupt_label.setCursor(Qt.ArrowCursor)
+        self._voice_interrupt_label.setParentItem(self)
+        self._voice_interrupt_label.setTextWidth(-1)
+        rl = self._voice_interrupt_label.boundingRect()
+        label_x = right_rect.left() + item_left_margin
+        self._voice_interrupt_label.setPos(label_x, row_y + (row_h - rl.height()) / 2)
+
+        # 开关：放右列右侧（与显示页"跳过已读"开关同侧对齐）
+        sw_w = 56
+        sw_h = 28
+        sw_x = right_rect.right() - item_left_margin - sw_w
+        sw_y = row_y + (row_h - sw_h) / 2
+        self._voice_interrupt_toggle = ToggleSwitchItem(
+            QRectF(sw_x, sw_y, sw_w, sw_h), "voice_interrupt", self,
+            checked=self._voice_interrupt_checked)
+        self._voice_interrupt_toggle.setPos(sw_x, sw_y)
+        self._voice_interrupt_toggle.set_click_handler(self._on_voice_interrupt_toggled)
+
+    def _clear_sound_items(self):
+        """移除声音页音量项/开关的标签与控件（尺寸变化/关闭/语言切换重建时调用）。"""
+        for item in (self._bgm_volume_label, self._voice_volume_label,
+                     self._bgm_volume_slider, self._voice_volume_slider,
+                     self._voice_interrupt_label, self._voice_interrupt_toggle):
+            if item is not None and item.scene():
+                self._scene.removeItem(item)
+        self._bgm_volume_label = None
+        self._voice_volume_label = None
+        self._bgm_volume_slider = None
+        self._voice_volume_slider = None
+        self._voice_interrupt_label = None
+        self._voice_interrupt_toggle = None
+
+    def _on_bgm_volume_changed(self, value):
+        """背景音乐音量滑条拖动中变更：记录并实时回调（main_window 应用播放器音量）。"""
+        self._bgm_volume = max(0.0, min(1.0, float(value)))
+        if self._bgm_volume_handler:
+            self._bgm_volume_handler(self._bgm_volume)
+
+    def _on_bgm_volume_committed(self, value):
+        """背景音乐音量滑条拖动结束：回调提交（main_window 写盘 .gpsetting）。"""
+        if self._bgm_volume_commit:
+            self._bgm_volume_commit(self._bgm_volume)
+
+    def set_bgm_volume_handler(self, handler):
+        """绑定背景音乐音量实时变更回调（main_window 中调用，应用播放器音量）。"""
+        self._bgm_volume_handler = handler
+
+    def set_bgm_volume_commit_handler(self, handler):
+        """绑定背景音乐音量拖动结束回调（main_window 中调用，写盘保存）。"""
+        self._bgm_volume_commit = handler
+
+    def _on_voice_volume_changed(self, value):
+        """语音音量滑条拖动中变更：记录并实时回调（main_window 应用播放器音量）。"""
+        self._voice_volume = max(0.0, min(1.0, float(value)))
+        if self._voice_volume_handler:
+            self._voice_volume_handler(self._voice_volume)
+
+    def _on_voice_volume_committed(self, value):
+        """语音音量滑条拖动结束：回调提交（main_window 写盘 .gpsetting）。"""
+        if self._voice_volume_commit:
+            self._voice_volume_commit(self._voice_volume)
+
+    def set_voice_volume_handler(self, handler):
+        """绑定语音音量实时变更回调（main_window 中调用，应用播放器音量）。"""
+        self._voice_volume_handler = handler
+
+    def set_voice_volume_commit_handler(self, handler):
+        """绑定语音音量拖动结束回调（main_window 中调用，写盘保存）。"""
+        self._voice_volume_commit = handler
+
+    def _on_voice_interrupt_toggled(self, checked: bool):
+        """"翻页时中断语音"开关状态变更：记录状态并回调（main_window 保存设置）。"""
+        self._voice_interrupt_checked = bool(checked)
+        if self._voice_interrupt_handler:
+            self._voice_interrupt_handler(self._voice_interrupt_checked)
+
+    def set_voice_interrupt_handler(self, handler):
+        """绑定开关变更回调（main_window 中调用，保存设置到 .gpsetting）。"""
+        self._voice_interrupt_handler = handler
+
     def _build_buttons(self):
         """在面板底部创建半透明圆角按钮（作为面板子 item）。
         布局基准从"木色大框"改为"白色圈内空间"：
@@ -647,14 +926,12 @@ class SettingsPanel(QGraphicsPathItem):
         if self._title_item is not None and self._title_item.scene():
             self._scene.removeItem(self._title_item)
         self._title_item = None
-        self._clear_resolution_items()
-        self._clear_language_items()
-        self._clear_skip_readed_items()
+        self._clear_page_tabs()
+        self._clear_all_page_items()
         self._build_buttons()
         self._build_title()
-        self._build_resolution()
-        self._build_language()
-        self._build_skip_readed()
+        self._build_page_tabs()
+        self._build_page_items()
         x = scene_rect.left() + (w_avail - w) / 2
         y = scene_rect.top() + (h_avail - h) / 2
         self.setPos(x, y)
@@ -714,9 +991,8 @@ class SettingsPanel(QGraphicsPathItem):
         if self._title_item is not None and self._title_item.scene():
             scene.removeItem(self._title_item)
             self._title_item = None
-        self._clear_resolution_items()
-        self._clear_language_items()
-        self._clear_skip_readed_items()
+        self._clear_page_tabs()
+        self._clear_all_page_items()
         if self.scene() == scene:
             scene.removeItem(self)
 
@@ -734,9 +1010,8 @@ class SettingsPanel(QGraphicsPathItem):
         if self._title_item is not None and self._title_item.scene():
             self._scene.removeItem(self._title_item)
         self._title_item = None
-        self._clear_resolution_items()
-        self._clear_language_items()
-        self._clear_skip_readed_items()
+        self._clear_page_tabs()
+        self._clear_all_page_items()
         # 重建底部按钮（文字随语言变）
         for b in list(self.buttons):
             label = getattr(b, "_text_label", None)
@@ -747,9 +1022,8 @@ class SettingsPanel(QGraphicsPathItem):
         self.buttons = []
         self._build_buttons()
         self._build_title()
-        self._build_resolution()
-        self._build_language()
-        self._build_skip_readed()
+        self._build_page_tabs()
+        self._build_page_items()
 
     def _btn_text_normal_rgb(self):
         """按钮正常态文字色：有 button_color 时按亮度（sum<383 白 / ≥383 黑）；
@@ -991,6 +1265,120 @@ class ToggleSwitchItem(QGraphicsPathItem):
             event.accept()
             return
         super().mousePressEvent(event)
+
+
+class VolumeSliderItem(QGraphicsPathItem):
+    """音量滑条（设置面板声音页用）：圆角轨道 + 绿色已调填充 + 白色圆钮。
+    支持鼠标点击定位 / 按住拖动（实时回调 change_handler(value)，0.0~1.0）；
+    鼠标释放时回调 release_handler(value)（供 main_window 写盘，避免拖动中频繁写）。
+    注意：轨道/填充/圆钮全部在 paint() 自绘，基类 path 仅提供命中区域；
+    局部坐标 (0,0) 起点，位置由调用方 setPos 定位（与 ToggleSwitchItem 一致）。
+    """
+    _TRACK_COLOR = [176, 176, 176]  # 未调部分（灰，同开关关色）
+    _FILL_COLOR = [76, 175, 80]     # 已调部分（绿，同开关开色）
+    _KNOB_COLOR = [255, 255, 255]   # 圆钮白色
+
+    def __init__(self, rect: QRectF, key: str, parent=None, value=1.0):
+        # 命中区域：整条圆角矩形（局部坐标 0,0 起，仅取宽高）
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, rect.width(), rect.height()),
+                            rect.height() / 2.0, rect.height() / 2.0)
+        super().__init__(path, parent)
+        self.key = key
+        self._rect = QRectF(0, 0, rect.width(), rect.height())
+        self.value = max(0.0, min(1.0, float(value)))
+        self.change_handler = None   # 拖动/点击中回调(value)
+        self.release_handler = None  # 鼠标释放回调(value)
+        self.setPen(QPen(Qt.NoPen))
+        self.setBrush(QBrush(Qt.NoBrush))  # 自绘，不填充 path
+        self.setAcceptHoverEvents(False)
+        self.setCursor(Qt.ArrowCursor)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
+
+    # ---------- 公开接口 ----------
+
+    def set_change_handler(self, handler):
+        self.change_handler = handler
+
+    def set_release_handler(self, handler):
+        self.release_handler = handler
+
+    def set_value(self, value, notify=True):
+        """直接设置音量值（notify=True 时回调 change_handler）。"""
+        v = max(0.0, min(1.0, float(value)))
+        changed = abs(v - self.value) > 1e-6
+        self.value = v
+        self.update()
+        if changed and notify and self.change_handler:
+            self.change_handler(self.value)
+
+    # ---------- 内部 ----------
+
+    def _knob_r(self):
+        """圆钮半径（随控件高度，但不超过 8px）。"""
+        return max(5.0, min(8.0, self._rect.height() / 2.0 - 3.0))
+
+    def _track_rect(self):
+        """轨道区域（左右内缩 knob_r+2，垂直居中，高 6px）。"""
+        r = self._knob_r()
+        pad = r + 2.0
+        w = self._rect.width()
+        h = self._rect.height()
+        th = 6.0
+        return QRectF(pad, (h - th) / 2.0, w - 2 * pad, th)
+
+    def _value_from_x(self, x):
+        """局部坐标 x -> 音量值 0~1。"""
+        tr = self._track_rect()
+        if tr.width() <= 0:
+            return 0.0
+        return max(0.0, min(1.0, (x - tr.left()) / tr.width()))
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.Antialiasing)
+        tr = self._track_rect()
+        cx = tr.left() + self.value * tr.width()
+        cy = self._rect.height() / 2.0
+        radius = tr.height() / 2.0
+        # 轨道底色（灰）
+        painter.setPen(QPen(Qt.NoPen))
+        painter.setBrush(QBrush(QColor(*self._TRACK_COLOR)))
+        painter.drawRoundedRect(tr, radius, radius)
+        # 已调部分（绿）：从轨道左端到圆钮中心
+        if cx > tr.left() + 1:
+            fill = QRectF(tr.left(), tr.top(), cx - tr.left(), tr.height())
+            painter.setBrush(QBrush(QColor(*self._FILL_COLOR)))
+            painter.drawRoundedRect(fill, radius, radius)
+        # 圆钮（白 + 细边）
+        kr = self._knob_r()
+        painter.setBrush(QBrush(QColor(*self._KNOB_COLOR)))
+        painter.setPen(QPen(QColor(0, 0, 0, 60), 1))
+        painter.drawEllipse(QPointF(cx, cy), kr, kr)
+
+    def mousePressEvent(self, event):
+        if not self.isVisible():
+            event.ignore()
+            return
+        if event.button() == Qt.LeftButton:
+            self.set_value(self._value_from_x(event.pos().x()), notify=True)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton:
+            self.set_value(self._value_from_x(event.pos().x()), notify=True)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            if self.release_handler:
+                self.release_handler(self.value)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
 
 class BacklogPanel(QGraphicsPathItem):
