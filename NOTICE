@@ -38,8 +38,14 @@ Part of the sample artwork was generated with AI image-generation tools.
 Name
 --------------------------------------------------------------------------
 
-"GalPie" is the name of this project. Copyright in the name is owned by the
-author. The author does not claim trademark rights in the name.
+"GalPie" is the name of this project.
+
+The MIT License covers the source code only. It does not grant any right to
+use the project name or logo.
+
+The author reserves all rights in the name and the logo, including the right
+to apply for trademark registration. No trademark application has been filed
+to date, and nothing in this file is a waiver of any rights in the name.
 
 --------------------------------------------------------------------------
 Third-party components
@@ -119,7 +125,12 @@ story/res/ 下的示例素材不在 MIT 许可范围内：
 名称
 --------------------------------------------------------------------------
 
-「GalPie」为本项目名称，版权归作者所有。作者不就此名称主张商标权。
+「GalPie」为本项目名称。
+
+MIT 许可只覆盖源代码，不授予项目名称或标识的任何使用许可。
+
+名称与标识的权利归作者所有，作者保留包括申请商标注册在内的一切权利。
+目前尚未申请商标注册；本文件不构成对名称任何权利的放弃。
 
 --------------------------------------------------------------------------
 第三方组件
