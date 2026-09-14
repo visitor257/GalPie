@@ -110,3 +110,11 @@
 - **已读记录**：`{标题}_{识别码}_READED.gpreaded`（保存已读场景记录，用于已读文本颜色与"跳过已读文本"判定；全局记录，不随存档删除）<br>
 不同剧情的存档互不干扰；<b>不同剧情请务必设置不同的 identify_code</b>（识别码），否则会被视为同一剧情而共用存档。<br>
 <br>
+
+## 第三方组件与许可<br>
+本项目基于 **PySide6** 开发，第三方组件与许可说明见仓库根目录的 **NOTICE** 文件。<br>
+- **GalPie 源代码**：MIT License（见 **LICENSE**）<br>
+- **PySide6 / shiboken6**：LGPL v3（另有 Qt 商业许可可选），版权归 The Qt Company 所有，由使用者通过 pip 安装（见 **requirements.txt**）<br>
+- **示例素材**（**story/res/** 下的背景、立绘、UI、语音、BGM）：不在 MIT 许可范围内，版权归作者所有；详见 **NOTICE**<br>
+使用 GalPie 制作的作品，其剧情与素材版权归该作品的作者所有。<br>
+

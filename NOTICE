@@ -1,0 +1,158 @@
+GalPie
+Copyright (c) 2025 visitor257
+
+==========================================================================
+  English
+==========================================================================
+
+--------------------------------------------------------------------------
+Source code
+--------------------------------------------------------------------------
+
+This project's source code is released under the MIT License.
+See the LICENSE file for the full text.
+
+--------------------------------------------------------------------------
+Artwork, audio and story data (NOT covered by the MIT License)
+--------------------------------------------------------------------------
+
+The sample assets under story/res/ are not covered by the MIT License:
+
+  - Backgrounds:      story/res/bg/
+  - Character art:    story/res/character/
+  - UI and menu art:  story/res/ui/, story/res/menu/
+  - Voice lines:      story/res/audio/*.wav
+  - Music:            story/res/audio/bgm_*.mp3
+
+Copyright in these assets is owned by the author. All rights reserved.
+
+They are included for demonstration and testing only, so that the sample
+story (story/sample_create.json) can be played out of the box. You may keep
+and view them as part of this repository, but you may not reuse, modify or
+redistribute them for any commercial purpose without the author's prior
+written permission.
+
+Part of the sample artwork was generated with AI image-generation tools.
+
+--------------------------------------------------------------------------
+Name
+--------------------------------------------------------------------------
+
+"GalPie" is the name of this project. Copyright in the name is owned by the
+author. The author does not claim trademark rights in the name.
+
+--------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------
+
+This project contains no third-party source code, binary or font. It depends
+on the following runtime library, which is not distributed with this
+repository:
+
+  - PySide6 (Qt for Python) / shiboken6
+      License: LGPL v3 (alternatively available under a commercial Qt license)
+      Copyright: Copyright (c) The Qt Company Ltd.
+      Source: https://code.qt.io/cgit/pyside/pyside-setup.git/
+      Note: Installed by the user through pip (see requirements.txt) and used
+            as a dynamically linked library. This is compliant with the LGPL
+            v3 as long as the copyright notices are kept and the user remains
+            able to replace the Qt libraries.
+
+The CPython runtime is distributed under the PSF License Agreement and is
+likewise not distributed with this repository.
+
+--------------------------------------------------------------------------
+Note for redistributors
+--------------------------------------------------------------------------
+
+If you distribute GalPie in a bundled form (for example a frozen build made
+with PyInstaller or Nuitka), you additionally have to:
+
+  - ship the full text of the LGPL v3, together with the copyright notices
+    of PySide6 / Qt and of the CPython runtime;
+  - make sure the recipient can still replace the bundled Qt libraries
+    (dynamic linking, or providing the means to relink).
+
+The LGPL v3 text is not included in this repository, because this repository
+does not redistribute Qt.
+
+--------------------------------------------------------------------------
+Works created with GalPie
+--------------------------------------------------------------------------
+
+GalPie is an engine. The story, artwork, audio and other content of a work
+made with GalPie belong to the author of that work and are not covered by
+GalPie's MIT License.
+
+
+==========================================================================
+  中文
+==========================================================================
+
+--------------------------------------------------------------------------
+源代码
+--------------------------------------------------------------------------
+
+本项目的源代码采用 MIT 许可发布，完整条款见 LICENSE 文件。
+
+--------------------------------------------------------------------------
+美术、音频与剧情素材（不适用 MIT 许可）
+--------------------------------------------------------------------------
+
+story/res/ 下的示例素材不在 MIT 许可范围内：
+
+  - 背景：    story/res/bg/
+  - 角色立绘：story/res/character/
+  - UI 与菜单：story/res/ui/、story/res/menu/
+  - 语音：    story/res/audio/*.wav
+  - 音乐：    story/res/audio/bgm_*.mp3
+
+上述素材的著作权归作者所有，保留所有权利（All rights reserved）。
+
+它们仅用于演示与测试，使示例剧情（story/sample_create.json）可以直接
+运行。你可以随本仓库保留、查看这些素材，但未经作者书面许可，不得将其
+用于任何商业用途，也不得再分发或修改后分发。
+
+部分示例美术由作者使用 AI 绘图工具生成。
+
+--------------------------------------------------------------------------
+名称
+--------------------------------------------------------------------------
+
+「GalPie」为本项目名称，版权归作者所有。作者不就此名称主张商标权。
+
+--------------------------------------------------------------------------
+第三方组件
+--------------------------------------------------------------------------
+
+本项目不包含任何第三方源码、二进制或字体。它依赖以下运行时库，该库
+不随本仓库分发：
+
+  - PySide6（Qt for Python）/ shiboken6
+      许可证：LGPL v3（亦可选择 Qt 商业许可）
+      著作权：Copyright (c) The Qt Company Ltd.
+      来源：https://code.qt.io/cgit/pyside/pyside-setup.git/
+      说明：由使用者通过 pip 安装（见 requirements.txt），以动态链接库
+            方式使用。只要保留版权声明、并保证使用者仍可替换 Qt 库，
+            即符合 LGPL v3 的要求。
+
+CPython 运行时的许可为 PSF License Agreement，同样不随本仓库分发。
+
+--------------------------------------------------------------------------
+给再分发者的提示
+--------------------------------------------------------------------------
+
+如果你以打包形式分发 GalPie（例如用 PyInstaller / Nuitka 冻结成的可执行
+文件），则还需要：
+
+  - 一并附上 LGPL v3 全文，以及 PySide6 / Qt 与 CPython 运行时的版权声明；
+  - 保证接收者仍可替换打包内的 Qt 库（动态链接，或提供重新链接的手段）。
+
+本仓库不分发 Qt，因此未附带 LGPL v3 全文。
+
+--------------------------------------------------------------------------
+用 GalPie 制作的作品
+--------------------------------------------------------------------------
+
+GalPie 是引擎。用 GalPie 制作的作品，其剧情、美术、音频等内容归该作品的
+作者所有，不属于 GalPie 的 MIT 许可范围。

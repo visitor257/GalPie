@@ -110,3 +110,11 @@ Save files are stored in the **saves** folder and are isolated per story automat
 - **Read history**: `{title}_{identify_code}_READED.gpreaded` (stores the record of read scenes, used for read-text colors and the "Skip Read Text" judgement; a global record that is not deleted with saves)<br>
 Saves of different stories do not interfere with each other; <b>please give different stories different identify_code values</b>, otherwise they are treated as the same story and share saves.<br>
 <br>
+
+## Third-party Components and Licenses<br>
+This project is built with **PySide6**. See the **NOTICE** file in the repository root for the third-party components and license details.<br>
+- **GalPie source code**: MIT License (see **LICENSE**)<br>
+- **PySide6 / shiboken6**: LGPL v3 (or a commercial Qt license), copyright The Qt Company Ltd., installed by the user via pip (see **requirements.txt**)<br>
+- **Sample assets** (backgrounds, character art, UI, voices, BGM under **story/res/**): not covered by the MIT License, copyright the author; see **NOTICE**<br>
+Works created with GalPie: the story and assets of such a work belong to its own author.<br>
+
