@@ -2,7 +2,9 @@
 Language: [中文](./README.md) | [**English**]
 <br><br>
 A galgame maker/reader based on PySide6<br>
-<br><br>
+<br>
+First public release: 2025-11-27 (GitHub: <https://github.com/visitor257/GalPie>)<br>
+<br>
 Main program: GalPie.py<br>
 It can currently read story JSON files written according to the rules to play the game.<br>
 (For the writing rules, please refer to **Story JSON rules.txt** (Chinese: **剧情json规则.txt**) in the **doc** folder. You can also consult **sample_create.json** in the **story** folder as a reference when writing.)<br>
