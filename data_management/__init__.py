@@ -1,6 +1,7 @@
 from .resource_manager import ResourceManager
 from .save_load_system import save_game, load_save, get_this_story_saves_new_to_old
 from .story_parser import load_ui_settings_from_data
+from .story_entry import load_story_path
 
 __all__ = [
     "ResourceManager",
@@ -8,4 +9,5 @@ __all__ = [
     "load_save",
     "get_this_story_saves_new_to_old",
     "load_ui_settings_from_data",
+    "load_story_path",
 ]

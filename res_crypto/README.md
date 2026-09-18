@@ -36,6 +36,20 @@ buf = QBuffer(); buf.setData(QByteArray(read_resource_bytes(path)))
 **不要**在引擎里加 `if 资源已加密:` 分支，也不要在别处 `open()` 资源文件。
 加密与否只体现在 `decrypt.py` 的函数体里。
 
+引擎里目前只有两类东西不走这里：用户数据（`.gpsave` / `.gpsetting` / `.gpreaded`）与
+剧情入口文件（引擎根目录的 **EXORDIUM**，见下一节）。
+
+## 二·补、剧情入口文件 EXORDIUM 也走这里
+
+引擎根目录有一个无扩展名、全大写的明文文件 **EXORDIUM**，内容一行 = 剧情 JSON 的逻辑路径
+（如 `story/sample_create.json`）。引擎读它也是调 `read_resource_bytes(EXORDIUM)`：
+
+- 开源版：原样读，直接拿到那一行路径；
+- 加密版：你可以在本函数里对 EXORDIUM 的内容一并做处理（轻度编码 / 映射），
+  或让值写成一个“识别号”，再由本层的映射表换成真实文件。
+
+引擎侧只有 `data_management/story_entry.py` 一个调用点，行为改动都集中在 `decrypt.py`。
+
 ## 三、替换步骤（创作者）
 
 1. 打开 `decrypt.py`，把 `read_resource_bytes` 的实现换成你自己的（解密）。

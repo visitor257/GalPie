@@ -18,6 +18,7 @@ from ui.widgets import TextDisplayWidget
 from ui.settings_panel import SettingsPanel, SettingsButtonItem, BacklogPanel, SavePanel, FULLSCREEN_KEY, ConfirmDialog
 from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
+from data_management.story_entry import load_story_path
 from data_management.save_load_system import (save_settings_file, load_settings_file,
                                               get_this_story_saves_new_to_old)
 from res_crypto import read_resource_bytes
@@ -133,6 +134,12 @@ class GalGameWindow(QMainWindow):
         self.setFocus()
 
     def load_story_file(self):
+        # 优先读引擎根目录的入口文件 EXORDIUM（一行纯文本 = 剧情 JSON 的逻辑路径）。
+        # 该文件缺失 / 内容非法时返回 None，此时沿用下面的旧行为作兜底。
+        story_path = load_story_path()
+        if story_path is not None:
+            self.load_json_file(story_path)
+            return
         story_dir = Path("story")
         json_files = list(story_dir.glob("*.json"))
         if json_files:

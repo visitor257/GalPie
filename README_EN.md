@@ -9,7 +9,8 @@ Main program: GalPie.py<br>
 It can currently read story JSON files written according to the rules to play the game.<br>
 (For the writing rules, please refer to **Story JSON rules.txt** (Chinese: **剧情json规则.txt**) in the **doc** folder. You can also consult **sample_create.json** in the **story** folder as a reference when writing.)<br>
 <br>
-Put the story JSON file into the **story** folder, and the program will load it automatically on startup.<br>
+The story to load is specified by the **EXORDIUM** file in the engine root (a single line: the story JSON's relative path, e.g. story/sample_create.json).<br>
+If that file is missing or invalid, the program falls back to the first JSON file in the **story** folder; if none is available, a file selection dialog is shown.<br>
 If the story includes a **menu** (main menu), the main menu is shown first on launch; otherwise the story starts directly.<br>
 <br>
 

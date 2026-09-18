@@ -9,7 +9,8 @@
 目前可读取按照规则编写的剧情json文件来进行游戏。<br>
 （编写规则可查看 **doc** 文件夹中的 **剧情json规则.txt**（英文版：**Story JSON rules.txt**），亦可参考 **story** 文件夹中的 **sample_create.json** 进行编写）<br>
 <br>
-将剧情json文件放入 **story** 文件夹内，程序启动时将自动读取并开始游戏。<br>
+剧情入口由引擎根目录的 **EXORDIUM** 文件指定（内容一行：剧情json 的相对路径，如 story/sample_create.json）。<br>
+若该文件缺失或内容非法，程序退回到读取 **story** 文件夹内第一个 json 文件；若仍无可用文件则弹出文件选择框。<br>
 若剧情中填写了 **menu**（主菜单），则启动后先显示主菜单；未填写则直接进入剧情。<br>
 <br>
 
