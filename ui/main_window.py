@@ -20,6 +20,7 @@ from data_management.resource_manager import ResourceManager
 from data_management.story_parser import load_ui_settings_from_data
 from data_management.save_load_system import (save_settings_file, load_settings_file,
                                               get_this_story_saves_new_to_old)
+from res_crypto import read_resource_bytes
 
 
 # 设置面板的 JSON 自定义配置读取（预留接口，后续开发）
@@ -151,8 +152,9 @@ class GalGameWindow(QMainWindow):
     def load_json_file(self, file_path: Path):
         import json
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                story_data = json.load(f)
+            # 剧情 JSON 也走统一资源读取入口（开源版=直接读文件，加密版=解密）
+            # utf-8-sig：有 BOM 也能吃（无 BOM 时与 utf-8 等价）
+            story_data = json.loads(read_resource_bytes(file_path).decode("utf-8-sig"))
             self.controller.set_story_data(story_data, file_path.parent)
             self.controller.apply_settings()
             self._apply_saved_settings()

@@ -13,8 +13,10 @@ in/out 效果："normal"（直接）| "gradient"（1 秒淡变）| ["gradient", 
   - 实际输出音量 = factor * self._volume
 因此播放中/淡变中调整总音量都实时生效，无需打断动画。
 """
-from PySide6.QtCore import QObject, QUrl, QVariantAnimation
+from PySide6.QtCore import QObject, QUrl, QVariantAnimation, QBuffer, QByteArray, QIODevice
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+
+from res_crypto import read_resource_bytes
 
 
 class BgmPlayer(QObject):
@@ -43,18 +45,28 @@ class BgmPlayer(QObject):
         fade_in 为秒数时淡化系数从 0 淡入到 1（音量 0->总音量），
         None 直接以总音量播放。"""
         self._hard_stop_channel(bgm_id)
+        # 资源读取统一入口（开源版=直接读文件，加密版=解密）；失败则本路不播
+        try:
+            data = read_resource_bytes(path)
+        except Exception as e:
+            print(f"BGM 读取失败 [{bgm_id}]: {path} ({e})")
+            return
         player = QMediaPlayer(self)
         out = QAudioOutput(self)
+        # 内存源：解密后的完整音频容器喂给 QMediaPlayer（不落盘）
+        buf = QBuffer(self)
+        buf.setData(QByteArray(data))
+        buf.open(QIODevice.OpenModeFlag.ReadOnly)
         factor = 0.0 if fade_in else 1.0
         out.setVolume(factor * self._volume)
         player.setAudioOutput(out)
-        player.setSource(QUrl.fromLocalFile(path))
+        player.setSourceDevice(buf, QUrl("mem://bgm"))
         player.errorOccurred.connect(
             lambda e, s, _id=bgm_id: self._on_error(_id, s))
         player.mediaStatusChanged.connect(
             lambda st, _id=bgm_id: self._on_media_status(_id, st))
         player.play()
-        self._channels[bgm_id] = {"player": player, "out": out, "anim": None,
+        self._channels[bgm_id] = {"player": player, "out": out, "buf": buf, "anim": None,
                                   "path": path, "factor": factor,
                                   "_fadeout_cb": None}
         if fade_in:
@@ -166,5 +178,12 @@ class BgmPlayer(QObject):
         if out is not None:
             try:
                 out.deleteLater()
+            except Exception:
+                pass
+        buf = ch.get("buf")
+        if buf is not None:
+            try:
+                buf.close()
+                buf.deleteLater()
             except Exception:
                 pass

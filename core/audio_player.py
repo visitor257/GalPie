@@ -7,8 +7,10 @@
     如 [["1.wav"],["2.wav","3.wav"]] -> 播完 1 再同时播 2、3
 全部组播完后触发 on_all_finished 回调。
 """
-from PySide6.QtCore import QObject, QUrl
+from PySide6.QtCore import QObject, QUrl, QBuffer, QByteArray, QIODevice
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+
+from res_crypto import read_resource_bytes
 
 
 class AudioPlayer(QObject):
@@ -18,6 +20,7 @@ class AudioPlayer(QObject):
         super().__init__(parent)
         self._players = []        # 当前组的所有 player
         self._outs = []           # 与 _players 对应的 QAudioOutput（音量实时调整用）
+        self._bufs = []           # 与 _players 对应的 QBuffer（内存源，必须保引用）
         self._groups = []         # 剩余组队列
         self._done_count = 0      # 当前组剩余未播完的路数
         self._on_all_finished = None
@@ -63,18 +66,33 @@ class AudioPlayer(QObject):
             self._all_finished()
             return
         group = self._groups.pop(0)
-        self._done_count = len(group)
+        # 先整组读取（资源读取失败的路数直接跳过，与原来“文件不存在则不播”一致）
+        loaded = []
         for path in group:
+            try:
+                loaded.append(read_resource_bytes(path))
+            except Exception as e:
+                print(f"音频读取失败: {path} ({e})")
+        if not loaded:
+            self._play_next_group()   # 本组全部缺失 -> 跳过，继续下一组
+            return
+        self._done_count = len(loaded)
+        for data in loaded:
+            # 内存源：解密后的完整音频容器喂给 QMediaPlayer（不落盘）
+            buf = QBuffer(self)
+            buf.setData(QByteArray(data))
+            buf.open(QIODevice.OpenModeFlag.ReadOnly)
             player = QMediaPlayer(self)
             out = QAudioOutput(self)
             out.setVolume(self._volume)
             player.setAudioOutput(out)
-            player.setSource(QUrl.fromLocalFile(path))
+            player.setSourceDevice(buf, QUrl("mem://voice"))
             player.mediaStatusChanged.connect(self._on_status)
             player.errorOccurred.connect(self._on_error)
             player.play()
             self._players.append(player)
             self._outs.append(out)
+            self._bufs.append(buf)
 
     def _on_status(self, status):
         if self._stopping:
@@ -113,6 +131,13 @@ class AudioPlayer(QObject):
             except Exception:
                 pass
         self._outs = []
+        for buf in self._bufs:
+            try:
+                buf.close()
+                buf.deleteLater()
+            except Exception:
+                pass
+        self._bufs = []
 
     def _all_finished(self):
         cb = self._on_all_finished
