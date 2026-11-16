@@ -39,15 +39,7 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 </tr>
 <tr>
 <td>[S]</td>
-<td>Toggle Skip (quickly advances the story; only the first scene of each page is played)</td>
-</tr>
-<tr>
-<td>[F2]</td>
-<td>Save (to save slot 0)</td>
-</tr>
-<tr>
-<td>[F3]</td>
-<td>Load (loads the newest save; quick save takes priority)</td>
+<td>Toggle Skip (auto-advances the story; with "Skip Read Text" on, it stops at unread content)</td>
 </tr>
 <tr>
 <td>[Esc]</td>
@@ -58,7 +50,7 @@ On launch, if the story has a **menu** configured, the main menu is shown first.
 
 ## Bottom Menu Bar<br>
 During the story, a preset menu bar can be shown at the bottom of the window (controlled by the story's **ui.bottom_menu**). From right to left:<br>
-<b>⊙</b> (hide toggle: hides the dialogue box and the bottom menu; click anywhere to restore) → <b>Log</b> (backlog of past dialogue) → <b>Settings</b> (display/sound) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Load</b> (opens the load panel) → <b>Save</b> (opens the save panel) → <b>Q.Load</b> (quick load: confirm, then load the newest save) → <b>Q.Save</b> (quick save).<br>
+<b>⊙</b> (hide toggle: hides the dialogue box and the bottom menu; click anywhere to restore) → <b>Log</b> (backlog of past dialogue) → <b>Settings</b> (display/sound) → <b>Skip-to-choice</b> (confirm, then jump to the next choice page) → <b>Skip (▷▷)</b> toggle → <b>Auto-play (▷)</b> toggle → <b>Load</b> (opens the load panel) → <b>Save</b> (opens the save panel) → <b>Q.Load</b> (quick load: confirm, then load the newest save) → <b>Q.Save</b> (quick save).<br>
 <b>⊙</b> hides the dialogue box and the whole bottom menu (including the bar itself) while the story keeps advancing; pressing anywhere (left or right click) restores them, with the dialogue box restored to its visibility before hiding.<br>
 Skip and Auto-play are mutually exclusive (enabling one automatically disables the other); opening any panel pauses both, and they resume after returning to the story.<br>
 The colors of the menu bar, its buttons, and all panels can be configured in the story JSON (see the rules documents in the **doc** folder).<br>
@@ -108,10 +100,22 @@ The program determines whether the current scene has been read from the read his
 ## Save System<br>
 Save files are stored in the **saves** folder and are isolated per story automatically (the file name prefix is story title_identify code):<br>
 - **Slot saves**: `{title}_{identify_code}_SLOT{index}.gpsave` (index is the slot number, e.g., 0-7)<br>
-- **Quick save**: `{title}_{identify_code}_QSAVE.gpsave` (takes priority when loading with F3)<br>
+- **Quick save**: `{title}_{identify_code}_QSAVE.gpsave` (takes priority when loading)<br>
 - **Settings file**: `{title}_{identify_code}_SETTINGS.gpsetting` (stores resolution/language/skip-read-text toggle/volumes/interrupt-voice settings)<br>
 - **Read history**: `{title}_{identify_code}_READED.gpreaded` (stores the record of read scenes, used for read-text colors and the "Skip Read Text" judgement; a global record that is not deleted with saves)<br>
 Saves of different stories do not interfere with each other; <b>please give different stories different identify_code values</b>, otherwise they are treated as the same story and share saves.<br>
+<br>
+
+## Additional Content (DLC) and Transitions<br>
+**Additional-content packages**: one story JSON is one package. Register packages in the main work's **settings.extra_content** (`{"package id": "json path"}`); inside a package, every resource path is resolved relative to that JSON's own directory.<br>
+- **Entering a package**: write `{"ex_content": [["package id", "storyline", "page"]]}` in a scene or option `next`. Multiple candidates may be listed and are tried in order (the route only moves on when a package cannot be read or lacks that storyline/page). The reserved ids **":main:"** (main work) and **":this:"** (current package) are also accepted.<br>
+- **Resource inheritance**: with **settings.use_main** set to `true`, the package inherits the main work's characters/backgrounds/BGM/voice definitions (same ids are merged field by field, the package's own fields win); **storylines (story) are never inherited**. Writing the string `"use_main"` on a `ui` sub-item keeps the main work's setting there.<br>
+- **Save isolation**: saves and read records are tracked per package (the main work uses the `":main:"` prefix), so progress in different packages never mixes.<br>
+<br>
+**Transitions** (the **change** of a scene or the dialogue box):<br>
+- Gradient: `"gradient"` (1 second by default), `["gradient", seconds]`, or `["gradient", {"time": seconds, "start_change": {"last": seconds, "this": seconds}}]` (old and new frames can fade out/in with a stagger)<br>
+- Slide: `["slide", axis, old side, new side, {"time": seconds, "slide_element": [...]}]`, where axis is `"horizontal"` or `"vertical"`; `slide_element` draws edging along the moving divider (`{"area": [[x1,y1],[x2,y2]], "color": [r,g,b,a]}`, with -1 meaning the last value on that axis)<br>
+See the rules documents in the **doc** folder for details.<br>
 <br>
 
 ## Third-party Components and Licenses<br>
