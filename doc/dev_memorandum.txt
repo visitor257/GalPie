@@ -14,3 +14,11 @@
 - 右键返回：设置/日志/保存/加载任一面板打开时，鼠标右键 = 该面板的"返回"按钮，直接关闭面板。
 - 主菜单 quit（退出游戏）与 qload（继续游戏）点击后均先弹确认框（外观取 ui.confirm_ui），确认后才执行；qload 无存档时点击无反应（不弹框）。
 - 确认框（ConfirmDialog）为代码内置 UI：全屏遮罩（transition_color、50% 透明度）+ 居中圆角框（宽 40% 上限 480、高 22% 上限 170），问题文字 + 取消/确认两按钮；按钮文字按亮度自动黑白（RGB 和 <383 白字悬停混白 35%，≥383 黑字悬停混黑 35%）。
+
+2026-11-16（校正上面若干已过时的说法）：
+- 底部菜单条现在是 **10 个**按钮（从右到左）：⊙、日志、设置、**跳过**、快进 ▷▷、自动播放 ▷、加载、保存、Q.Load、Q.Save。新增的"跳过"= 弹确认框"跳至下一选项？"，确认后黑屏渐变、全黑期间静默模拟计算，全黑时长 = max(计算耗时+500ms, 1000ms)，停到下一个选项页。
+- 快进的实现不是"每页只搭第一个场景"，而是每 50ms 触发一次 handle_click（模拟连点）：文本未完成则立即完成，完成则进下一场景/页（语音按"翻页时中断语音"开关处理）；"跳过已读"开启时遇未读自动停；结局线禁用。
+- 存档 data 现在是 **14 元素**（index 0~13）：原有 0~10（标题/识别码/缩略图/storyline配置/当前线/当前页-1/说话者/台词/日期/时间/格子index）之外，11=页面快照（bg/characters/chatbox_visible/bgm）、12=计分 dict、13=存档所在包 id（主作 ":main:"，DLC 为其包 id）。旧档缺 11~13 时按缺省处理。
+- 快捷键 F2（静默覆盖格子 0）与 F3（读最新档）已**删除**；存档只剩底部"保存 / Q.Save"，读档只剩"加载 / Q.Load / 主菜单继续游戏"。
+- 规则文档的收录约定已放宽：现在也记录可选高级项（如 bottom_menu.height_ratio / extend、设置面板预设面板的覆盖键 corner_radius / fill_color / item_gap / res_* 等），不再只写示例 json 里出现过的字段；废弃项（border_offset / border_width / border_color / border_alpha）也在文档里标明。
+- 同期新增并在规则文档中记录的语法：slide 转场（轴/旧侧/新侧 + 可选参数 {time, slide_element}，slide_element 沿分割线绘制包边，支持负值倒数 -1=末值）、gradient 字典写法（time + start_change.last/this 延迟）、bg 取景写法（{"bg", "zoom", "start_pos", "animate"}，animate 的 zoom 可动画）、跨包路由 ex_content（":main:" / ":this:"）、settings.extra_content 登记包、settings.use_main 继承主作资源（story 不继承，ui 子项写 "use_main" 表示沿用主作）。

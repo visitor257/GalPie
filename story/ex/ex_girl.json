@@ -1,0 +1,835 @@
+{
+  "settings": {
+    "language": {
+      "zh": "中文",
+      "en": "English",
+      "ja": "日本語",
+      "ru": "Русский"
+    },
+    "default_audio_lang_id": "zh",
+    "use_main": true
+  },
+  "ui": {
+    "chatbox_and_words_position": "use_main"
+  },
+  "story_and_position": {
+    "character_and_motion": {
+      "girl": {
+        "form": {
+          "日常": "./dlc/character/girl/daily.png",
+          "日常_挥手": "./dlc/character/girl/daily_wave.png",
+          "日常_思考": "./dlc/character/girl/daily_think.png"
+        },
+        "face": {
+          "平常_脸红": "./dlc/character/girl/normal_shy.png",
+          "微笑": "./dlc/character/girl/smile.png",
+          "微笑_眯眼": "./dlc/character/girl/smile_squint.png"
+        }
+      }
+    },
+    "backgrounds": {
+      "街道": "./dlc/bg/street.png",
+      "书店": "./dlc/bg/book.png"
+    },
+    "storyline_settings": {
+      "main_storyline": "main",
+      "score_gap": 0.5,
+      "storyline_id_score": {
+        "main": 1.0
+      }
+    },
+    "story": {
+      "main": {
+        "1": [
+          {
+            "clear_all": false,
+            "characters": {
+              "": {
+                "animate": [
+                  [
+                    {
+                      "time": 0.5
+                    }
+                  ]
+                ]
+              }
+            },
+            "chatbox": {
+              "visible": false,
+              "change": ["gradient",0.3]
+            },
+            "bgm": [
+              {
+                "id": "",
+                "out": "gradient"
+              }
+            ]
+          },
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": {"color": [0,0,0]},
+            "stay_time": 0.5
+          },
+          {
+            "clear_all": true,
+            "change": "gradient",
+            "bg": {
+              "bg": "街道",
+              "zoom": 1.1,
+              "start_pos": [0,72]
+            },
+            "chatbox": {
+              "visible": true,
+              "change": ["gradient",0.3]
+            },
+            "content": {
+              "words": {
+                "zh": "周六，阳光正好。我提前十分钟到了书店门口。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "2": [
+          {
+            "clear_all": false,
+            "bg": {
+              "bg": "街道",
+              "zoom": 1.1,
+              "start_pos": [0,72],
+              "animate": [
+                [
+                  {
+                    "time": 0.5,
+                    "move": [
+                      [
+                        128,
+                        0
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            },
+            "stay_time": 0.5
+          },
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "日常_挥手",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "林越！",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "3": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "你来得好早。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "4": [
+          {
+            "clear_all": false,
+            "change": ["gradient", {"time": 0.5, "start_change": {"last": 0.15, "this": 0}}],
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  92
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "怕你找不到嘛。走吧，这家店二楼有很舒服的阅读区。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "5": [
+          {
+            "clear_all": false,
+            "characters": {
+              "": {
+                "animate": [
+                  [
+                    {
+                      "time": 0.5
+                    }
+                  ]
+                ]
+              }
+            },
+            "chatbox": {
+              "visible": false,
+              "change": ["gradient", 0.3]
+            }
+          },
+          {
+            "clear_all": true,
+            "change": ["slide","horizontal","right","left",{"time": 0.5}],
+            "bg": "书店",
+            "characters": {
+              "girl": {
+                "form": "日常_思考",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "stay_time": 0.5
+          },
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": true,
+              "change": ["gradient", 0.3]
+            },
+            "content": {
+              "words": {
+                "zh": "书店里弥漫着淡淡的纸张和咖啡香气。她在文学区的书架前停下脚步。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "6": [
+          {
+            "clear_all": false,
+            "change": ["gradient", {"time": 0.5, "start_change": {"last": 0.15, "this": 0}}],
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你平时喜欢看什么类型的书？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "7": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "小说多一些，尤其是那种日常向的。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "8": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "微笑_眯眼",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.2,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "真的吗？我也是！我最喜欢那种……明明什么都没发生，却让人觉得心里暖暖的故事。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "9": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "就像……今天的天气一样？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "10": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  100
+                ],
+                "face": [
+                  "脸红",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "words": {
+                "zh": "她愣了一下，随即低头笑了，耳根微微泛红。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "11": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  100
+                ],
+                "face": [
+                  "脸红及微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.7,
+                      "move": [
+                        [
+                          0,
+                          5
+                        ],
+                        [
+                          0,
+                          -5
+                        ],
+                        [
+                          0,
+                          5
+                        ],
+                        [
+                          0,
+                          -5
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "嗯，就像今天一样。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "12": [
+          {
+            "clear_all": true,
+            "change": ["slide","horizontal","right","left",{"slide_element": [{"area": [[-5,0],[5,-1]], "color": [0,0,0,170]}]}],
+            "bg": "书店",
+            "content": {
+              "words": {
+                "zh": "我们在书店待了一整个下午。从村上春树聊到乙一，从推理小说聊到绘本。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "13": [
+          {
+            "clear_all": false,
+            "change": ["gradient", 0.2],
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "微笑",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "你知道吗？我一直很想找个人一起逛书店，但朋友们都觉得太无聊了。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "14": [
+          {
+            "clear_all": false,
+            "change": "gradient",
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "我觉得一点也不无聊。能这样安安静静地待在一起，本身就是很好的事。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "15": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常_脸红",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "words": {
+                "zh": "她抬起头看着我，眼神里有种说不清的光。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "16": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "那我们以后……可以经常这样吗？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "17": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "当然可以。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "18": [
+          {
+            "clear_all": false,
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "微笑_眯眼",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5
+              }
+            },
+            "content": {
+              "words": {
+                "zh": "夕阳透过落地窗洒进来，把她的侧脸镀上一层金色。那一刻，我突然觉得，春天才刚刚开始。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "19": [
+          {
+            "clear_all": false,
+            "stay_time": 0.5,
+            "chatbox": {
+              "visible": false,
+              "change": ["gradient",0.3]
+            }
+          },
+          {
+            "clear_all": true,
+            "change": ["slide","horizontal","left","right",{"time": 0.5}],
+            "bg": "街道",
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  320,
+                  80
+                ],
+                "face": [
+                  "平常",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.6,
+                      "move": [
+                        [
+                          5,
+                          0
+                        ],
+                        [
+                          -5,
+                          0
+                        ],
+                        [
+                          5,
+                          0
+                        ],
+                        [
+                          -5,
+                          0
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          {
+            "clear_all": false,
+            "chatbox": {
+              "visible": true,
+              "change": ["gradient",0.3]
+            },
+            "content": {
+              "words": {
+                "zh": "走出书店时，她忽然拉了拉我的衣角。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "20": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "下周这附近会新开一家甜品店，要不要一起去试试？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "21": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "好啊，这次我请你。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "22": [
+          {
+            "clear_all": false,
+            "characters": {
+              "girl": {
+                "form": "日常",
+                "pos": [
+                  315,
+                  80
+                ],
+                "face": [
+                  "微笑_眯眼",
+                  [
+                    0,
+                    0
+                  ]
+                ],
+                "zoom": 1.5,
+                "animate": [
+                  [
+                    {
+                      "time": 0.5,
+                      "move": [
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ],
+                        [
+                          0,
+                          -10
+                        ],
+                        [
+                          0,
+                          10
+                        ]
+                      ]
+                    }
+                  ]
+                ]
+              }
+            },
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "那我就不客气啦。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "23": [
+          {
+            "clear_all": false,
+            "content": {
+              "words": {
+                "zh": "她的笑容比傍晚的风还要轻快。我知道，我们的故事，还远没有结束。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            },
+            "next": {"ex_content": [[":main:","end", "1"]]}
+          }
+        ]
+      }
+    }
+  }
+}

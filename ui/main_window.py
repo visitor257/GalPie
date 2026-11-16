@@ -764,7 +764,7 @@ class GalGameWindow(QMainWindow):
 
     def _on_qload_button_clicked(self):
         """主菜单"继续游戏/快速加载"按钮：弹出确认框（遮罩 + 确认 UI）。
-        确认 -> 读最新存档（同 F3）；取消 -> 关闭确认框回到主菜单。
+        确认 -> 读最新存档（与“继续游戏”相同）；取消 -> 关闭确认框回到主菜单。
         确认框配置来源：ui.confirm_ui 节点（ui_mode="default" 预设 UI）。
         """
         # 无存档时不弹确认框，直接无反应
@@ -785,7 +785,7 @@ class GalGameWindow(QMainWindow):
         print("继续游戏：已取消")
 
     def _confirm_qload(self):
-        """确认：关闭确认框并读最新存档（同 F3：QSAVE 恒排最前）。
+        """确认：关闭确认框并读最新存档（QSAVE 恒排最前）。
         主菜单读档路径与加载面板一致：fade 转场后 _show_loaded_scene。
         """
         dlg = getattr(self, "confirm_dialog", None)
@@ -1153,8 +1153,12 @@ class GalGameWindow(QMainWindow):
         return saves_data, save_files, max_slot_index
 
     def _slot_fname_base(self):
-        """存档文件名的标题_识别码 前缀（与 save_load_system 命名一致）。"""
-        settings = (self.controller.story_data or {}).get("settings", {})
+        """存档文件名的标题_识别码 前缀（与 save_load_system 命名一致）。
+
+        一律取主作 settings：进入附加内容包后 story_data 已换成包自己的数据，
+        若再用它算前缀，存档名会变成包里的标题/空识别码，与主作存档分裂成两套。
+        """
+        settings = (getattr(self.controller, "_main_data", None) or self.controller.story_data or {}).get("settings", {})
         story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
         story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
         return f"{story_name}_{story_id}"
@@ -1272,7 +1276,7 @@ class GalGameWindow(QMainWindow):
         self.controller.play_current_page()
     def _slot_fname(self, slot_index):
         """构造指定格子的存档文件名（无存档也可能不存在）。"""
-        settings = self.controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+        settings = (getattr(self.controller, "_main_data", None) or self.controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
         story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
         story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
         return f"{story_name}_{story_id}_SLOT{slot_index}.gpsave"
@@ -1720,7 +1724,10 @@ class GalGameWindow(QMainWindow):
 
         # 创建对话框背景
         if self.ui_settings["chatbox_style"]:
-            chatbox_path = self.controller.base_path / self.ui_settings["chatbox_style"]
+            # 字幕框素材路径按主作目录解：ui 设置统一取自主作，
+            # 而 base_path 在附加内容包里会指向包自己的目录（会找不到图）。
+            _ui_base = getattr(self.controller, "_main_base_path", None) or self.controller.base_path
+            chatbox_path = _ui_base / self.ui_settings["chatbox_style"]
             chatbox_pixmap = self.load_pixmap(str(chatbox_path))
             if chatbox_pixmap and not chatbox_pixmap.isNull():
                 self.chatbox_item = QGraphicsPixmapItem(chatbox_pixmap)
@@ -2104,11 +2111,13 @@ class GalGameWindow(QMainWindow):
                 keep.append(anim)
         self._active_chatbox_animations = keep
 
-    def set_chatbox_visible(self, visible: bool, change_effect: Optional[str] = None):
+    def set_chatbox_visible(self, visible: bool, change_effect=None):
         """
         设置对话框的可见性，支持转场效果。
         :param visible: True 显示，False 隐藏
-        :param change_effect: 转场效果名称，如 "gradient"
+        :param change_effect: 转场效果，如 "gradient"（默认 1000ms）
+                              或 ["gradient", 秒] 指定时长，
+                              解析统一走 GraphicsView.parse_change
         """
         print(f"[Chatbox] 设置可见性: visible={visible}, effect={change_effect}")
         items = []
@@ -2130,7 +2139,16 @@ class GalGameWindow(QMainWindow):
         if not hasattr(self, '_active_chatbox_animations'):
             self._active_chatbox_animations = []
 
-        if change_effect == "gradient":
+        if change_effect:
+            from ui.graphics_view import GraphicsView, _make_fade_animation
+            _chg = GraphicsView.parse_change(change_effect)
+        else:
+            _chg = {"name": None, "ms": 1000, "last_ms": 0, "this_ms": 0}
+
+        if _chg["name"] == "gradient":
+            # 显示 = 新画面淡入（用 start_change.this 的延迟）
+            # 隐藏 = 旧画面淡出（用 start_change.last 的延迟）；时长都用 time
+            delay_ms = _chg["this_ms"] if visible else _chg["last_ms"]
             for item in items:
                 # 先停止该 item 上所有进行中的 chatbox 动画，避免旧动画继续改变透明度
                 self._stop_chatbox_animations_for(item)
@@ -2150,11 +2168,8 @@ class GalGameWindow(QMainWindow):
                 # 直接跳到起始透明度，再启动动画（保证从明确状态开始，不受旧动画残留值影响）
                 effect.setOpacity(start_opacity)
         
-                anim = QPropertyAnimation(effect, b"opacity")
-                anim.setDuration(500)  # 您的当前时长设置
-                anim.setStartValue(start_opacity)
-                anim.setEndValue(end_opacity)
-                anim.setEasingCurve(QEasingCurve.InOutQuad)
+                anim = _make_fade_animation(effect, start_opacity, end_opacity,
+                                            _chg["ms"], delay_ms)
         
                 def on_finished(item=item, vis=visible, anim=anim):
                     if not vis:
@@ -2455,9 +2470,5 @@ class GalGameWindow(QMainWindow):
             elif event.key() == Qt.Key_S:
                 self.controller.toggle_skip_mode()
                 self._update_skip_icon()
-            elif event.key() == Qt.Key_F2:
-                self.controller.save_game()
-            elif event.key() == Qt.Key_F3:
-                self.controller.load_save()
             else:
                 super().keyPressEvent(event)

@@ -29,9 +29,29 @@ def _render_scene_thumbnail(controller):
         bg_name = snap.get("bg")
         characters = snap.get("characters", {}) or {}
 
-        # ---- 背景（字符串=背景 id；字典 {"color": [...]} = 纯色） ----
+        # ---- 背景（字符串=背景 id；{"color": [...]} = 纯色；{"bg": ...} = 新语法取景） ----
         if bg_name:
-            if isinstance(bg_name, dict) and "color" in bg_name:
+            if isinstance(bg_name, dict) and "bg" in bg_name:
+                bg_path = spa.get("backgrounds", {}).get(bg_name.get("bg"))
+                if bg_path:
+                    bg_pixmap = QPixmap(str(controller.base_path / bg_path))
+                    if not bg_pixmap.isNull():
+                        fitted = bg_pixmap.scaled(
+                            w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                        try:
+                            zoom = float(bg_name.get("zoom", 1.0) or 1.0)
+                        except (TypeError, ValueError):
+                            zoom = 1.0
+                        sp = bg_name.get("start_pos")
+                        if not (isinstance(sp, (list, tuple)) and len(sp) >= 2):
+                            sp = [(fitted.width() * zoom - w) / 2.0,
+                                  (fitted.height() * zoom - h) / 2.0]
+                        # 取景：把放大后图片按 -start_pos 偏移画，相当于裁出显示区域
+                        painter.drawPixmap(
+                            int(-float(sp[0])), int(-float(sp[1])),
+                            int(fitted.width() * zoom), int(fitted.height() * zoom),
+                            fitted)
+            elif isinstance(bg_name, dict) and "color" in bg_name:
                 color = bg_name.get("color")
                 if isinstance(color, (list, tuple)) and len(color) >= 3:
                     painter.fillRect(0, 0, w, h, QColor(int(color[0]), int(color[1]), int(color[2])))
@@ -112,7 +132,7 @@ def save_settings_file(controller):
       data[7] = 翻页时中断语音开关（bool，controller.interrupt_voice_on_page_turn）
     设置一旦变更（分辨率/语言/跳过已读/音量/语音中断）即调用本函数写盘。
     """
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     # 当前分辨率：全屏用 FULLSCREEN_KEY 标记，否则 WxH 字符串
@@ -137,7 +157,7 @@ def load_settings_file(controller):
     若无此文件，返回 None（按默认值启动）；若有则返回 data 列表。
     data[2] 分辨率、data[3] 语言；其中无效值由调用方按默认值回落。
     """
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     path = f"./saves/{story_name}_{story_id}_SETTINGS.gpsetting"
@@ -156,8 +176,17 @@ def load_settings_file(controller):
         return None
 
 
+def _package_id_of(controller):
+    """当前所在的附加内容包 id（主作用保留 id ":main:"）。
+
+    controller.current_package_id 为 None 即主作（当前打开的 json）。
+    存档必须记下它：否则 DLC 里存的档读回来会落到主作的同名线/页。
+    """
+    return controller.current_package_id or ":main:"
+
+
 def save_game(controller, slot_index=0):
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     data = [
         settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+"),
         settings.get("identify_code", "").replace(" ", "-").replace("_", "+"),
@@ -211,6 +240,9 @@ def save_game(controller, slot_index=0):
     # data[12]：计分（分支分数，内存态随剧情增减），读档恢复。
     # 无计分机制的剧情（controller 无 scores 属性）存空 dict，不影响旧档兼容。
     data.append(dict(getattr(controller, "scores", None) or {}))
+    # data[13]：存档所在的附加内容包 id（settings.extra_content 的键）；主作用保留 id ":main:"。
+    # 读档时按此切包，避免 DLC 存档落回主作同名线/页。旧档无此字段 -> 按 ":main:" 处理。
+    data.append(_package_id_of(controller))
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_SLOT{slot_index}.gpsave", "wb") as f:
@@ -221,9 +253,9 @@ def quick_save_game(controller):
     """快速存档：与 save_game 相同内容，但存到固定文件名
     saves/<window_title>_<identify_code>_QSAVE.gpsave（覆盖式快速槽）。
     get_this_story_saves_new_to_old 会识别 QSAVE 文件名并排在最前，
-    保证 F3/load_save 读档总是读到最近一次快速存档。
+    保证 load_save 读档总是读到最近一次快速存档。
     """
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     data = [
         settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+"),
         settings.get("identify_code", "").replace(" ", "-").replace("_", "+"),
@@ -276,6 +308,8 @@ def quick_save_game(controller):
     })
     # data[12]：计分（与 save_game 一致，见 save_game 注释）
     data.append(dict(getattr(controller, "scores", None) or {}))
+    # data[13]：附加内容包 id（主作 ":main:"），与 save_game 一致，见其注释。
+    data.append(_package_id_of(controller))
     if not os.path.exists("saves"):
         os.mkdir("saves")
     with open(f"./saves/{data[0]}_{data[1]}_QSAVE.gpsave", "wb") as f:
@@ -316,6 +350,15 @@ def load_save(controller, load_file_name=None):
         return False
     if not isinstance(data, list) or len(data) < 6:
         print("读档失败：存档数据损坏")
+        return False
+    # 包路由：data[13] 记录存档所在包（主作 ":main:"）。
+    # 旧档无此字段 -> 历史上只有主作能存档，按 ":main:" 处理。
+    # 必须在后续写 story_data / 播页之前切包，否则会拿错包的数据。
+    save_pkg = ":main:"
+    if len(data) > 13 and data[13] not in (None, ""):
+        save_pkg = str(data[13])
+    if not controller.switch_package(save_pkg):
+        print(f"读档失败：存档所在的附加内容包 {save_pkg} 读不到（文件缺失或未在 extra_content 登记）")
         return False
     if data[3]:
         controller.story_data["story_and_position"].setdefault("storyline_settings", {})["storyline_id_score"] = data[3]
@@ -410,13 +453,12 @@ def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_chec
     兼容两种命名：
       - 格子存档：{标题}_{识别码}_SLOT{index}.gpsave
       - 快速存档：{标题}_{识别码}_QSAVE.gpsave（恒排最前）
-    排序依据：读每个文件 data[-2]/data[-1]（日期/时间），QSAVE 用极大值。
+    排序依据：读每个文件 data[8]/data[9]（日期/时间），QSAVE 用极大值。
     """
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     result = []
-    processing = {}
     # saves 目录不存在时直接返回空列表（首次运行/未存档时常见）
     if not os.path.isdir(save_dir):
         return result
@@ -439,34 +481,27 @@ def get_this_story_saves_new_to_old(controller, save_dir="./saves", content_chec
         if parts[-1].startswith("QSAVE"):
             time_number_str = "99999999999999"
         else:
-            # 时间索引随存档结构变化：
-            #   新档 len>=13：末尾 [-1]=scores dict, [-2]=快照 dict, [-3]=slot_index, [-4]=时间, [-5]=日期
-            #   旧档 len==12：末尾 [-1]=快照 dict, [-2]=slot_index, [-3]=时间, [-4]=日期
-            #   旧档 len==11：末尾 [-1]=slot_index(int), [-2]=时间, [-3]=日期
-            if len(data) >= 13 and isinstance(data[-1], dict):
-                d_idx = -5
-            elif len(data) >= 12 and isinstance(data[-1], dict):
-                d_idx = -4
-            elif len(data) >= 11 and isinstance(data[-1], int):
-                d_idx = -3
-            else:
-                d_idx = -2
-            d = str(data[d_idx]).replace("-", "")
-            t = str(data[d_idx + 1]).replace("-", "")
+            # 日期/时间恒在 data[8]/data[9]（所有存档版本都保留前 10 项）。
+            # 不要用负索引：尾部字段随版本增长（slot_index / 快照 / 计分 / 包id），
+            # 每加一个字段负索引就会指错位置。
+            d = str(data[8]) if len(data) > 8 else ""
+            t = str(data[9]) if len(data) > 9 else ""
+            d, t = d.replace("-", ""), t.replace("-", "")
+            if not (d.isdigit() and t.isdigit()):
+                d, t = "0", "0"
             time_number_str = d + t
-        result.append(int(time_number_str))
-        processing[time_number_str] = i
-    result.sort(reverse=True)
-    for k in range(len(result)):
-        result[k] = processing[str(result[k])]
-    return result
+        result.append((int(time_number_str), i))
+    # 注：不能用 dict 按时间戳去重做映射——同一秒保存的两个不同文件会互相覆盖，
+    # 导致其中一个在列表里凭空消失。直接按时间戳排序，文件名一对一。
+    result.sort(key=lambda x: x[0], reverse=True)
+    return [name for _, name in result]
 
 
 def get_slot_save_data(controller, slot_index):
     """读取指定格子的存档 data（无存档返回 None）。
     文件名：saves/{标题}_{识别码}_SLOT{index}.gpsave
     """
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     fname = f"{story_name}_{story_id}_SLOT{slot_index}.gpsave"
@@ -485,7 +520,7 @@ def get_slot_save_data(controller, slot_index):
 
 def delete_slot_save(controller, slot_index):
     """删除指定格子的存档文件。成功返回 True，无文件/失败返回 False。"""
-    settings = controller.story_data.get("settings", {"window_title": "GalPie", "identify_code": ""})
+    settings = (getattr(controller, "_main_data", None) or controller.story_data or {}).get("settings", {"window_title": "GalPie", "identify_code": ""})
     story_name = settings.get("window_title", "GalPie").replace(" ", "-").replace("_", "+")
     story_id = settings.get("identify_code", "").replace(" ", "-").replace("_", "+")
     fname = f"{story_name}_{story_id}_SLOT{slot_index}.gpsave"

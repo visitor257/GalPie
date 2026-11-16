@@ -16,7 +16,7 @@
 
 "settings": 字典（选填，缺失时使用默认值）
     说明：用于设置语言支持、窗口大小、标题等。缺失或为空时程序使用默认值（语言回退 "zh"、窗口 1280x720、标题 "GalPie"）。
-    "settings"内的keys："language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id"
+    "settings"内的keys："language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id", "extra_content", "use_main"
 
     "language": 字典（选填，缺失时默认 "zh"）
         说明：设置所支持的语言。当前格式为字典：{语言标签: 语言显示名称}。
@@ -47,12 +47,26 @@
     "default_audio_lang_id"：字符串（选填）
         "default_audio_lang_id"的内容解释：音频回退语言标签。当场景音频（audio）的当前语言文件缺失时，回退使用此语言标签对应的音频文件（仅对 json_mode=judge 的音频生效，见下方场景级 audio 说明）。缺省时不回退（当前语言无文件则不播放）。
 
+    "extra_content"：字典（选填）
+        "extra_content"的内容解释：登记附加内容（DLC）包，格式为 {包id: json路径}，如：{"ex_girl": "./ex/ex_girl.json"}。
+        每个"包"就是一份独立的剧情 json。进入该包后，它里面的所有资源路径都以"该 json 自身所在目录"为起点解析（不是主作目录）。
+        包通过场景/选项 next 里的 "ex_content" 路由进入（见下方"next"说明）；主作用保留 id ":main:" 指代。
+        读不到的包视为未安装：路由会顺延下一个候选，不会当场报错。
+
+    "use_main"：bool（选填，默认 false；仅附加内容包使用）
+        "use_main"的内容解释：本包是否可以继承主作的资源定义。
+        true：允许继承——本包没写的 character_and_motion / backgrounds / bgm / audio 等定义，会从主作补充；同 id 的对象按字段深合并，本包写了的字段优先。
+        false 或缺失：只能用本包自己的定义。
+        注意：story（剧情线）不参与继承——始终只播本包自己那份，否则同名线按页合并会串戏。
+        路径各按各的 json 目录解析：继承来的主作资源仍按主作目录找，本包新写的路径按本包目录找。
+
 "ui": 字典（选填，缺失时使用默认UI）
     说明：用于设置交互界面，如对话框、底部菜单。缺失时使用默认UI设置（默认对话框样式/名字区域/字幕区域）。
     "ui"内的keys："confirm_ui", "chatbox_and_words_position", "bottom_menu"
+    附加内容包写法：在任何 ui 子项上直接写字符串 "use_main"，表示该项沿用主作设置，如："ui": {"chatbox_and_words_position": "use_main"}；合并时不会覆盖主作对应部分。
 
     "confirm_ui": 字典（选填，缺省时使用默认确认框外观）
-        说明：确认框（confirm dialog）的界面配置。确认框用于需要二次确认的操作：主菜单"继续游戏"（menu_pos.qload）确认读档、底部菜单"Q.Load"（快速加载）确认读档、主菜单"退出游戏"（menu_pos.quit）确认退出。
+        说明：确认框（confirm dialog）的界面配置。确认框用于需要二次确认的操作：主菜单“继续游戏”（menu_pos.qload）确认读档、底部菜单“Q.Load”（快速加载）确认读档、主菜单“退出游戏”（menu_pos.quit）确认退出、底部菜单“跳过”确认跳至下一选项。
         确认框由全屏遮罩（颜色取 settings.transition_color，透明度 50%）+ 居中圆角确认框组成，内容为一行问题文字 + 两个按钮（取消/确认）。
         "confirm_ui"内的keys："ui_mode", "color", "text_color", "cancel_color", "confirm_color"
 
@@ -94,21 +108,26 @@
 
     "bottom_menu": 字典（选填）
         说明：设置剧情中的底部菜单条。不填写则不显示底部菜单条。
-        "bottom_menu"内的keys："mode", "color", "button_color", "backlog_bgcolor", "save"
+        "bottom_menu"内的keys："mode", "color", "button_color", "backlog_bgcolor", "save", "height_ratio", "extend"
 
         "mode"：字符串（选填）
             "mode"的内容解释：底部菜单的模式，目前仅支持 "default"（预设样式）。
-            default 模式：在窗口底部显示一条半透明菜单条，右侧从右到左依次为"⊙"按钮、"日志"按钮、"设置"按钮、"快进(▷▷)"开关、"自动播放(▷)"开关、"加载"按钮、"保存"按钮、"快速加载(Q.Load)"按钮、"快速保存(Q.Save)"按钮。
+            default 模式：在窗口底部显示一条半透明菜单条，右侧从右到左依次为"⊙"按钮、"日志"按钮、"设置"按钮、"跳过"按钮、"快进(▷▷)"开关、"自动播放(▷)"开关、"加载"按钮、"保存"按钮、"快速加载(Q.Load)"按钮、"快速保存(Q.Save)"按钮。
             "⊙"按钮为隐藏开关：按下后对话框与底部菜单（含菜单条本身）全部消失，剧情照常推进；再按任意位置（左键或右键）恢复显示，对话框按进入隐藏前的可见性恢复（若剧情中对话框原本就隐藏，如过场页，则恢复后仍隐藏）。
-            设置按钮打开设置面板；日志按钮打开日志面板；保存按钮打开保存面板；加载按钮打开加载面板（与主菜单"加载存档"一致）；快速保存按钮直接保存到快速存档槽；快速加载（Q.Load）按钮弹出确认框（外观取 ui.confirm_ui），确认后读取最新存档（同 F3）。
+            设置按钮打开设置面板；日志按钮打开日志面板；保存按钮打开保存面板；加载按钮打开加载面板（与主菜单"加载存档"一致）；快速保存按钮直接保存到快速存档槽；快速加载（Q.Load）按钮弹出确认框（外观取 ui.confirm_ui），确认后读取最新存档。
             在设置/日志/保存/加载任一面板打开时，按鼠标右键相当于点击该面板的"返回"按钮，直接关闭面板。
-            （F2=存档、F3=读最新档、A=自动播放、S=快进）
+            （A=自动播放、S=快进）
             快进与自动播放互斥，打开其一自动关闭另一个；打开设置/日志/保存面板时两者会暂停，返回剧情后继续。
 
         "color"：列表（选填）
             "color"的内容解释：底部菜单条的填充颜色，RGBA格式，四个0~255的整数，如：[0, 0, 0, 200]。
             默认值为 [0, 0, 0, 255]。
 
+        "height_ratio"：浮点数（选填，默认 0.03）
+            "height_ratio"的内容解释：菜单条高度占逻辑画面高度的比例，如 0.03 = 720 中的 21.6px（取整）。
+
+        "extend"：整数（选填，默认 50）
+            "extend"的内容解释：菜单条向下额外延伸的像素数，用于避免窗口宽高比偏离 16:9 时底部露边/出现缝隙；写 0 关闭延伸。延伸部分随场景裁切，不影响 fitInView 适配。
 
         "button_color"：列表（选填）
             "button_color"的内容解释：底部菜单条上按钮（日志/设置/快进/自动播放/保存/快速保存）的底色，RGBA格式，如：[0, 0, 0, 200]。
@@ -167,7 +186,8 @@
     "change"：列表（选填）
         "change"的内容解释：主菜单出现的转场效果。格式为 [[r,g,b], "gradient"]，
         即一个由颜色和效果名组成的列表，程序取列表第2个元素（效果名）作为转场效果。
-        第1个元素（颜色）当前未在代码中使用，仅作预留。
+        第1个元素（颜色）用作淡入时的底色块：启动游戏/进入结局回主菜单时，先铺一层该颜色的全屏色块再淡入菜单；
+        从设置/存档等界面返回主菜单时不铺色块（直接菜单淡入）。缺省不铺，露出视口黑色背景。
         目前支持的效果有：渐变 "gradient"。
 
     "title"：字典（选填）
@@ -202,10 +222,12 @@
             程序取当前语言对应的文字，若无则取字典中第一个文字。
         第3个元素（可选）：附加配置字典，如 {"ui_mode": "default"}。
         目前内置支持的按钮标签及其功能：
-            "qload"：继续游戏（快速加载）。点击后若存在存档则弹出确认框（外观取 ui.confirm_ui），确认后读取最新存档（同 F3，快速存档优先）并进入剧情；若没有任何存档则点击无反应（不弹确认框）。
+            "qload"：继续游戏（快速加载）。点击后若存在存档则弹出确认框（外观取 ui.confirm_ui），确认后读取最新存档（快速存档优先）并进入剧情；若没有任何存档则点击无反应（不弹确认框）。
             "start"：开始游戏，点击进入剧情。
             "load"：打开加载面板（读档界面）。其附加配置字典与底部菜单条 "save" 的配置结构相同（color/saves_color/saves_text_color/text_color/button_color），用于设置加载面板的外观，不填写则使用默认值。
             "settings"：打开设置面板（语言/分辨率切换等）。其附加配置字典（ui_mode/color/text_color/button_color）用于设置设置面板外观，不填写则使用默认值。
+                该附加字典实际上是「预设面板样式表」的覆盖项，除上述四个外还可写：margin_ratio（面板四边留白比例，默认 0.1）、corner_radius（圆角半径，默认 24）、fill_color/fill_alpha（面板底色与不透明度，默认 [255,255,255] / 217）、fade_duration（淡入时长 ms，默认 500）、button_radius/button_height/button_margin/button_bottom_margin/button_gap（底部按钮）、title_top_margin/title_left_ratio/title_size/title_stroke_width（标题）、item_left_margin/item_gap/column_gap（设置项）、res_label_size/res_value_size/res_arrow_size（字号）、button_opacity、z（层级）；未写的沿用默认值。
+                已废弃（代码仍接受但不再有可见效果）：border_offset、border_width、border_color、border_alpha（原白色边框已移除）。
             "quit"：退出游戏。点击后弹出确认框（外观取 ui.confirm_ui，问题文字为"确认退出？"），确认后才真正退出。
         自定义的其他按钮标签目前不会被绑定功能（点击无反应），仅作展示。
 
@@ -300,7 +322,7 @@
 
                 列表内的元素：字典（必填）
                     说明：场景的设置
-                    字典内的keys："clear_all", "change", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
+                    字典内的keys："clear_all", "change", "stay_time", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
 
                     "clear_all": bool（选填，默认false；但每一个故事线的第一页的"clear_all"都必须为true）
                         说明：是否清空上一页场景中的内容，true为是，false为否。每一个故事线的第一页的"clear_all"都必须为true，否则会残留上一个故事线/页面的内容。
@@ -309,13 +331,56 @@
                         "change"的内容说明：设置转场效果，默认直接变化
                         目前支持的效果有：
                             渐变  "gradient"
-                        字符串写法：直接填效果名，如："change": "gradient"。
-                        列表写法：两个元素，第一个为效果名，第二个为效果持续秒数（浮点数），如："change": ["gradient", 0.2]（渐变 0.2 秒）、"change": ["gradient", 2]（渐变 2 秒）。
+                            拉帘  "slide"
+                        渐变写法：
+                            字符串：直接填效果名，如："change": "gradient"。
+                            列表：两个元素，第一个为效果名，第二个为效果持续秒数（浮点数），如："change": ["gradient", 0.2]（渐变 0.2 秒）、"change": ["gradient", 2]（渐变 2 秒）。
+                            字典：第二个元素写成 {"time": 秒, "start_change": {"last": 秒, "this": 秒}}，比列表多一个「延迟启动」，用于新旧画面错开淡变，如：
+                                　　"change": ["gradient", {"time": 0.5, "start_change": {"last": 0.1, "this": 0}}]
+                                　　→ 旧画面 0.1s 后开始淡出、0.6s 淡完；新画面立刻淡入、0.5s 淡完。
+                                "time"：两边各自的淡出/淡入时长（秒，缺省 1.0）。
+                                "start_change.last"：旧画面（淡出方）延迟多少秒才开始（缺省 0）。
+                                "start_change.this"：新画面（淡入方）延迟多少秒才开始（缺省 0）。
+                                该字典写法对场景 change、chatbox.change、角色与背景的渐变替换均生效。
+                        拉帘（slide）写法：["slide", 轴, 旧画面侧, 新画面侧(, 可选参数)]
+                            轴："horizontal"（左右滑动，分割线竖着）/ "vertical"（上下滑动，分割线横着），缺省 "horizontal"。
+                            旧画面侧 / 新画面侧："left"/"right"（横轴）或 "top"/"bottom"（纵轴），缺省横轴为 right→left、纵轴为 bottom→top。
+                            可选参数：第 5 个元素（选填），写数字或字典。
+                                数字：直接是转场时长（秒），等价于 {"time": 秒}。
+                                字典内的keys："time", "slide_element"
+                                "time"：转场完成时长（秒，浮点数），缺省 1.0，最小 0.05（比 0.05 更小会被提到 0.05）。
+                                "slide_element"：列表（选填），定义沿分割线绘制的外观元素（描边、阴影、色带等）。列表会随分割线一起移动。
+                                    每个元素为字典，keys："area", "color"
+                                    "area"：[[x1,y1],[x2,y2]]，两个对角点，围成一个矩形区域。坐标系以「分割线上的原点」为 (0,0)：
+                                        横轴（horizontal，竖线）时，原点为竖线的最高点；x 方向无限（写相对竖线的位移即可，可正可负）；y 方向有限（画面高度），可用负值从末尾倒数。
+                                        纵轴（vertical，横线）时，原点为横线的最左点；y 方向无限（写相对横线的位移）；x 方向有限（画面宽度），可用负值倒数。
+                                        负值倒数规则：-1 代表有限轴上的最后一个值（horizontal 的 y 为画面高度，如 720；vertical 的 x 为画面宽度，如 1280），-2 代表倒数第二个（719 / 1279），依次类推。无限轴上不能这么写。
+                                    "color"：[r,g,b] 或 [r,g,b,a]，用该颜色填充该区域（a 缺省 255）。
+                                    层序：列表中越靠后的元素画在越上层。
+                            例："change": ["slide", "horizontal", "right", "left"]（缺省 1 秒）
+                            　　"change": ["slide", "horizontal", "right", "left", {"time": 0.5}]（0.5 秒完成）
+                            　　"change": ["slide", "horizontal", "right", "left", {"time": 0.5, "slide_element": [{"area": [[-5,0],[5,-1]], "color": [0,0,0,170]}]}]
+                            　　　（竖线两侧各 5px、贯穿全高的半透明黑包边；-1 即画面高度）
+
+                    "stay_time"：浮点数或整数（选填）
+                        "stay_time"的内容说明：本场景的停留时长，单位为秒（如："stay_time": 1）。效果与"characters"里空字符串""人物标签的"animate"时长完全一致：停留这么久后再自动进入下一个场景，点击可提前跳过。
+                        典型用途：没有文本、没有语音、只有转场/淡出效果的过场页（如结局黑场前的停顿），不必再为了控制节奏而写一个空角色动画。
+                        两个注意点：（1）场景里若有有效"audio"，本字段不生效（语音本身即节奏）；（2）与空字符串""人物的"animate"时长同时存在时，取两者较大值。
 
                     "bg"：字符串或字典（选填）
-                        "bg"的内容说明：设置背景，有两种写法。
+                        "bg"的内容说明：设置背景，有三种写法。
                         字符串写法：内容应为上面"backgrounds"中所设置的背景标签，如："bg": "公园"。
-                        字典写法：{"color": [r,g,b]} 纯色背景，即用 RGB 颜色填充整屏作为背景，如："bg": {"color": [0, 0, 0]}（黑色背景）。
+                        纯色写法：{"color": [r,g,b]} 纯色背景，即用 RGB 颜色填充整屏作为背景，如："bg": {"color": [0, 0, 0]}（黑色背景）。
+                        取景写法（新语法）：{"bg": 背景标签, "zoom": 浮点, "start_pos": [x, y], "animate": [...]}
+                            字典内的keys："bg", "zoom", "start_pos", "animate"
+                            "bg"：背景标签（必填，取自上面"backgrounds"）。
+                            "zoom"：缩放倍数（选填，默认 1.0）。先把原图按铺满逻辑画布（KeepAspectRatioByExpanding）缩放，再乘此倍数。
+                            "start_pos"：显示区域左上角在「缩放后图片」上的坐标 [x, y]（像素，选填；不写则自动居中）。
+                                例：720p 图 zoom 1.5 → 缩放后为 1920×1080，start_pos 的 x 范围 0~640、y 范围 0~360。
+                            "animate"：动画组列表（选填），格式与人物 animate 相同（[[{...}], ...]）；每组内的 keys："time", "move", "zoom"。
+                                "move"：相对位移（在起始取景位置上累加），如 [[640,0]] 表示向右平移 640 像素。
+                                "zoom"：绝对目标倍数（从当前 zoom 插值到该值，背景的 zoom 可以动画）。
+                            该写法下坐标即逻辑画布坐标，角色不再跟随背景偏移（旧的居中式位移不生效）。
 
                     "characters"：字典（选填）
                         说明：设置有形象的角色上场
@@ -370,9 +435,12 @@
                         "visible"：bool（必填）
                             "visible"的值说明：是否显示对话框，true为显示，false为隐藏。
 
-                        "change"：字符串（选填）
+                        "change"：字符串或列表（选填）
                             "change"的内容说明：对话框显隐切换的转场效果，目前支持的效果有：
                                 渐变  "gradient"
+                            字符串写法：直接填效果名，如："change": "gradient"（默认 1 秒）。
+                            列表写法：两个元素，第一个为效果名，第二个为效果持续秒数（浮点数），如："change": ["gradient", 0.3]（淡出/淡入 0.3 秒）、"change": ["gradient", 2]（2 秒）。
+                            隐藏时该时长用于淡出，显示时用于淡入。
 
                     "content"：字典（选填）
                         说明：设置对话内容。不填写的场景（如纯背景切换页）会直接标记文本与音频完成，自动进入下一个场景/等待翻页。
@@ -381,7 +449,7 @@
                         "words"：字典（必填，只要写了 content 就必须有）
                             说明：设置每一个语言标签对应语言的对话字幕，具体可在第2部分的示例json解析中了解。
                             注意：代码中 display_dialog 直接索引 content["words"]，若缺失会报错，因此写了 content 就必须提供 words。
-                            字幕取当前语言对应的文字，若无则回退到 "zh"，再无可取空字符串。
+                            字幕取当前语言对应的文字，若无则回退到 "zh"，再无可取字典中第一个非空值，最后才是空字符串。
                             "words"内的keys说明：为上面"settings"中"language"里设置的语言标签
 
                             <语言标签>: 字符串（必填）
@@ -390,7 +458,7 @@
                         "speaking"：字典 / "speaking_name"：字符串 （两者均选填，可都不填；都不填则名字显示为空）
                             说明：设置说话人名字。若同时填写两者，"speaking_name" 优先。
                             "speaking"说明：设置每一个语言标签对应语言的说话人名字，具体可在第2部分的示例json解析中了解。
-                            名字取当前语言对应的文字，若无则回退到 "zh"，再无可取空字符串。
+                            名字取当前语言对应的文字，若无则回退到 "zh"，再无可取字典中第一个非空值，最后才是空字符串。
                             "speaking"内的keys说明：为上面"settings"中"language"里设置的语言标签
 
                             <语言标签>：字符串（选填）
@@ -434,8 +502,8 @@
                         说明：设置选择场景（选项页）。此场景只显示选项，等待玩家点击后跳转。
                         "selection"内的keys："change", "selection"
 
-                        "change"：字符串（选填）
-                            "change"的内容说明：选项出现的转场效果，目前支持：渐变 "gradient"。
+                        "change"：字符串（选填，预留）
+                            "change"的内容说明：原计划为选项出现的转场效果，目前程序并不读取此字段（写了无效果），保留给后续版本。
 
                         "selection"：列表（必填）
                             说明：选项列表。
@@ -457,171 +525,389 @@
                         - 字符串 "end"：表示整个剧情的最后一页，播完自动返回主菜单。
                         - 字典 {"direct": [线, 页]}：直接跳转到指定故事线的指定页，如：{"direct": ["main", "41"]}。
                         - 字典 {"judge": [[候选线列表], [保底线]]}：计分判定路由。候选线列表可含多条 [线, 页]；保底线固定一条 [线, 页]。判定时取各线当前分数（初始值来自"storyline_settings"中"storyline_id_score"，选项"score"会累加）的第一名：第一名与第二名分差 >= "score_gap" 则进入第一名的线，否则进入保底线。如：{"judge": [[["girl", "1"]], [["main", "41"]]]}。
+                        - 字典 {"ex_content": [[包, 线, 页], ...]}：跨包（附加内容）路由。
+                            "包"：一份剧情 json 的包 id（在 settings.extra_content 里登记，{包id: json路径}）。
+                            两个保留写法：":this:" = 当前所在的包；":main:" = 主作（当前打开的那个 json）。
+                            按列表顺序逐个尝试：只有「包读不到」或「包里没有这条线/这一页」才顺延下一个候选；第一个有效候选就是目标，立刻进入，不再往后看。
+                            列表里只有一个元素且有效时，效果等同于直接进入。
+                            进入目标包后，该包里的资源路径以它自己的 json 目录为起点解析。
+                            例：{"ex_content": [[":main:", "end", "1"]]}（附加内容播完回主作的 end 线第 1 页）
+                            　　{"ex_content": [["dlc_a", "main", "3"], [":main:", "main", "41"]]}（优先 dlc_a，读不到再去主作）
 
 
 
-2. 示例json解析：
-以下为 story/sample_create.json 的实际内容（已省略部分与上文重复的翻译文本，结构完整）。
+2. 示例 json 解析：
 
-{
-  "settings": {                         <-基本设置
-    "language": {                       <-设置语言（字典格式：{语言标签: 语言显示名称}），程序取第一个"zh"作为初始语言
-      "zh": "中文",
-      "en": "English",
-      "ja": "日本語",
-      "ru": "Русский"
-    },
-    "window_size": [                    <-窗口分辨率列表，index=0 为初始分辨率；列表选项会出现在设置面板分辨率下拉框中
-      "1280x720",
-      "1600x900",
-      "1920x1080"
+本节把 story/ 下的两份 json 全文抬上来逐行注释（不再省略）。以「<-」开头的是注释，不是 json 内容。
+
+2.1 story/sample_create.json（主作：4 条故事线 main / cafe_girl / girl / end）
+
+```json
+"settings": {
+  "language": {                                       <- {语言标签: 显示名}，取第一个作为初始语言
+    "zh": "中文",                                     <- 语言标签 -> 设置面板显示名
+    "en": "English",                                  <- 语言标签 -> 设置面板显示名
+    "ja": "日本語",                                   <- 语言标签 -> 设置面板显示名
+    "ru": "Русский"                                   <- 语言标签 -> 设置面板显示名
+  },
+  "window_size": [                                    <- 分辨率列表：index 0 为初始分辨率，全部选项进设置面板下拉框
+    "1280x720",
+    "1600x900",
+    "1920x1080"
+  ],
+  "window_title": "Sample story",                     <- 窗口标题（也用作存档文件名前缀）
+  "identify_code": "sample_identify",                 <- 识别码（也用作存档文件名的一部分）
+  "transition_color": [                               <- 转场过渡色 RGB（启动/读档/空白场景的底色）
+    0,
+    0,
+    0
+  ],
+  "default_audio_lang_id": "zh",                      <- 音频回退语言（仅 json_mode=judge 生效）
+  "extra_content": {                                  <- 附加内容（DLC）包登记：{包id: json路径}
+    "ex_girl": "./ex/ex_girl.json"                    <- 包 id -> 该包 json 的路径（相对本 json）
+  }
+},
+"ui": {
+  "confirm_ui": {                                     <- 确认框外观
+    "ui_mode": "default",                             <- 界面模式，仅 default
+    "color": [                                        <- 确认框底色 RGBA
+      255,
+      255,
+      255,
+      217
     ],
-    "window_title": "Sample story",     <-窗口标题，选填，默认为GalPie
-    "identify_code": "sample_identify",  <-剧情识别码，选填
-    "transition_color": [0, 0, 0],        <-转场过渡色（选填，默认黑），开始游戏/读档时先渐变至此色再进剧情
-    "default_audio_lang_id": "zh"          <-音频回退语言标签（选填），当前语言音频文件缺失时回退此语言
+    "text_color": [                                   <- 问题文字颜色 RGB
+      185,
+      122,
+      87,
+      255
+    ],
+    "cancel_color": [                                 <- 取消按钮底色 RGB
+      255,
+      255,
+      255
+    ],
+    "confirm_color": [                                <- 确认按钮底色 RGB
+      30,
+      30,
+      30
+    ]
   },
-  "ui": {                                           <-UI设置
-    "confirm_ui": {                                 <-确认框配置（继续游戏/快速加载/退出确认）
-      "ui_mode": "default",                         <-界面模式，仅支持 default
-      "color": [255, 255, 255, 217],                <-确认框底色，RGBA
-      "text_color": [185, 122, 87, 255],            <-问题文字颜色（如"确认？"）
-      "cancel_color": [255, 255, 255],              <-"取消"按钮底色
-      "confirm_color": [30, 30, 30]                 <-"确认"按钮底色
-    },
-    "chatbox_and_words_position": {                 <-设置对话框样式
-      "chatbox": "./res/ui/chatbox.png",            <-对话框样式的图片
-      "text_color": [255, 255, 255],                <-未读文本颜色，RGB（选填，默认白）
-      "readed_text_color": [255, 255, 0],           <-已读文本颜色，RGB（选填，默认白）
-      "name_show_region": [[76,60],[270,149]],      <-说话人名字在对话框样式上显示的区域（左上及右下）
-      "words_show_region": [[310,60],[805,149]]     <-字幕在对话框样式上显示的区域（左上及右下）
-    },
-    "bottom_menu": {                                <-底部菜单条（选填），剧情中显示在窗口底部的预设菜单
-      "mode": "default",                            <-模式，目前仅支持 default（预设样式：⊙/日志/设置/快进/自动播放/加载/保存/Q.Load/Q.Save 九个按钮）
-      "color": [0, 0, 0, 150],                      <-菜单条填充色，RGBA
-      "button_color": [0, 0, 0, 200],               <-菜单条按钮底色，RGBA（亮度<383白字/悬停反色，≥383黑字/悬停反色）
-      "backlog_bgcolor": [255, 255, 255, 200],       <-日志面板背景色，RGBA
-      "save": {                                      <-保存/加载面板配置（选填）
-        "ui_mode": "default",                       <-界面模式，仅支持 default
-        "color": [255, 255, 255, 217],               <-面板背景色，RGBA
-        "saves_color": [185, 122, 87, 255],          <-存档格子底色，RGBA（悬停按亮度变亮/变暗）
-        "saves_text_color": [255, 255, 255],         <-存档格子内文字颜色（台词/日期/垃圾桶/SAVE/确认文案）
-        "text_color": [30, 30, 30],                  <-面板静态文字颜色（标题/页数）
-        "button_color": [0, 0, 0, 255]               <-面板底部工具条按钮底色，RGBA
-      }
-    }
+  "chatbox_and_words_position": {                     <- 对话框样式与文字区域
+    "chatbox": "./res/ui/chatbox.png",                <- 对话框样式与文字区域
+    "text_color": [                                   <- 对话框样式与文字区域
+      255,
+      255,
+      255
+    ],
+    "readed_text_color": [                            <- 对话框样式与文字区域
+      255,
+      255,
+      0
+    ],
+    "name_show_region": [                             <- 对话框样式与文字区域
+      [
+        76,
+        60
+      ],
+      [
+        270,
+        149
+      ]
+    ],
+    "words_show_region": [                            <- 对话框样式与文字区域
+      [
+        310,
+        60
+      ],
+      [
+        805,
+        149
+      ]
+    ]
   },
-  "menu": {                                         <-主菜单（选填）
-    "bg": "./res/menu/bg.png",                      <-主菜单背景图片
-    "bgm": {                                         <-主菜单背景音乐（选填）
-      "bgm": "./res/audio/bgm_menu.mp3",             <-音乐文件路径
-      "in": "normal",                                <-入场效果：normal（直接播）或 gradient（淡入）
-      "out": "gradient"                              <-退场效果：normal（直接停）或 gradient（淡出）
-    },
-    "change": [[0, 0, 0], "gradient"],        <-主菜单出现的转场效果，[颜色, 效果名]，程序取第2个元素
-    "title": {"zh": "./res/menu/title.png"},        <-标题图片，按语言标签给图，当前语言无图则回退 zh
-    "button": "./res/menu/button.png",              <-按钮普通样式图片
-    "button_touched": "./res/menu/button_touched.png",  <-按钮悬停/按下样式图片
-    "text_rgb": [255, 255, 255],                    <-按钮文字颜色，RGB
-    "menu_pos": {                                   <-标题与按钮的位置、文字
-      "title": [54, 48],                            <-标题图片位置 [x, y]
-      "qload": [                                    <-继续游戏按钮（快速加载）：位置 [x, y]（有存档时点击弹确认框，确认后读最新档；无存档无反应）
-        [115, 230],
-        {"zh": "继续游戏", "en": "Continue", "ja": "続きから", "ru": "Продолжить"}  <-按钮文字（按语言标签）
+  "bottom_menu": {                                    <- 剧情中的底部菜单条
+    "mode": "default",                                <- 菜单条模式，仅 default
+    "color": [                                        <- 菜单条填充色 RGBA
+      0,
+      0,
+      0,
+      150
+    ],
+    "button_color": [                                 <- 按钮底色 RGBA（文字颜色按亮度自动黑白）
+      0,
+      0,
+      0,
+      200
+    ],
+    "backlog_bgcolor": [                              <- 日志面板背景色 RGBA
+      255,
+      255,
+      255,
+      200
+    ],
+    "save": {                                         <- 保存/加载面板外观
+      "ui_mode": "default",                           <- 界面模式，仅 default
+      "color": [                                      <- 面板底色 RGBA
+        255,
+        255,
+        255,
+        217
       ],
-      "start": [                                    <-开始游戏按钮：位置 [x, y]
-        [115, 310],
-        {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}  <-按钮文字（按语言标签）
+      "saves_color": [                                <- 存档格子底色 RGBA
+        185,
+        122,
+        87,
+        255
       ],
-      "settings": [                                 <-设置按钮
-        [115, 470],
-        {"zh": "设置", "en": "Settings", "ja": "設定", "ru": "Настройки"},
-        {"ui_mode": "default", "color": [255, 255, 255, 217], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-附加配置（面板外观）
+      "saves_text_color": [                           <- 存档格子文字颜色 RGB
+        255,
+        255,
+        255
       ],
-      "load": [                                     <-加载存档按钮（打开加载面板）
-        [115, 390],
-        {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},
-        {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-加载面板外观配置（同保存面板）
+      "text_color": [                                 <- 面板静态文字颜色 RGB
+        30,
+        30,
+        30
       ],
-      "quit": [                                     <-退出游戏按钮
-        [115, 550],
-        {"zh": "退出", "en": "Quit", "ja": "終了", "ru": "Выйти"}
+      "button_color": [                               <- 面板按钮底色 RGBA
+        0,
+        0,
+        0,
+        255
       ]
     }
+  }
+},
+"menu": {
+  "bg": "./res/menu/bg.png",                          <- 主菜单背景图
+  "bgm": {                                            <- 主菜单 BGM：进菜单播放、离开停止
+    "bgm": "./res/audio/bgm_menu.mp3",                <- BGM 文件路径
+    "in": "normal",                                   <- 入场：normal / gradient / ["gradient", 秒]
+    "out": "gradient"                                 <- 退场：normal / gradient / ["gradient", 秒]
   },
-  "story_and_position": {       <-故事剧情，人物及背景
-    "character_and_motion": {   <-人物的设置
-      "girl": {                 <-人物标签
-        "name": {               <-人物的名字、称呼（按语言标签）
-          "zh": "女孩",
-          "en": "Girl",
-          "ja": "少女",
-          "ru": "Девушка"
-        },
-        "form": {                                               <-设置形式标签，即人物的形式、样式
-          "校服": "./res/character/girl/uniform.png"              <-该形态对应的图片文件
-        },
-        "face": {                                               <-设置表情标签，即人物的表情
-          "平常": "./res/character/girl/normal.png",              <-该表情对应的图片文件
-          "脸红": "./res/character/girl/shy.png",
-          "惊讶": "./res/character/girl/surprise.png",
-          "脸红及微笑": "./res/character/girl/smile_shy.png"
-        }
+  "change": [                                         <- [颜色, 效果名]：启动/结局回菜单时先铺该色再淡入；从面板返回不铺
+    [
+      0,
+      0,
+      0
+    ],
+    "gradient"
+  ],
+  "title": {                                          <- {语言标签: 标题图}
+    "zh": "./res/menu/title.png"
+  },
+  "button": "./res/menu/button.png",                  <- 按钮图片
+  "button_touched": "./res/menu/button_touched.png",   <- 按钮悬停图片
+  "text_rgb": [                                       <- 按钮文字颜色 RGB
+    255,
+    255,
+    255
+  ],
+  "menu_pos": {                                       <- 菜单元素位置与按钮定义
+    "title": [                                        <- 标题图位置 [x, y]
+      54,
+      48
+    ],
+    "qload": [                                        <- 继续游戏（确认后读最新档）
+      [
+        115,
+        230
+      ],
+      {
+        "zh": "继续游戏",
+        "en": "Continue",
+        "ja": "続きから",
+        "ru": "Продолжить"
       }
-    },
-    "backgrounds": {                <-设置背景标签，及其对应的背景图片
-      "公园": "./res/bg/park.png",
-      "天空": "./res/bg/sky.png",
-      "咖啡馆": "./res/bg/cafe.png",
-      "家_主角": "./res/bg/home_main.png"
-    },
-    "bgm": {                        <-剧情 BGM 定义表（选填），场景级 bgm 操作通过 id 引用
-      "bgm1": "./res/audio/bgm_1.mp3",
-      "bgm2": "./res/audio/bgm_2.mp3",
-      "bgm3": "./res/audio/bgm_3.mp3"
-    },
-    "selection_button": {           <-选项按钮外观（选填）
-      "text_color": [255, 255, 255],  <-选项文字颜色，RGB
-      "normal": "./res/ui/selection.png",        <-按钮普通状态图片
-      "touched": "./res/ui/selection_touched.png"  <-按钮悬停状态图片
-    },
-    "storyline_settings": {         <-故事线配置（选填）：开局主线、选线阈值、各分支初始分
-      "main_storyline": "main",     <-主线标签（游戏开始首先播放的故事线）
-      "score_gap": 0.5,             <-选线判定阈值（judge 路由用）
-      "storyline_id_score": {       <-各分支线初始分数（计分用，选项 score 会累加）
-        "main": 1.0,
-        "girl": 1.0
+    ],
+    "start": [                                        <- 开始按钮：[位置, 文字, 附加配置(选填)]
+      [
+        115,
+        310
+      ],
+      {
+        "zh": "开始游戏",
+        "en": "Start Game",
+        "ja": "ゲーム開始",
+        "ru": "Начать игру"
       }
-    },
-    "story": {                                                            <-故事剧情，以及各故事线、页、场景的设置
-      "main": {                                                           <-上面"storyline_settings"中"main_storyline"指定的故事线标签，此为"main"，并设置此故事线的剧情
-        "1": [{                                                           <-key为页数，从1开始。注意，key的类型为字符串。
-          "clear_all": true,                                              <-是否清空上一页的所有内容，true为是，false为否。每一个故事线的第一页的"clear_all"都必须为true。
-          "change": "gradient",                                           <-设置转场效果，这里的"gradient"代表效果为渐变
-          "bg": "天空",                                                     <-设置背景，填入上面设置的背景标签。上面设置的背景标签有"公园"、"天空"、"咖啡馆"，这里填入了"天空"。
-          "content": {                                                    <-设置对话内容
-            "speaking": {                                                 <-设置说话人的名字
-              "zh": "",                                                   <-要为每一个语言标签设置对应语言的名字。可为空字符串""，表示不显示名字。
+    ],
+    "load": [                                         <- 加载按钮（附加配置 = 加载面板外观）
+      [
+        115,
+        390
+      ],
+      {
+        "zh": "加载存档",
+        "en": "Load",
+        "ja": "ロード",
+        "ru": "Загрузить"
+      },
+      {
+        "ui_mode": "default",
+        "color": [
+          255,
+          255,
+          255,
+          217
+        ],
+        "saves_color": [
+          185,
+          122,
+          87,
+          255
+        ],
+        "saves_text_color": [
+          255,
+          255,
+          255
+        ],
+        "text_color": [
+          30,
+          30,
+          30
+        ],
+        "button_color": [
+          0,
+          0,
+          0,
+          255
+        ]
+      }
+    ],
+    "settings": [                                     <- 设置按钮（附加配置 = 设置面板外观）
+      [
+        115,
+        470
+      ],
+      {
+        "zh": "设置",
+        "en": "Settings",
+        "ja": "設定",
+        "ru": "Настройки"
+      },
+      {
+        "ui_mode": "default",
+        "color": [
+          255,
+          255,
+          255,
+          217
+        ],
+        "text_color": [
+          30,
+          30,
+          30
+        ],
+        "button_color": [
+          0,
+          0,
+          0,
+          255
+        ]
+      }
+    ],
+    "quit": [                                         <- 退出按钮（确认后退出）
+      [
+        115,
+        550
+      ],
+      {
+        "zh": "退出",
+        "en": "Quit",
+        "ja": "終了",
+        "ru": "Выйти"
+      }
+    ]
+  }
+},
+"story_and_position": {
+  "character_and_motion": {                           <- 人物定义：{人物标签: {name, form, face}}
+    "girl": {                                         <- 人物标签（场景 characters 用它引用）
+      "name": {                                       <- 人物名字 {语言标签: 名字}
+        "zh": "女孩",
+        "en": "Girl",
+        "ja": "少女",
+        "ru": "Девушка"
+      },
+      "form": {                                       <- 形态表 {形态标签: 图片路径}
+        "校服": "./res/character/girl/uniform.png"
+      },
+      "face": {                                       <- 表情表 {表情标签: 图片路径}
+        "平常": "./res/character/girl/normal.png",
+        "脸红": "./res/character/girl/shy.png",
+        "惊讶": "./res/character/girl/surprise.png",
+        "脸红及微笑": "./res/character/girl/smile_shy.png"
+      }
+    }
+  },
+  "backgrounds": {                                    <- 背景表：{背景标签: 图片路径}
+    "公园": "./res/bg/park.png",                      <- 背景标签 -> 图片路径
+    "天空": "./res/bg/sky.png",                       <- 背景标签 -> 图片路径
+    "咖啡馆": "./res/bg/cafe.png",                    <- 背景标签 -> 图片路径
+    "家_主角": "./res/bg/home_main.png"               <- 背景标签 -> 图片路径
+  },
+  "bgm": {                                            <- BGM 定义表：{id: 路径}，场景 bgm 操作用 id 引用
+    "bgm1": "./res/audio/bgm_1.mp3",                  <- BGM id -> 文件路径
+    "bgm2": "./res/audio/bgm_2.mp3",                  <- BGM id -> 文件路径
+    "bgm3": "./res/audio/bgm_3.mp3"                   <- BGM id -> 文件路径
+  },
+  "selection_button": {                               <- 选项按钮素材
+    "text_color": [                                   <- 选项文字颜色 RGB
+      255,
+      255,
+      255
+    ],
+    "normal": "./res/ui/selection.png",               <- 正常态按钮图
+    "touched": "./res/ui/selection_touched.png"       <- 悬停态按钮图
+  },
+  "storyline_settings": {                             <- 故事线设置
+    "main_storyline": "main",                         <- 开局主线标签（默认 main）
+    "score_gap": 0.5,                                 <- judge 路由判定阈值（默认 0）
+    "storyline_id_score": {                           <- 各线初始分数
+      "main": 1.0,
+      "girl": 1.0
+    }
+  },
+  "story": {                                          <- 故事线 -> 页 -> 场景列表
+    "main": {                                         <- 故事线 main（43 页）
+      "1": [                                          <- 第 1 页（1 个场景） - （此为测试剧情，仅作程序测试用途...
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "天空",                               <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "",
               "en": "",
               "ja": "",
               "ru": ""
             },
-            "words": {                                                    <-设置对话内容，即字幕。要为每一个语言标签设置对应语言的字幕。
+            "words": {
               "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）",
               "en": "(This is a test story, used only for program testing. The story content is AI-generated.)",
               "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
               "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
             }
           },
-          "bgm": [                                                        <-场景级 BGM 操作（选填），按顺序执行
-            {"id": "", "out": "gradient"},                              <-空 id 表示停止当前 BGM，out 为退场效果（淡出）
-            {"id": "bgm1", "in": "normal"}                              <-播放 bgm1（id 来自上方 bgm 定义表），in 为入场效果（直接播）
+          "bgm": [                                    <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "",                               <- BGM id（"" 表示全部/当前）
+              "out": "gradient"                       <- 退场：normal / gradient / ["gradient", 秒]
+            },
+            {
+              "id": "bgm1",                           <- BGM id（"" 表示全部/当前）
+              "in": "normal"                          <- 入场：normal / gradient / ["gradient", 秒]
+            }
           ]
-        }],
-        "2": [{                                                           <-第2页
-          "clear_all": false,
-          "content": {
-            "speaking_name": "girl",                                      <-说话人设置，若上面"character_and_motion"里设置了人物标签，可在此直接使用"speaking_name"并填入人物标签
+        }
+      ],
+      "2": [                                          <- 第 2 页（1 个场景） - 你好，这里有人坐吗？
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
             "words": {
               "zh": "你好，这里有人坐吗？",
               "en": "Hello, is this seat taken?",
@@ -629,19 +915,37 @@
               "ru": "Здравствуйте, это место занято?"
             }
           },
-          "audio": {                                                      <-场景级音频（选填）：语音/音效，组内并行、组间顺序播完
-            "json_mode": "normal",                                       <-解析模式 normal：play_in_order 为多语言字典，只取当前语言
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "normal",
             "play_in_order": {
-              "zh": [["./res/audio/audio_girl_main_2_zh.wav"]],           <-二维列表：组间顺序、组内并行
-              "en": [["./res/audio/audio_girl_main_2_en.wav"]],
-              "ja": [["./res/audio/audio_girl_main_2_ja.wav"]],
-              "ru": [["./res/audio/audio_girl_main_2_ru.wav"]]
+              "zh": [
+                [
+                  "./res/audio/audio_girl_main_2_zh.wav"
+                ]
+              ],
+              "en": [
+                [
+                  "./res/audio/audio_girl_main_2_en.wav"
+                ]
+              ],
+              "ja": [
+                [
+                  "./res/audio/audio_girl_main_2_ja.wav"
+                ]
+              ],
+              "ru": [
+                [
+                  "./res/audio/audio_girl_main_2_ru.wav"
+                ]
+              ]
             }
           }
-        }],
-        "3": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "3": [                                          <- 第 3 页（1 个场景） - 啊，没有，请坐吧。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -655,10 +959,12 @@
               "ru": "А, нет, садитесь, пожалуйста."
             }
           }
-        }],
-        "4": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "4": [                                          <- 第 4 页（1 个场景） - 一个温暖的春日午后，阳光透过树叶...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "",
               "en": "",
@@ -672,20 +978,31 @@
               "ru": "Тёплым весенним днём солнечные лучи пробивались сквозь листву на парковую скамейку."
             }
           }
-        }],
-        "5": [{                               <-第5页
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "公园",                         <-背景设置为"公园"，此标签在上面的"backgrounds"中有所设置
-          "characters": {                     <-设置出场人物
-            "girl": {                         <-key为上面"character_and_motion"中所设置的人物标签
-              "form": "校服",                   <-设置形态，为上面"character_and_motion"中此人物标签里"form"所设置的形态标签
-              "pos": [320,80],                <-设置形态图片的位置，列表内对应形态图片在背景图片上的坐标x和y，坐标基于背景的图片，图片左上角为0点，x轴像右增加，y轴向下增加。此处代表将形态图片放在背景图片上位于(320, 80)的像素上。
-              "face": ["平常",[0,0]],           <-设置表情，及表情图片的位置。列表内两个元素，第一个元素为上面"character_and_motion"中此人物标签里"face"所设置的表情标签，这里为上面设置的"平常"；第二个元素为列表，对应表情图片在形态图片上的坐标x和y（当前版本代码未使用该偏移，表情固定绘制在形态图片左上角(0,0)处，此坐标为预留）。此处代表将表情图片放在形态图片上位于(0, 0)的像素上。
-              "zoom": 1.5                     <-设置缩放，这里设置为放大至1.5倍
+        }
+      ],
+      "5": [                                          <- 第 5 页（1 个场景） - 谢谢。我经常看到你一个人坐在这里...
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "公园",                               <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
             }
           },
-          "content": {
+          "content": {                                <- 本场景对话内容
             "speaking_name": "girl",
             "words": {
               "zh": "谢谢。我经常看到你一个人坐在这里，是在想什么事情吗？",
@@ -694,14 +1011,20 @@
               "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
             }
           },
-          "audio": {                                                      <-场景级音频（选填）
-            "json_mode": "judge",                                        <-解析模式 judge：play_in_order 为模板二维列表
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "6": [{                               <-第6页
-          "clear_all": false,                 <-这里没有设置"bg"和"characters"，但上一页（第5页）所设置的"bg"和"characters"不会被去除，因为此页的"clear_all"为false
-          "content": {
+        }
+      ],
+      "6": [                                          <- 第 6 页（1 个场景） - 嗯，只是喜欢这里的安静。你呢？为...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -715,10 +1038,12 @@
               "ru": "Ммм, просто люблю тишину здесь. А вы? Почему сегодня пришли в парк?"
             }
           }
-        }],
-        "7": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "7": [                                          <- 第 7 页（1 个场景） - 一位陌生女孩的搭讪，让我的心跳加...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "",
               "en": "",
@@ -732,10 +1057,12 @@
               "ru": "От знакомства с незнакомой девушкой моё сердце забилось быстрее."
             }
           }
-        }],
-        "8": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "8": [                                          <- 第 8 页（1 个场景） - 我来散散心。最近学业有点忙，需要...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking_name": "girl",
             "words": {
               "zh": "我来散散心。最近学业有点忙，需要放松一下。",
@@ -744,14 +1071,20 @@
               "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
             }
           },
-          "audio": {                                                      <-场景级音频（选填）
+          "audio": {                                  <- 本场景语音配置
             "json_mode": "judge",
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "9": [{                                               <-第9页
-          "clear_all": false,                                 <-第一个场景，"clear_all"为false，不会清除上一场景的内容
-          "content": {
+        }
+      ],
+      "9": [                                          <- 第 9 页（2 个场景） - 我懂那种感觉。要不……一起去那边...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -765,31 +1098,63 @@
               "ru": "Я понимаю это чувство. Может... сходим в то кафе вон там?"
             }
           }
-          },
-          {
-          "clear_all": false,                                 <-第二个场景，"clear_all"为false，不会清除第一个场景的内容
-          "characters": {                                     <-但是此处设置了"characters"。注意：代码对每个"characters"中的人物，会先移除同名旧角色再重新添加，因此只有被重新设置的人物会被替换，未被设置的其他人物会保留
+        },
+        {                                             <- 本页第 1 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["脸红",[0,0]],                           <-这里的表情设置为了脸红（偏移坐标[0,0]为预留，当前版本代码未使用）
-              "zoom": 1.5,                                    <-这里设置了本场景下，人物缩放的初始值，为放大1.5倍
-              "animate": [                                    <-设置动画
-                [{                                            <-第一组动画，一组动画里可以有多段动画设置，作为同一组的它们会同时播放。这里只设置了一段动画。
-                  "time": 0.2,                                <-设置动画时长，这里设置为0.2秒
-                  "zoom": 1.4                                 <-动画效果，这里设置为缩放。这段动画呈现的效果就是，从本场景的初始缩放，即1.5倍（由于是第一组动画，所以是场景的初始缩放。如果是非第一组动画，则是上一组动画结束后的值），用0.2秒缩小至1.4倍。
-                }],
-                [{                                            <-第二组动画，在第一组动画播放完后播放
-                  "time": 0.2,                                <-设置动画时长，这里设置为0.2秒
-                  "move": [[0,-10],[0,10],[0,-10],[0,10]]     <-动画效果，这里设置为移动。这段动画呈现的效果就是，此人物从在场景的初始位置（由于上一组动画没有移动位置，所以是场景的初始位置），用0.2秒，向上移动10，向下移动10，再向上移动10，向下移动10，呈现效果如人物跳了两下。
-                }]
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "zoom": 1.4
+                  }
+                ],
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
               ]
             }
           }
-        }],
-        "10": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "10": [                                         <- 第 10 页（1 个场景） - 我的突然邀请，让女孩顿时红了脸。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "",
               "en": "",
@@ -803,25 +1168,55 @@
               "ru": "От моего внезапного приглашения девушка мгновенно покраснела."
             }
           }
-        }],
-        "11": [{
-          "clear_all": false,
-          "bg": "公园",
-          "characters": {
+        }
+      ],
+      "11": [                                         <- 第 11 页（1 个场景） - 好啊，我很乐意！
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "bg": "公园",                               <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["脸红及微笑",[0,0]],
-              "zoom": 1.4,
-              "animate": [
-                [{
-                  "time": 0.2,
-                  "move": [[0,-10],[0,10],[0,-10],[0,10]]
-                }]
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.4,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
               ]
             }
           },
-          "content": {
+          "content": {                                <- 本场景对话内容
             "speaking_name": "girl",
             "words": {
               "zh": "好啊，我很乐意！",
@@ -830,14 +1225,20 @@
               "ru": "Хорошо, с удовольствием!"
             }
           },
-          "audio": {                                                      <-场景级音频（选填）
+          "audio": {                                  <- 本场景语音配置
             "json_mode": "judge",
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "12": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "12": [                                         <- 第 12 页（1 个场景） - 那走吧，我请客。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -851,14 +1252,16 @@
               "ru": "Тогда пошли, я угощаю."
             }
           }
-        }],
-        "13": [{                                                           <-第13页：隐藏对话框（无背景/角色变化，只演示 chatbox 控制）
-          "clear_all": false,
-          "chatbox": {                                                     <-控制对话框显隐
-            "visible": false,                                              <-隐藏对话框
-            "change": "gradient"                                           <-显隐切换使用渐变转场
+        }
+      ],
+      "13": [                                         <- 第 13 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": "gradient"
           },
-          "content": {                                                     <-对话框隐藏时仍可填写内容（不显示）
+          "content": {                                <- 本场景对话内容
             "speaking": {
               "zh": "",
               "en": "",
@@ -872,37 +1275,70 @@
               "ru": ""
             }
           }
-        }],
-        "14": [{                                                           <-第14页：切换背景（无内容）
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "天空"
-        }],
-        "15": [{                                                           <-第15页：切换背景到咖啡馆
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "咖啡馆",
-          "bgm": [                                                        <-场景级 BGM 操作（选填）
-            {"id": "bgm1", "out": ["gradient", 0.5]},                 <-停止 bgm1：out 列表写法，渐变 0.5 秒淡出
-            {"id": "bgm2", "in": "normal", "delay": 0.5}              <-延迟 0.5 秒后播放 bgm2（in 直接播）
+        }
+      ],
+      "14": [                                         <- 第 14 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "天空"                                <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+        }
+      ],
+      "15": [                                         <- 第 15 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "咖啡馆",                             <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "bgm": [                                    <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "bgm1",                           <- BGM id（"" 表示全部/当前）
+              "out": [                                <- 退场：normal / gradient / ["gradient", 秒]
+                "gradient",
+                0.5
+              ]
+            },
+            {
+              "id": "bgm2",                           <- BGM id（"" 表示全部/当前）
+              "in": "normal",                         <- 入场：normal / gradient / ["gradient", 秒]
+              "delay": 0.5                            <- 延迟执行秒数（翻页不取消已排定的操作）
+            }
           ]
-        }],
-        "16": [{                                                           <-第16页：恢复对话框并让角色出场
-          "clear_all": false,
-          "change": "gradient",
-          "characters": {
+        }
+      ],
+      "16": [                                         <- 第 16 页（1 个场景） - 你经常来这里吗？
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["平常",[0,0]],
-              "zoom": 1.5
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
             }
           },
-          "chatbox": {                                                     <-恢复显示对话框
+          "chatbox": {                                <- 对话框显隐：{visible, change}
             "visible": true,
             "change": "gradient"
           },
-          "content": {
+          "content": {                                <- 本场景对话内容
             "speaking_name": "girl",
             "words": {
               "zh": "你经常来这里吗？",
@@ -911,53 +1347,2246 @@
               "ru": "Вы часто сюда приходите?"
             }
           },
-          "audio": {                                                      <-场景级音频（选填）
-            "json_mode": "judge",                                        <-解析模式 judge：play_in_order 为模板二维列表
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]  <-<line>/<page>/<lang_id> 会被替换；当前语言无文件时回退 default_audio_lang_id
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "17": [{                                                          <-第17页：选择场景（选项页）
-          "clear_all": false,
-          "chatbox": {                                                     <-选项页通常隐藏对话框
+        }
+      ],
+      "17": [                                         <- 第 17 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
             "visible": false,
             "change": "gradient"
           },
-          "selection": {                                                   <-选择场景：显示选项，等待玩家点击后跳转
-            "change": "gradient",                                          <-选项出现的转场效果
-            "selection": [                                                 <-选项列表
+          "selection": {                              <- 选项场景：显示选项并等待点击
+            "change": "gradient",
+            "selection": [
               {
-                "text": {"zh": "是的，我经常来", "en": "Yes, I come here often", "ja": "うん、よく来てるよ", "ru": "Да, я часто сюда прихожу"},  <-选项文字（按语言标签）
-                "score": ["main", 0.5],                                    <-选中后累加到"main"线的分数（计分用）
-                "next": {"direct": ["main", "18"]}                       <-选中后跳转到 main 线第18页
+                "text": {
+                  "zh": "是的，我经常来",
+                  "en": "Yes, I come here often",
+                  "ja": "うん、よく来てるよ",
+                  "ru": "Да, я часто сюда прихожу"
+                },
+                "score": [
+                  "main",
+                  0.5
+                ],
+                "next": {
+                  "direct": [
+                    "main",
+                    "18"
+                  ]
+                }
               },
               {
-                "text": {"zh": "没有，这是我第一次来", "en": "No, this is my first time", "ja": "いや、初めて来たんだ", "ru": "Нет, я здесь впервые"},
-                "score": ["girl", 0.5],
-                "next": {"direct": ["cafe_girl", "1"]}                   <-跳转到 cafe_girl 线第1页（分支线）
+                "text": {
+                  "zh": "没有，这是我第一次来",
+                  "en": "No, this is my first time",
+                  "ja": "いや、初めて来たんだ",
+                  "ru": "Нет, я здесь впервые"
+                },
+                "score": [
+                  "girl",
+                  0.5
+                ],
+                "next": {
+                  "direct": [
+                    "cafe_girl",
+                    "1"
+                  ]
+                }
               }
             ]
           }
-        }]
-      }
+        }
+      ],
+      "18": [                                         <- 第 18 页（1 个场景） - 是的，我经常来。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "是的，我经常来。",
+              "en": "Yes, I come here often.",
+              "ja": "うん、よく来てるよ。",
+              "ru": "Да, я часто сюда прихожу."
+            }
+          }
+        }
+      ],
+      "19": [                                         <- 第 19 页（1 个场景） - 看起来不错。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "看起来不错。",
+              "en": "That looks nice.",
+              "ja": "いい感じだね。",
+              "ru": "Выглядит неплохо."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "20": [                                         <- 第 20 页（1 个场景） - 来看看点什么吧
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "来看看点什么吧",
+              "en": "Let's see what to order",
+              "ja": "何を注文しようか",
+              "ru": "Давай посмотрим, что заказать"
+            }
+          }
+        }
+      ],
+      "21": [                                         <- 第 21 页（1 个场景） - 你有什么推荐的吗？
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你有什么推荐的吗？",
+              "en": "Do you have any recommendations?",
+              "ja": "何かおすすめはある？",
+              "ru": "Что-нибудь порекомендуешь?"
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "22": [                                         <- 第 22 页（1 个场景） - 他家的拿铁很不错。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "他家的拿铁很不错。",
+              "en": "Their latte is really good.",
+              "ja": "ここのカフェラテはすごく美味しいよ。",
+              "ru": "У них отличный латте."
+            }
+          }
+        }
+      ],
+      "23": [                                         <- 第 23 页（1 个场景） - 那就来一杯拿铁吧。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那就来一杯拿铁吧。",
+              "en": "Then I'll have a latte.",
+              "ja": "じゃあカフェラテをもらうよ。",
+              "ru": "Тогда мне латте."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "24": [                                         <- 第 24 页（1 个场景） - 两杯拿铁。
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "咖啡馆",                             <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "两杯拿铁。",
+              "en": "Two lattes, please.",
+              "ja": "カフェラテを2つ。",
+              "ru": "Два латте."
+            }
+          }
+        }
+      ],
+      "25": [                                         <- 第 25 页（1 个场景） - 我们端着咖啡坐到靠窗的位置。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "我们端着咖啡坐到靠窗的位置。",
+              "en": "We carried our coffees and sat by the window.",
+              "ja": "コーヒーを持って、窓際の席に座った。",
+              "ru": "Мы взяли кофе и сели у окна."
+            }
+          }
+        }
+      ],
+      "26": [                                         <- 第 26 页（1 个场景） - 这里确实很舒服。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "这里确实很舒服。",
+              "en": "This place really is cozy.",
+              "ja": "ここは本当に落ち着くなあ。",
+              "ru": "Здесь действительно уютно."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "27": [                                         <- 第 27 页（1 个场景） - 是啊，很适合聊天。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "是啊，很适合聊天。",
+              "en": "Yeah, it's perfect for chatting.",
+              "ja": "うん、話すのにぴったりだね。",
+              "ru": "Да, отлично подходит для разговора."
+            }
+          }
+        }
+      ],
+      "28": [                                         <- 第 28 页（1 个场景） - 说起来，我还不知道你叫什么名字。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "说起来，我还不知道你叫什么名字。",
+              "en": "By the way, I don't think I ever caught your name.",
+              "ja": "そういえば、君の名前まだ聞いてなかったね。",
+              "ru": "Кстати, я так и не узнал твоё имя."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "29": [                                         <- 第 29 页（1 个场景） - 我叫林越，你呢？
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "我叫林越，你呢？",
+              "en": "I'm Lin Yue. And you?",
+              "ja": "俺は林越。君は？",
+              "ru": "Меня зовут Линь Юэ. А ты?"
+            }
+          }
+        }
+      ],
+      "30": [                                         <- 第 30 页（1 个场景） - 我叫苏晴。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "我叫苏晴。",
+              "en": "I'm Su Qing.",
+              "ja": "私は蘇晴。",
+              "ru": "Я Су Цин."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "31": [                                         <- 第 31 页（1 个场景） - 我们一边喝着咖啡，一边聊了起来。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "我们一边喝着咖啡，一边聊了起来。",
+              "en": "We chatted away as we sipped our coffee.",
+              "ja": "コーヒーを飲みながら、俺たちはいろいろ話した。",
+              "ru": "Попивая кофе, мы разговорились."
+            }
+          }
+        }
+      ],
+      "32": [                                         <- 第 32 页（1 个场景） - 你平时喜欢做什么？
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你平时喜欢做什么？",
+              "en": "What do you usually like to do?",
+              "ja": "普段は何をするのが好きなの？",
+              "ru": "Чем ты обычно любишь заниматься?"
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "33": [                                         <- 第 33 页（1 个场景） - 偶尔会去书店逛逛。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "偶尔会去书店逛逛。",
+              "en": "I browse bookstores every now and then.",
+              "ja": "たまに本屋さんをぶらぶらするかな。",
+              "ru": "Иногда заглядываю в книжные магазины."
+            }
+          }
+        }
+      ],
+      "34": [                                         <- 第 34 页（1 个场景） - 好巧，我也喜欢逛书店。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2
+                  }
+                ],
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "好巧，我也喜欢逛书店。",
+              "en": "What a coincidence—I love bookstores too.",
+              "ja": "偶然だね、僕も本屋巡りが好きなんだ。",
+              "ru": "Какое совпадение, я тоже люблю книжные."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "35": [                                         <- 第 35 页（1 个场景） - 那下次可以一起去。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "那下次可以一起去。",
+              "en": "We should go together sometime.",
+              "ja": "じゃあ今度一緒に行こうよ。",
+              "ru": "Тогда в следующий раз можем сходить вместе."
+            }
+          }
+        }
+      ],
+      "36": [                                         <- 第 36 页（1 个场景） - 好呀好呀，我知道一家不错的书店！
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "好呀好呀，我知道一家不错的书店！",
+              "en": "Sure, sure! I know a nice bookstore—",
+              "ja": "いいねいいね！いい本屋さんを知ってるんだ、",
+              "ru": "Да, конечно! Я знаю одну хорошую книжную—"
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "37": [                                         <- 第 37 页（1 个场景） - 不知不觉，咖啡已经喝完了。
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "咖啡馆",                             <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "不知不觉，咖啡已经喝完了。",
+              "en": "Before we knew it, our coffee was gone.",
+              "ja": "気がつけば、コーヒーは飲み終わっていた。",
+              "ru": "Незаметно кофе закончился."
+            }
+          }
+        }
+      ],
+      "38": [                                         <- 第 38 页（1 个场景） - 时间不早了，我得走了。我们下次见...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "时间不早了，我得走了。我们下次见吧。",
+              "en": "It's getting late—I should get going. See you next time.",
+              "ja": "もう遅いし、そろそろ帰るね。また会おう。",
+              "ru": "Уже поздно, мне пора. До встречи."
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "39": [                                         <- 第 39 页（1 个场景） - 嗯，下次见。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "嗯，下次见。",
+              "en": "Mm, see you next time.",
+              "ja": "うん、またね。",
+              "ru": "Да, до встречи."
+            }
+          }
+        }
+      ],
+      "40": [                                         <- 第 40 页（1 个场景） - 随后我们交换了联系方式，就这样分...
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "天空",                               <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "随后我们交换了联系方式，就这样分开了。",
+              "en": "We exchanged contact info, and then went our separate ways.",
+              "ja": "その後、連絡先を交換して、俺たちは別れた。",
+              "ru": "Затем мы обменялись контактами и расстались."
+            }
+          },
+          "next": {                                   <- 路由："end" / direct / judge / ex_content
+            "judge": [
+              [
+                [
+                  "girl",
+                  "1"
+                ]
+              ],
+              [
+                [
+                  "main",
+                  "41"
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "41": [                                         <- 第 41 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": "gradient"
+          }
+        }
+      ],
+      "42": [                                         <- 第 42 页（2 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": {                                     <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "": {
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          },
+          "bgm": [                                    <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "bgm2",                           <- BGM id（"" 表示全部/当前）
+              "out": [                                <- 退场：normal / gradient / ["gradient", 秒]
+                "gradient",
+                0.5
+              ]
+            }
+          ]
+        },
+        {                                             <- 本页第 1 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "家_主角",                            <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- 本场景对话内容
+            "words": {
+              "zh": "回到家后，我打开电脑。",
+              "en": "Back home, I turned on my computer.",
+              "ja": "家に帰って、パソコンを開いた。",
+              "ru": "Вернувшись домой, я включил компьютер."
+            }
+          },
+          "bgm": [                                    <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "bgm3",                           <- BGM id（"" 表示全部/当前）
+              "in": "normal",                         <- 入场：normal / gradient / ["gradient", 秒]
+              "delay": 0.5                            <- 延迟执行秒数（翻页不取消已排定的操作）
+            }
+          ]
+        }
+      ],
+      "43": [                                         <- 第 43 页（1 个场景） - 继续学习吧。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "继续学习吧。",
+              "en": "Time to keep studying.",
+              "ja": "勉強を続けよう。",
+              "ru": "Пора продолжать учёбу."
+            }
+          },
+          "next": {                                   <- 路由："end" / direct / judge / ex_content
+            "direct": [
+              "end",
+              "1"
+            ]
+          }
+        }
+      ]
+    },
+    "cafe_girl": {                                    <- 故事线 cafe_girl（2 页）
+      "1": [                                          <- 第 1 页（1 个场景） - 不，这是我第一次来。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "不，这是我第一次来。",
+              "en": "No, this is my first time.",
+              "ja": "いや、初めて来たんだ。",
+              "ru": "Нет, я здесь впервые."
+            }
+          }
+        }
+      ],
+      "2": [                                          <- 第 2 页（1 个场景） - 是吗？我也是第一次来，而且你选的...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "校服",                         <- 形态标签（取自该人物的 form 表）
+              "pos": [                                <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- 缩放倍数（默认 1.0）
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "是吗？我也是第一次来，而且你选的这家店真不错！",
+              "en": "Really? It's my first time too, and you picked a nice place!",
+              "ja": "そうなの？私も初めてなんだけど、いいお店を選んだね！",
+              "ru": "Правда? Я тоже впервые здесь, и ты выбрал хорошее место!"
+            }
+          },
+          "audio": {                                  <- 本场景语音配置
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          },
+          "next": {                                   <- 路由："end" / direct / judge / ex_content
+            "direct": [
+              "main",
+              "20"
+            ]
+          }
+        }
+      ]
+    },
+    "girl": {                                         <- 故事线 girl（9 页）
+      "1": [                                          <- 第 1 页（1 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": "gradient"
+          }
+        }
+      ],
+      "2": [                                          <- 第 2 页（2 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": {                                     <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "": {
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        {                                             <- 本页第 1 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",                       <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": "家_主角",                            <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- 本场景对话内容
+            "words": {
+              "zh": "到家没多久，我便收到了苏晴发来的信息。",
+              "en": "Not long after getting home, I got a message from Su Qing.",
+              "ja": "家に着いて間もなく、蘇晴からメッセージが届いた。",
+              "ru": "Вскоре после возвращения домой я получил сообщение от Су Цин."
+            }
+          }
+        }
+      ],
+      "3": [                                          <- 第 3 页（1 个场景） - 今天谢谢你，咖啡馆真的很棒。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "今天谢谢你，咖啡馆真的很棒。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "4": [                                          <- 第 4 页（1 个场景） - 不用谢，能和你聊天我也很开心。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "不用谢，能和你聊天我也很开心。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "5": [                                          <- 第 5 页（1 个场景） - 那个……你说你也喜欢逛书店，周末...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那个……你说你也喜欢逛书店，周末有空吗？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "6": [                                          <- 第 6 页（1 个场景） - 周末？应该有空的。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "周末？应该有空的。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "7": [                                          <- 第 7 页（1 个场景） - 那周六下午两点，我在市中心那家「...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那周六下午两点，我在市中心那家「纸间书屋」等你？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "8": [                                          <- 第 8 页（1 个场景） - 好，不见不散。
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "好，不见不散。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "9": [                                          <- 第 9 页（1 个场景） - 放下手机，窗外的晚霞染红了半边天...
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                                <- 本场景对话内容
+            "words": {
+              "zh": "放下手机，窗外的晚霞染红了半边天。我忍不住笑了出来。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          },
+          "next": {                                   <- 路由："end" / direct / judge / ex_content
+            "ex_content": [
+              [
+                "ex_girl",
+                "main",
+                "1"
+              ],
+              [
+                ":this:",
+                "end",
+                "1"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "end": {                                          <- 故事线 end（1 页）
+      "1": [                                          <- 第 1 页（2 个场景）
+        {                                             <- 本页第 0 个场景
+          "clear_all": false,                         <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                             <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "": {
+              "animate": [                            <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                                   <- 本页第 0 个场景
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                                <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": "gradient"
+          },
+          "bgm": [                                    <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "",                               <- BGM id（"" 表示全部/当前）
+              "out": "gradient"                       <- 退场：normal / gradient / ["gradient", 秒]
+            }
+          ]
+        },
+        {                                             <- 本页第 1 个场景
+          "clear_all": true,                          <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                                 <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            2
+          ],
+          "bg": {                                     <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "next": "end"                               <- 路由："end" / direct / judge / ex_content
+        }
+      ]
     }
   }
 }
-（后续页省略：next 路由还有 "end"（结局）与 {"judge": ...}（计分判定）两种格式，以及场景级 bgm/纯色背景/空 id 角色动画等用法，均见上文规则解释。）
+```
 
----
+2.2 story/ex/ex_girl.json（附加内容 / DLC：use_main 继承主作资源，ex_content 回主作）
+
+```json
+"settings": {
+  "language": {                              <- {语言标签: 显示名}，取第一个作为初始语言
+    "zh": "中文",                            <- 语言标签 -> 设置面板显示名
+    "en": "English",                         <- 语言标签 -> 设置面板显示名
+    "ja": "日本語",                          <- 语言标签 -> 设置面板显示名
+    "ru": "Русский"                          <- 语言标签 -> 设置面板显示名
+  },
+  "default_audio_lang_id": "zh",             <- 音频回退语言（仅 json_mode=judge 生效）
+  "use_main": true                           <- true = 可继承主作资源；story 不参与继承
+},
+"ui": {
+  "chatbox_and_words_position": "use_main"   <- 对话框样式与文字区域
+},
+"story_and_position": {
+  "character_and_motion": {                  <- 人物定义：{人物标签: {name, form, face}}
+    "girl": {                                <- 人物标签（场景 characters 用它引用）
+      "form": {                              <- 形态表 {形态标签: 图片路径}
+        "日常": "./dlc/character/girl/daily.png",
+        "日常_挥手": "./dlc/character/girl/daily_wave.png",
+        "日常_思考": "./dlc/character/girl/daily_think.png"
+      },
+      "face": {                              <- 表情表 {表情标签: 图片路径}
+        "平常_脸红": "./dlc/character/girl/normal_shy.png",
+        "微笑": "./dlc/character/girl/smile.png",
+        "微笑_眯眼": "./dlc/character/girl/smile_squint.png"
+      }
+    }
+  },
+  "backgrounds": {                           <- 背景表：{背景标签: 图片路径}
+    "街道": "./dlc/bg/street.png",           <- 背景标签 -> 图片路径
+    "书店": "./dlc/bg/book.png"              <- 背景标签 -> 图片路径
+  },
+  "storyline_settings": {                    <- 故事线设置
+    "main_storyline": "main",                <- 开局主线标签（默认 main）
+    "score_gap": 0.5,                        <- judge 路由判定阈值（默认 0）
+    "storyline_id_score": {                  <- 各线初始分数
+      "main": 1.0
+    }
+  },
+  "story": {                                 <- 故事线 -> 页 -> 场景列表
+    "main": {                                <- 故事线 main（23 页）
+      "1": [                                 <- 第 1 页（3 个场景）
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "": {
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.5
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "bgm": [                           <- 本场景 BGM 操作数组（按顺序执行）
+            {
+              "id": "",                      <- BGM id（"" 表示全部/当前）
+              "out": "gradient"              <- 退场：normal / gradient / ["gradient", 秒]
+            }
+          ]
+        },
+        {                                    <- 本页第 1 个场景
+          "clear_all": true,                 <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",              <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": {                            <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "stay_time": 0.5                   <- 停留秒数（无文本/语音时控节奏）
+        },
+        {                                    <- 本页第 2 个场景
+          "clear_all": true,                 <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",              <- 转场：gradient / ["gradient", 秒] / slide
+          "bg": {                            <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "bg": "街道",
+            "zoom": 1.1,
+            "start_pos": [
+              0,
+              72
+            ]
+          },
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "周六，阳光正好。我提前十分钟到了书店门口。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "2": [                                 <- 第 2 页（2 个场景）
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "bg": {                            <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+            "bg": "街道",
+            "zoom": 1.1,
+            "start_pos": [
+              0,
+              72
+            ],
+            "animate": [
+              [
+                {                            <- 本页第 0 个场景
+                  "time": 0.5,
+                  "move": [
+                    [
+                      128,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            ]
+          },
+          "stay_time": 0.5                   <- 停留秒数（无文本/语音时控节奏）
+        },
+        {                                    <- 本页第 1 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            0.2
+          ],
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常_挥手",           <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- 缩放倍数（默认 1.0）
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "林越！",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "3": [                                 <- 第 3 页（1 个场景） - 你来得好早。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "你来得好早。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "4": [                                 <- 第 4 页（1 个场景） - 怕你找不到嘛。走吧，这家店二楼有...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.5,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                92
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "怕你找不到嘛。走吧，这家店二楼有很舒服的阅读区。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "5": [                                 <- 第 5 页（3 个场景）
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "": {
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.5
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          }
+        },
+        {                                    <- 本页第 1 个场景
+          "clear_all": true,                 <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "slide",
+            "horizontal",
+            "right",
+            "left",
+            {
+              "time": 0.5
+            }
+          ],
+          "bg": "书店",                      <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常_思考",           <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "stay_time": 0.5                   <- 停留秒数（无文本/语音时控节奏）
+        },
+        {                                    <- 本页第 2 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "书店里弥漫着淡淡的纸张和咖啡香气。她在文学区的书架前停下脚步。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "6": [                                 <- 第 6 页（1 个场景） - 你平时喜欢看什么类型的书？
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.5,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你平时喜欢看什么类型的书？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "7": [                                 <- 第 7 页（1 个场景） - 小说多一些，尤其是那种日常向的。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "小说多一些，尤其是那种日常向的。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "8": [                                 <- 第 8 页（1 个场景） - 真的吗？我也是！我最喜欢那种……...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- 缩放倍数（默认 1.0）
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "真的吗？我也是！我最喜欢那种……明明什么都没发生，却让人觉得心里暖暖的故事。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "9": [                                 <- 第 9 页（1 个场景） - 就像……今天的天气一样？
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "就像……今天的天气一样？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "10": [                                <- 第 10 页（1 个场景） - 她愣了一下，随即低头笑了，耳根微...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                100
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "她愣了一下，随即低头笑了，耳根微微泛红。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "11": [                                <- 第 11 页（1 个场景） - 嗯，就像今天一样。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                100
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- 缩放倍数（默认 1.0）
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.7,
+                    "move": [
+                      [
+                        0,
+                        5
+                      ],
+                      [
+                        0,
+                        -5
+                      ],
+                      [
+                        0,
+                        5
+                      ],
+                      [
+                        0,
+                        -5
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "嗯，就像今天一样。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "12": [                                <- 第 12 页（1 个场景） - 我们在书店待了一整个下午。从村上...
+        {                                    <- 本页第 0 个场景
+          "clear_all": true,                 <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "slide",
+            "horizontal",
+            "right",
+            "left",
+            {
+              "slide_element": [
+                {
+                  "area": [
+                    [
+                      -5,
+                      0
+                    ],
+                    [
+                      5,
+                      -1
+                    ]
+                  ],
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    170
+                  ]
+                }
+              ]
+            }
+          ],
+          "bg": "书店",                      <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "我们在书店待了一整个下午。从村上春树聊到乙一，从推理小说聊到绘本。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "13": [                                <- 第 13 页（1 个场景） - 你知道吗？我一直很想找个人一起逛...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            0.2
+          ],
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你知道吗？我一直很想找个人一起逛书店，但朋友们都觉得太无聊了。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "14": [                                <- 第 14 页（1 个场景） - 我觉得一点也不无聊。能这样安安静...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": "gradient",              <- 转场：gradient / ["gradient", 秒] / slide
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "我觉得一点也不无聊。能这样安安静静地待在一起，本身就是很好的事。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "15": [                                <- 第 15 页（1 个场景） - 她抬起头看着我，眼神里有种说不清...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常_脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "她抬起头看着我，眼神里有种说不清的光。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "16": [                                <- 第 16 页（1 个场景） - 那我们以后……可以经常这样吗？
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那我们以后……可以经常这样吗？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "17": [                                <- 第 17 页（1 个场景） - 当然可以。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "当然可以。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "18": [                                <- 第 18 页（1 个场景） - 夕阳透过落地窗洒进来，把她的侧脸...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- 缩放倍数（默认 1.0）
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "夕阳透过落地窗洒进来，把她的侧脸镀上一层金色。那一刻，我突然觉得，春天才刚刚开始。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "19": [                                <- 第 19 页（3 个场景）
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "stay_time": 0.5,                  <- 停留秒数（无文本/语音时控节奏）
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          }
+        },
+        {                                    <- 本页第 1 个场景
+          "clear_all": true,                 <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "change": [                        <- 转场：gradient / ["gradient", 秒] / slide
+            "slide",
+            "horizontal",
+            "left",
+            "right",
+            {
+              "time": 0.5
+            }
+          ],
+          "bg": "街道",                      <- 背景：标签 / {"color":[r,g,b]} / {"bg","zoom","start_pos","animate"}
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- 缩放倍数（默认 1.0）
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.6,
+                    "move": [
+                      [
+                        5,
+                        0
+                      ],
+                      [
+                        -5,
+                        0
+                      ],
+                      [
+                        5,
+                        0
+                      ],
+                      [
+                        -5,
+                        0
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        {                                    <- 本页第 2 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "chatbox": {                       <- 对话框显隐：{visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "走出书店时，她忽然拉了拉我的衣角。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "20": [                                <- 第 20 页（1 个场景） - 下周这附近会新开一家甜品店，要不...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "下周这附近会新开一家甜品店，要不要一起去试试？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "21": [                                <- 第 21 页（1 个场景） - 好啊，这次我请你。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "好啊，这次我请你。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "22": [                                <- 第 22 页（1 个场景） - 那我就不客气啦。
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "characters": {                    <- 上场人物：{人物标签: {form, pos, face, zoom, animate}}
+            "girl": {
+              "form": "日常",                <- 形态标签（取自该人物的 form 表）
+              "pos": [                       <- 形态图坐标 [x, y]
+                315,
+                80
+              ],
+              "face": [                      <- "表情" 或 ["表情", [x, y]]（偏移当前未使用）
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- 缩放倍数（默认 1.0）
+              "animate": [                   <- 动画组：[[{time, move, zoom}, ...], ...]
+                [
+                  {                          <- 本页第 0 个场景
+                    "time": 0.5,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- 本场景对话内容
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那我就不客气啦。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "23": [                                <- 第 23 页（1 个场景） - 她的笑容比傍晚的风还要轻快。我知...
+        {                                    <- 本页第 0 个场景
+          "clear_all": false,                <- 是否先清空上一页画面（每条线第 1 页必须 true）
+          "content": {                       <- 本场景对话内容
+            "words": {
+              "zh": "她的笑容比傍晚的风还要轻快。我知道，我们的故事，还远没有结束。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          },
+          "next": {                          <- 路由："end" / direct / judge / ex_content
+            "ex_content": [
+              [
+                ":main:",
+                "end",
+                "1"
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
 ## 存档系统（.gpsave）
 
 - 格子存档：`saves/{标题}_{识别码}_SLOT{index}.gpsave`，index 为格子编号（保存面板第 1 行 0-3、第 2 行 4-7，第 2 页 8-15，依此类推）。
-- 快速存档：`saves/{标题}_{识别码}_QSAVE.gpsave`，index 固定为 -1，不在保存面板显示，读档（F3）时排最前。
-- 存档内容为 pickle 序列化的 11 元素列表：标题、识别码、缩略图 PNG、storyline 配置、当前故事线、当前页-1、说话者、台词（多语言 dict）、日期、时间、格子 index。
-- 设置文件：`saves/{标题}_{识别码}_SETTINGS.gpsetting`（标题、识别码、分辨率、语言）。
+- 快速存档：`saves/{标题}_{识别码}_QSAVE.gpsave`，index 固定为 -1，不在保存面板显示，读档时排最前。
+- 存档内容为 pickle 序列化的 14 元素列表（index 0~13）：标题、识别码、缩略图 PNG、storyline 配置、当前故事线、当前页-1、说话者、台词（多语言 dict）、日期、时间、格子 index、当前页初始画面快照（bg/角色/chatbox/bgm）、计分（分支分数 dict）、存档所在包 id（主作 ":main:"，DLC 为其包 id）。旧档缺少 index 11~13 时按缺省处理（快照无则按当前剧情重建、不计分、按主作）。
+- 设置文件：`saves/{标题}_{识别码}_SETTINGS.gpsetting`，内容为 pickle 序列化的 8 元素列表：标题、识别码、分辨率（全屏时写 "fullscreen"）、语言、跳过已读文本开关、背景音乐音量、语音音量、翻页时中断语音开关。
+- 文件名净化：标题（window_title）与识别码（identify_code）写入文件名前都会把空格换成 "-"、下划线 "_" 换成 "+"（例如 "Sample story" → "Sample-story"）；实际文件名可能与字段原文不同。
+- 已读记录：`saves/{标题}_{识别码}_READED.gpreaded`（JSON，与存档完全独立，删档不影响已读进度）；磁盘结构为 {"包|线:页": [已读场景 index, ...]}，主作用包 id ":main:"；快进/跳过遇到未读内容会自动停下。
 
 ### 保存面板 / 加载面板
 
 保存面板与加载面板为同一个面板组件（SavePanel），外观由 `ui.bottom_menu.save`（保存）或主菜单 `menu.menu_pos.load` 的附加配置（加载）决定，两者配置结构相同。
 
-- **保存面板**（剧情中点击底部"保存"按钮，或按 F2 快速存档）：
+- **保存面板**（剧情中点击底部"保存"按钮）：
   - 面板显示 8 个存档格子（2 行 × 4 列），每格显示缩略图、台词、日期时间；空格子显示灰色 "SAVE" 字样。
   - 点空格 → 直接保存到该格；点有存档的格子 → 弹出"确认覆盖？"，确认后删旧存新。
   - 有存档的格子右下角有垃圾桶按钮，点击弹出"确认删除？"；点"确认"删除该存档，点"取消"或点击其他区域退出确认。
@@ -969,14 +3598,18 @@
 
 ### 底部菜单条按钮
 
-剧情中底部菜单条从右到左依次为：
+剧情中底部菜单条从右到左依次为（共 10 个）：
 
-1. **日志**：打开日志面板（显示本场剧情已显示过的台词，按当前语言翻译）。
-2. **设置**：打开设置面板（语言切换、分辨率切换，设置会保存到 .gpsetting 文件）。
-3. **快进（▷▷）**：快速跳过剧情（每页只搭建第一个场景、不显示对话、立即翻页）。
-4. **自动播放（▷）**：自动推进剧情。
-5. **保存**：打开保存面板。
-6. **快速保存（Q.Save）**：直接保存到快速存档槽（覆盖旧快速存档）。
+1. **⊙（隐藏）**：隐藏对话框 + 底部菜单（含菜单条本身），剧情照常运行；点任意位置恢复。
+2. **日志**：打开日志面板（显示本场剧情已显示过的台词，按当前语言翻译）。
+3. **设置**：打开设置面板（语言切换、分辨率切换、跳过已读开关、音量，设置会保存到 .gpsetting 文件）。
+4. **跳过**：弹出确认框“跳至下一选项？”，确认后先黑屏渐变，在全黑期间静默模拟计算到下一个选项页，全黑时长 = max(计算耗时+500ms, 1000ms)，然后停在该选项页；预检无目标时无反应。
+5. **快进（▷▷）**：以每 50ms 一次「模拟点击」的方式自动推进：文本未显示完则立即显示完整，文本已显示完则进入下一场景/下一页（语音按「翻页时中断语音」开关处理）。「跳过已读」开启时遇到未读内容会自动停下；结局线（end）禁用快进；与自动播放互斥。
+6. **自动播放（▷）**：自动推进剧情。
+7. **加载**：打开加载面板（与主菜单“加载存档”一致）。
+8. **保存**：打开保存面板。
+9. **Q.Load（快速加载）**：弹确认框后读取最新存档（快速存档恒排最前）。
+10. **Q.Save（快速保存）**：直接保存到快速存档槽（覆盖旧快速存档）。
 
 快进与自动播放互斥，打开其一自动关闭另一个；打开面板时两者暂停，返回剧情后继续。
 
@@ -985,8 +3618,7 @@
 - 空格 / 回车 / 鼠标左键：推进剧情（逐字显示中点击则完成显示）
 - A：自动播放开关
 - S：快进开关
-- F2：存档
-- F3：读最新档（快速存档优先）
+- Esc：关闭当前打开的日志 / 设置 / 保存 / 加载面板（确认框同样可被 Esc 关闭）
 
 
 

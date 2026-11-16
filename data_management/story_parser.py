@@ -1,5 +1,9 @@
 def load_ui_settings_from_data(main_window):
-    story_data = main_window.controller.story_data
+    # UI 一律取主作：进/读附加内容包后 story_data 已换成包自己的数据，
+    # 但规则是「DLC 的 settings/ui 沿用主作」，否则从主菜单读 DLC 存档时
+    # 对话框会被包的 ui（或缺失的默认值）重建。
+    story_data = (getattr(main_window.controller, "_main_data", None)
+                  or main_window.controller.story_data)
     if not story_data or "ui" not in story_data:
         print("使用默认UI设置")
         return

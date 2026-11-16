@@ -18,6 +18,17 @@ class GameController:
         self.base_path = Path(".")
         self.current_page_data = []
 
+        # 附加内容（settings.extra_content）：**一个 id = 一个剧情 json 文件**（不是目录）。
+        # 包id -> {"data": 该 json 的剧情dict, "base_path": 该 json 自身所在目录}
+        # 资源一律以所属 json 的目录为起点按相对路径解析，所以 base_path = json 的 parent。
+        # 主作（当前打开的那个 json）不登记；current_package_id = None 即代表主作这份 json。
+        self.package_registry = {}
+        self.current_package_id = None
+        # 主作快照：进入附加包后 story_data/base_path 会被替换，
+        # settings/ui/settings 类配置仍以主作为准（附加包只提供 story 与自己的资源）。
+        self._main_data = None
+        self._main_base_path = None
+
         # 状态相关
         self.is_in_menu = False
         self.is_in_game = False
@@ -118,6 +129,11 @@ class GameController:
     def set_story_data(self, data: Dict, base_path: Path):
         self.story_data = data
         self.base_path = base_path
+        # 主作快照 + 清空附加包缓存（换作/重开剧情时避免上一部作品的包残留）
+        self._main_data = data
+        self._main_base_path = base_path
+        self.package_registry = {}
+        self.current_package_id = None
         # 加载已读记录（story_data 就绪后立即加载；与存档无关的全局记录）
         from data_management.read_history import load_read_history
         self.read_history = load_read_history(self)
@@ -173,6 +189,8 @@ class GameController:
         self.play_current_page()
 
     def goto_storyline_by_check_value(self):
+        # 重新开始 / 从主菜单再进剧情：一律回到主作包，不残留附加包状态
+        self.switch_package(None)
         self.current_page = 1
         self.current_scene_index = 0
         # 已读文本：重新开始游戏，丢弃上一个场景残留（避免把旧进度末场景误标记）
@@ -312,6 +330,27 @@ class GameController:
         self.is_text_finished = False
         self.is_audio_finished = False
         self._pending_empty_anim_ms = 0
+        # 场景停留（新语法 stay_time，单位秒）：作用与空 id 角色的 animate 时长完全一致——
+        # 无文本/无语音的场景借音频计时器停这么久再自动前进（点击可跳过）。
+        # 两者同时存在时取较大值；场景有有效音频时同样被语音节奏覆盖（不生效）。
+        _stay = scene.get("stay_time")
+        if _stay is not None:
+            try:
+                _stay_ms = int(float(_stay) * 1000)
+            except (TypeError, ValueError):
+                _stay_ms = 0
+            if _stay_ms > self._pending_empty_anim_ms:
+                self._pending_empty_anim_ms = _stay_ms
+
+        # slide 转场：先把当前「前」画面整帧拍下来，等本场景搭好再盖上去收帘
+        slide = self._parse_slide_change(scene.get("change"))
+        slide_frame = None
+        if slide:
+            try:
+                slide_frame = self.main_window.graphics_view.render_snapshot()
+            except Exception as e:
+                print(f"slide 转场快照失败: {e}")
+                slide_frame = None
 
         # 清除所有角色和背景（如果需要）
         if scene.get("clear_all", False):
@@ -321,10 +360,13 @@ class GameController:
             self.scene_state["characters"] = {}
 
         # 设置背景：字符串 = 背景 id（查 backgrounds 表加载图片）；
-        # 字典 {"color": [r,g,b]} = 纯色背景（等价 h×w 纯色图片）
+        # 字典 {"color": [r,g,b]} = 纯色背景（等价 h×w 纯色图片）；
+        # 字典 {"bg": id, "zoom", "start_pos", "animate"} = 新语法（可缩放/平移的背景）
         if "bg" in scene:
             bg_name = scene["bg"]
-            if isinstance(bg_name, dict) and "color" in bg_name:
+            if isinstance(bg_name, dict) and "bg" in bg_name:
+                self._apply_bg_object(bg_name, scene.get("change", None))
+            elif isinstance(bg_name, dict) and "color" in bg_name:
                 color = bg_name.get("color")
                 if isinstance(color, (list, tuple)) and len(color) >= 3:
                     w, h = self.logical_size
@@ -394,6 +436,10 @@ class GameController:
 
         # 启动所有待执行的动画
         self.main_window.graphics_view.start_pending_animations()
+
+        # slide 转场：新画面已就位，盖旧帧开始拉分割线
+        if slide and slide_frame is not None:
+            self.main_window.graphics_view.start_slide_wipe(slide_frame, slide)
 
         # 记录场景级 next 路由（如 cafe_girl 页2 的 ["main", "20"]）：
         # 本场景播完后跳线跳页，由 check_auto_advance -> advance_to_next_scene 消费
@@ -576,7 +622,9 @@ class GameController:
             state["characters"] = {}
         if "bg" in scene:
             bg_name = scene["bg"]
-            if isinstance(bg_name, dict) and "color" in bg_name:
+            if isinstance(bg_name, dict) and "bg" in bg_name:
+                state["bg"] = self._bg_final_state(bg_name)
+            elif isinstance(bg_name, dict) and "color" in bg_name:
                 color = bg_name.get("color")
                 if isinstance(color, (list, tuple)) and len(color) >= 3:
                     state["bg"] = {"color": [int(c) for c in color[:3]]}
@@ -629,7 +677,7 @@ class GameController:
                         return True
                     # 已读文本（开关开时）：未读场景也是可跳目标（快进到未读边界）
                     # 开关关时：未读也可跳过，只有 selection 才算目标
-                    if self.skip_readed and f"{line_id}:{page_keys[i]}:{j}" not in self.read_history:
+                    if self.skip_readed and self._make_read_key(line_id, page_keys[i], j) not in self.read_history:
                         return True
         except Exception as e:
             print(f"预检失败: {e}")
@@ -682,15 +730,19 @@ class GameController:
                         return (line, page, scene_idx, state, bgm_ids, "selection")
                 # 已读文本（开关开时）：遇到未读场景 -> 停在未读边界（当前场景未读 = 原地）
                 # 开关关时：未读也可跳过，继续向后找 selection
-                if self.skip_readed and f"{line}:{page}:{scene_idx}" not in self.read_history:
+                if self.skip_readed and self._make_read_key(line, page, scene_idx) not in self.read_history:
                     return (line, page, scene_idx, state, bgm_ids, "unread")
                 if not first and "next" in s:
                     target = self._resolve_next(s["next"])
                     if target is None:
                         return None
-                    if target[0] == "__end__":
+                    t_pkg, t_line, t_page = target[0], target[1], target[2]
+                    if t_line == "__end__":
                         return None
-                    line, page = target[0], target[1]
+                    # 跨包路由不参与静默模拟（模拟状态不跨包），停在原处，由点击触发真实跳转
+                    if t_pkg != self.current_package_id:
+                        return None
+                    line, page = t_line, t_page
                     scene_idx = 0
                     first = False
                     break
@@ -703,6 +755,148 @@ class GameController:
                 continue
         return None
 
+
+    # ---------- 背景新语法（bg 为对象） ----------
+
+    # ---------- 转场（slide） ----------
+
+    @staticmethod
+    def _parse_slide_change(change):
+        """解析 ["slide", 轴, 起点, 终点(, 可选参数)]；不是 slide 返回 None。
+
+        可选参数（第 5 个元素）两种写法：
+          数字：直接是淡变秒数，如 0.5；
+          字典：{"time": 秒, "slide_element": [{"area": [[x1,y1],[x2,y2]],
+                                                     "color": [r,g,b,a]}, ...]}
+        例：["slide","horizontal","right","left"] = 竖线从最右往左移，
+        左侧是「前」画面、右侧是「后」画面。
+        """
+        if not (isinstance(change, (list, tuple)) and len(change) >= 2):
+            return None
+        if str(change[0]) != "slide":
+            return None
+        axis = str(change[1] or "horizontal")
+        default_start, default_end = ("right", "left") if axis != "vertical" else ("bottom", "top")
+        start = str(change[2]) if len(change) >= 3 else default_start
+        end = str(change[3]) if len(change) >= 4 else default_end
+        duration = 1.0
+        elements = None
+        if len(change) >= 5:
+            opt = change[4]
+            if isinstance(opt, dict):
+                try:
+                    duration = float(opt.get("time", 1.0))
+                except (TypeError, ValueError):
+                    duration = 1.0
+                elements = opt.get("slide_element")
+            else:
+                try:
+                    duration = float(opt)
+                except (TypeError, ValueError):
+                    duration = 1.0
+        return {"axis": axis, "start": start, "end": end,
+                "duration": max(duration, 0.05),
+                "slide_element": elements}
+
+    def _bg_image_size(self, bg_id):
+        """背景图原始尺寸（只解码文件头）；读不到返回 (None, None)。走统一资源读取入口兼容加密版。"""
+        backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+        bg_path = backgrounds.get(bg_id)
+        if not bg_path:
+            return None, None
+        full = self.base_path / bg_path
+        cache = getattr(self, "_bg_size_cache", None)
+        if cache is None:
+            cache = self._bg_size_cache = {}
+        key = str(full)
+        if key not in cache:
+            try:
+                from res_crypto import read_resource_bytes
+                from PySide6.QtGui import QImage
+                img = QImage.fromData(read_resource_bytes(full))
+                cache[key] = (img.width(), img.height()) if not img.isNull() else None
+            except Exception as e:
+                print(f"读取背景尺寸失败: {e}")
+                cache[key] = None
+        size = cache[key]
+        return (size if size else (None, None))
+
+    def _bg_layout(self, cfg):
+        """新语法 bg -> (zoom, start_pos)。
+
+        坐标口径：zoom 后图片视作 (宽*zoom, 高*zoom)，start_pos = 显示区域左上角
+        在这张放大后图上的坐标；没写 start_pos 则默认居中。
+        """
+        try:
+            zoom = float(cfg.get("zoom", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            zoom = 1.0
+        iw, ih = self._bg_image_size(cfg.get("bg"))
+        w, h = self.logical_size
+        if iw and ih:
+            k = max(w / iw, h / ih)   # KeepAspectRatioByExpanding
+            fw, fh = iw * k, ih * k
+        else:
+            fw, fh = w, h
+        sp = cfg.get("start_pos")
+        if isinstance(sp, (list, tuple)) and len(sp) >= 2:
+            try:
+                start = [float(sp[0]), float(sp[1])]
+            except (TypeError, ValueError):
+                start = [(fw * zoom - w) / 2.0, (fh * zoom - h) / 2.0]
+        else:
+            start = [(fw * zoom - w) / 2.0, (fh * zoom - h) / 2.0]
+        return zoom, start
+
+    def _bg_final_state(self, cfg):
+        """新语法 bg 动画播完后的最终状态（快照/读档/缩略图用）。
+
+        zoom 为绝对值；move 为「动画组起点 + 相对位移」，与角色动画同规则。
+        """
+        zoom, start = self._bg_layout(cfg)
+        fz, cx, cy = zoom, start[0], start[1]
+        for group in cfg.get("animate") or []:
+            if not isinstance(group, (list, tuple)):
+                continue
+            gx, gy = cx, cy
+            for anim in group:
+                if not isinstance(anim, dict):
+                    continue
+                if anim.get("zoom") is not None:
+                    try:
+                        fz = float(anim["zoom"])
+                    except (TypeError, ValueError):
+                        pass
+                mv = anim.get("move")
+                if isinstance(mv, (list, tuple)) and mv:
+                    last = mv[-1]
+                    if isinstance(last, (list, tuple)) and len(last) >= 2:
+                        try:
+                            cx, cy = gx + float(last[0]), gy + float(last[1])
+                        except (TypeError, ValueError):
+                            pass
+        return {"bg": cfg.get("bg"), "zoom": fz, "start_pos": [cx, cy]}
+
+    def _apply_bg_object(self, cfg, change=None):
+        """执行新语法背景：加载图片 -> 按 zoom/start_pos 取景 ->（可选）播放平移/缩放动画。"""
+        bg_id = cfg.get("bg")
+        backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+        bg_path = backgrounds.get(bg_id)
+        if not bg_path:
+            print(f"背景未定义: {bg_id}")
+            return
+        pixmap = self.main_window.load_pixmap(str(self.base_path / bg_path))
+        if not pixmap or pixmap.isNull():
+            print(f"无法加载背景图片: {self.base_path / bg_path}")
+            return
+        zoom, start = self._bg_layout(cfg)
+        # 新语法背景坐标 = 逻辑画布坐标：角色不再跟随背景偏移（那是旧语法的居中式位移）
+        self.background_pos = [0, 0]
+        self.main_window.graphics_view.update_bg_pos([0, 0])
+        self.main_window.graphics_view.set_background_ext(
+            pixmap, zoom, start, cfg.get("animate") or [], change)
+        self.scene_state["bg"] = self._bg_final_state(cfg)
+        print(f"背景(新语法): {bg_id} zoom={zoom} 取景起点={start}")
 
     # ---------- 音频配置解析 ----------
 
@@ -896,9 +1090,24 @@ class GameController:
         characters = snapshot.get("characters", {}) or {}
         chatbox_visible = bool(snapshot.get("chatbox_visible", True))
 
-        # 背景（字符串=背景 id；字典 {"color": [...]} = 纯色背景）
+        # 背景（字符串=背景 id；字典 {"color": [...]} = 纯色；字典 {"bg": ...} = 新语法取景）
         if bg_name:
-            if isinstance(bg_name, dict) and "color" in bg_name:
+            if isinstance(bg_name, dict) and "bg" in bg_name:
+                backgrounds = self.story_data.get("story_and_position", {}).get("backgrounds", {})
+                bg_path = backgrounds.get(bg_name.get("bg"))
+                if bg_path:
+                    bg_pixmap = self.main_window.load_pixmap(str(self.base_path / bg_path))
+                    if bg_pixmap:
+                        try:
+                            zoom = float(bg_name.get("zoom", 1.0) or 1.0)
+                        except (TypeError, ValueError):
+                            zoom = 1.0
+                        sp = bg_name.get("start_pos") or [0, 0]
+                        self.background_pos = [0, 0]
+                        self.main_window.graphics_view.update_bg_pos([0, 0])
+                        self.main_window.graphics_view.set_background_ext(
+                            bg_pixmap, zoom, sp, [], None)
+            elif isinstance(bg_name, dict) and "color" in bg_name:
                 color = bg_name.get("color")
                 if isinstance(color, (list, tuple)) and len(color) >= 3:
                     w, h = self.logical_size
@@ -1071,25 +1280,216 @@ class GameController:
         self.main_window.show_selection(target_scene["selection"], self.on_selection_chosen)
         return True
 
+    # ---------- 附加内容包（settings.extra_content） ----------
+
+    def _extra_content_map(self) -> Dict:
+        """主作 settings.extra_content：{包id: 路径}。"""
+        settings = (self._main_data or self.story_data or {}).get("settings", {}) or {}
+        ec = settings.get("extra_content") or {}
+        return ec if isinstance(ec, dict) else {}
+
+    @staticmethod
+    def _package_search_roots(base: Path):
+        """附加 json 的搜索根：只有主剧情 json 所在目录（与它自身资源同一套相对路径规则）。"""
+        return [base]
+
+    def load_package(self, pkg_id: str):
+        """按 extra_content 加载一份附加剧情 json。读不到 / 无有效 story -> None（不抛异常）。
+
+        读取一律走 res_crypto.read_resource_bytes（开源版明文直通，加密版解密），
+        因此只能用「试着读，成功就算启用」，不能用 exists()。
+
+        加载成功后 base_path = 该 json 自身所在目录——这正是它里面
+        背景/立绘/音频等相对路径（如 "./dlc/bg/x.png"）的解析起点。
+
+        settings.use_main = true 时：以主作为底做深合并（主作资源路径先按主作目录
+        转成绝对路径，附加内容自己的按自己目录转），得到「生效数据」。
+        资源 id 相同则合并（补充/覆盖），主作才有的设定自动继承。
+        """
+        if pkg_id in self.package_registry:
+            return self.package_registry[pkg_id]
+        rel = self._extra_content_map().get(pkg_id)
+        if not rel:
+            print(f"附加内容包 {pkg_id} 未在 extra_content 中登记")
+            return None
+        base = self._main_base_path or self.base_path or Path(".")
+        p = Path(str(rel))
+        if p.is_absolute():
+            candidates = [p]
+        else:
+            candidates = [root / p for root in self._package_search_roots(base)]
+        data = None
+        used = None
+        for cand in candidates:
+            try:
+                from res_crypto import read_resource_bytes
+                import json
+                data = json.loads(read_resource_bytes(cand).decode("utf-8-sig"))
+                used = cand
+                break
+            except Exception as e:
+                print(f"附加内容包 {pkg_id} 尝试失败 ({cand}): {e}")
+        if not isinstance(data, dict) or used is None:
+            return None
+        story = (data.get("story_and_position") or {}).get("story")
+        if not isinstance(story, dict) or not story:
+            print(f"附加内容包 {pkg_id} 缺少有效 story: {used}")
+            return None
+        base = used.parent
+        effective = data
+        # settings.use_main：是否允许继承主作的资源/设定（默认不继承）
+        use_main = bool((data.get("settings", {}) or {}).get("use_main", False))
+        if use_main and self._main_data is not None:
+            main_abs = self._absolutize_paths(self._main_data, self._main_base_path or base)
+            dlc_abs = self._absolutize_paths(data, base)
+            effective = self._deep_merge(main_abs, dlc_abs)
+            # 剧情（story）不参与继承：附加内容的剧情就是它自己那一份
+            effective.setdefault("story_and_position", {})["story"] = dlc_abs.get(
+                "story_and_position", {}).get("story", {})
+            print(f"附加内容包 {pkg_id} 启用 use_main：继承主作资源/设定（资源 id 合并，同 id 覆盖）")
+        entry = {"data": effective, "base_path": base}
+        self.package_registry[pkg_id] = entry
+        print(f"附加内容包 {pkg_id} 已加载: {used}")
+        return entry
+
+    @staticmethod
+    def _absolutize_paths(obj, base: Path):
+        """把以 ./ 或 ../ 开头的相对路径按 base 转绝对路径（返回新结构，不改入参）。
+
+        合并主作/附加内容时用：两边各自按自己 json 的目录解析后，再在同一个
+        命名空间里合并，这样"主作资源从主作目录取、自己的从自己目录取"。
+        """
+        if isinstance(obj, dict):
+            return {k: GameController._absolutize_paths(v, base) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [GameController._absolutize_paths(v, base) for v in obj]
+        if isinstance(obj, str) and obj[:2] in ("./", ".\\", ".."):
+            try:
+                return str((base / obj).resolve())
+            except Exception:
+                return obj
+        return obj
+
+    @staticmethod
+    def _deep_merge(base, override):
+        """override 覆盖 base：dict 递归合并（同 id 的设定合到一起，叶子值以 override 为准），
+        其他类型（list/标量）整体替换。值为 "use_main" 的继承标记不覆盖（保留主作的值）。"""
+        if not isinstance(base, dict) or not isinstance(override, dict):
+            return override
+        out = dict(base)
+        for k, v in override.items():
+            if v == "use_main":
+                continue
+            if isinstance(v, dict) and isinstance(out.get(k), dict):
+                out[k] = GameController._deep_merge(out[k], v)
+            else:
+                out[k] = v
+        return out
+
+    def _package_entry(self, pkg_id):
+        """取包条目（None 或当前包 -> 当前 story_data；":main:" -> 主作）。
+
+        ":main:" 是「主作」的外部保留 id（与 ":this:" 同一套写法），
+        存档里的包标识也用它，因此这里必须能显式取到主作——
+        当前在附加包时，None 指的是「当前包」而不是主作。
+        """
+        if pkg_id == ":main:":
+            if self._main_data is None:
+                return None
+            return {"data": self._main_data, "base_path": self._main_base_path}
+        if pkg_id is None or pkg_id == self.current_package_id:
+            return {"data": self.story_data, "base_path": self.base_path}
+        if pkg_id in self.package_registry:
+            return self.package_registry[pkg_id]
+        return self.load_package(pkg_id)
+
+    def switch_package(self, pkg_id):
+        """切换当前包（pkg_id=None 或 ":main:" 表示回主作）。成功返回 True。
+
+        只换 story_data / base_path；settings/ui 不重新应用（仍以主作为准）。
+        """
+        # 统一口径：":main:" 与 None 都表示主作（存档里写的是 ":main:"）
+        if pkg_id == ":main:":
+            pkg_id = None
+        if pkg_id == self.current_package_id:
+            return True
+        if pkg_id is None:
+            if self._main_data is None:
+                return False
+            entry = {"data": self._main_data, "base_path": self._main_base_path}
+        else:
+            entry = self.package_registry.get(pkg_id) or self.load_package(pkg_id)
+        if entry is None:
+            return False
+        self.story_data = entry["data"]
+        self.base_path = entry["base_path"]
+        self.current_package_id = pkg_id
+        print(f"切换附加内容包: {pkg_id or '主作'}")
+        return True
+
+    def _resolve_ex_content(self, items):
+        """ex_content 路由：按顺序尝试 [[包, 线, 页], ...]，返回 (包id, 线, 页) 或 None。
+
+        ":this:" = 当前所在的包；":main:" = 主作（附加内容回主作用它）。
+        只有「包读不到」或「包里没有这条线/这一页」才顺延下一个候选。
+        返回值里主作统一用 None（内部口径），附加包用其 id。
+        """
+        if not isinstance(items, (list, tuple)):
+            return None
+        for item in items:
+            if not isinstance(item, (list, tuple)) or len(item) < 3:
+                continue
+            raw_pkg, raw_line, raw_page = item[0], item[1], item[2]
+            if raw_pkg in (None, "", ":this:"):
+                pkg_id = self.current_package_id
+            elif raw_pkg == ":main:":
+                pkg_id = ":main:"
+            else:
+                pkg_id = str(raw_pkg)
+            try:
+                page = int(raw_page)
+            except (TypeError, ValueError):
+                print(f"ex_content 候选页码无效，跳过: {item}")
+                continue
+            entry = self._package_entry(pkg_id)
+            if entry is None:
+                print(f"ex_content: 包 {pkg_id} 读不到，顺延下一个候选")
+                continue
+            story = (entry["data"].get("story_and_position") or {}).get("story") or {}
+            line_data = story.get(str(raw_line))
+            if not isinstance(line_data, dict) or str(page) not in line_data:
+                print(f"ex_content: 包 {pkg_id} 里没有 {raw_line}:{page}，顺延下一个候选")
+                continue
+            # 主作在内部统一用 None 表示（switch_package(None) 即回主作）
+            return (None if pkg_id == ":main:" else pkg_id, str(raw_line), page)
+        return None
+
     def _resolve_next(self, nxt):
-        """解析 next 路由为目标 [line, page]（返回 None 表示无法跳转/无跳转）。
+        """解析 next 路由为目标 (包id, 线, 页)（返回 None 表示无法跳转/无跳转）。
 
         支持的格式：
-          - 新格式 dict：{"direct": ["线", "页"]} 直接指向；
-                         {"judge": ...} 判定路由（暂未实现，返回 None 占位）
+          - 新格式 dict：{"direct": ["线", "页"]} 本包内直接指向；
+                         {"judge": ...} 判定路由（本包内）；
+                         {"ex_content": [[包, 线, 页], ...]} 跨包路由（附加内容，按顺序候选）
           - 旧格式数组：["线", "页"]
+        包id：当前包或目标包；结局返回 (None, "__end__", 0)。
         """
         # 结局标记：字符串 "end" 表示整个剧情的最后一页，播完自动回主菜单
         if isinstance(nxt, str) and nxt == "end":
-            return ["__end__", 0]
+            return (None, "__end__", 0)
         if isinstance(nxt, dict):
             if "direct" in nxt and isinstance(nxt["direct"], (list, tuple)) and len(nxt["direct"]) >= 2:
-                return [str(nxt["direct"][0]), int(nxt["direct"][1])]
+                return (self.current_package_id, str(nxt["direct"][0]), int(nxt["direct"][1]))
             if "judge" in nxt:
-                return self._judge_next(nxt["judge"])
+                _t = self._judge_next(nxt["judge"])
+                if _t is None:
+                    return None
+                return (self.current_package_id, _t[0], _t[1])
+            if "ex_content" in nxt:
+                return self._resolve_ex_content(nxt["ex_content"])
             return None
         if isinstance(nxt, (list, tuple)) and len(nxt) >= 2:
-            return [str(nxt[0]), int(nxt[1])]
+            return (self.current_package_id, str(nxt[0]), int(nxt[1]))
         return None
 
     def _judge_next(self, judge_list):
@@ -1148,7 +1548,7 @@ class GameController:
             return None
 
     def _jump_to(self, nxt, wait_if_no_autoplay=False):
-        """按 next 路由跳线跳页：支持 {"direct": [...]} 与旧 ["线", "页"] 格式。
+        """按 next 路由跳线跳页：支持 {"direct": [...]}/{"judge": ...}/{"ex_content": [...]} 与旧 ["线", "页"]。
         跳转后把当前画面状态（scene_state）记为目标页初始快照（page_state），
         保证读档/后续翻页的快照链连贯；然后从目标页第 0 场景开始播放。
         wait_if_no_autoplay=True：自动播放关闭时跳到目标页后等待用户点击
@@ -1158,12 +1558,16 @@ class GameController:
         target = self._resolve_next(nxt)
         if target is None:
             return
-        line, page = target[0], target[1]
+        pkg_id, line, page = target[0], target[1], target[2]
         # 结局标记：剧情播放完毕，自动回主菜单（带转场渐变）
         if line == "__end__":
             self._finish_ending()
             return
-        print(f"跳线路由: {self.current_storyline_id}:{self.current_page} -> {line}:{page}")
+        # 跨包路由：先切到目标包（读不到就放弃跳转，保持当前画面不动）
+        if pkg_id != self.current_package_id and not self.switch_package(pkg_id):
+            print(f"跨包跳转失败，目标包不可用: {pkg_id}")
+            return
+        print(f"跳线路由: {self.current_storyline_id}:{self.current_page} -> {pkg_id or '本包'}/{line}:{page}")
         self.current_storyline_id = line
         self.current_page = page
         self.current_scene_index = 0
@@ -1318,9 +1722,21 @@ class GameController:
     # ---------- 已读文本记录（READED） ----------
 
     def _read_key(self):
-        """当前场景的已读 key：{line}:{page}:{scene_idx}（页 key 只在单线内唯一，必须带线前缀）。"""
+        """当前场景的已读 key：{包}|{line}:{page}:{scene_idx}（页 key 只在单线内唯一，必须带线前缀）。"""
         line = str(self.current_storyline_id or "main")
-        return f"{line}:{self.current_page}:{self.current_scene_index}"
+        return self._make_read_key(line, self.current_page, self.current_scene_index)
+
+    def _make_read_key(self, line, page, scene_idx, pkg_id=None):
+        """构造已读 key：一等带包标识 —— `{包}|{线}:{页}:{场景}`。
+
+        包标识：主作（当前打开的 json）固定用保留 id ":main:"，
+        附加内容用 extra_content 的键名，与存档 data[13] 同一套口径。
+        这样同名线（每份 json 都可能有 main/end）不会撞键，且读档/切包后判定一脉相承。
+        旧版主作裸 key（无 "|" 前缀）由 load_read_history 迁移时补 ":main:|"。
+        """
+        core = f"{line}:{page}:{scene_idx}"
+        pkg = self.current_package_id if pkg_id is None else pkg_id
+        return f"{pkg or ':main:'}|{core}"
 
     def _is_scene_read(self):
         """当前场景是否已读。"""

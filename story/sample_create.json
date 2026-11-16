@@ -14,7 +14,10 @@
     "window_title": "Sample story",
     "identify_code": "sample_identify",
     "transition_color": [0,0,0],
-    "default_audio_lang_id": "zh"
+    "default_audio_lang_id": "zh",
+    "extra_content": {
+      "ex_girl": "./ex/ex_girl.json"
+    }
   },
   "ui": {
     "confirm_ui": {
@@ -650,7 +653,7 @@
         "16": [
           {
             "clear_all": false,
-            "change": "gradient",
+            "change": ["gradient", {"start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -878,7 +881,7 @@
         "26": [
           {
             "clear_all": false,
-            "change": "gradient",
+            "change": ["gradient", {"start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -933,7 +936,7 @@
         "28": [
           {
             "clear_all": false,
-            "change": ["gradient", 0.2],
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -988,7 +991,7 @@
         "30": [
           {
             "clear_all": false,
-            "change": ["gradient", 0.2],
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -1049,7 +1052,7 @@
         "31": [
           {
             "clear_all": false,
-            "change": ["gradient", 0.2],
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -1086,7 +1089,7 @@
         "32": [
           {
             "clear_all": false,
-            "change": ["gradient", 0.2],
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -1141,7 +1144,7 @@
         "34": [
           {
             "clear_all": false,
-            "change": ["gradient", 0.2],
+            "change": ["gradient", {"time": 0.2, "start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -1315,7 +1318,7 @@
         "38": [
           {
             "clear_all": false,
-            "change": "gradient",
+            "change": ["gradient", {"start_change": {"last": 0.15, "this": 0}}],
             "characters": {
               "girl": {
                 "form": "校服",
@@ -1596,6 +1599,119 @@
                 "ru": "Вскоре после возвращения домой я получил сообщение от Су Цин."
               }
             }
+          }
+        ],
+        "3": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "今天谢谢你，咖啡馆真的很棒。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "4": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "不用谢，能和你聊天我也很开心。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "5": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "那个……你说你也喜欢逛书店，周末有空吗？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "6": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "周末？应该有空的。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "7": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking_name": "girl",
+              "words": {
+                "zh": "那周六下午两点，我在市中心那家「纸间书屋」等你？",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "8": [
+          {
+            "clear_all": false,
+            "content": {
+              "speaking": {
+                "zh": "主角",
+                "en": "Protagonist",
+                "ja": "主人公",
+                "ru": "Протагонист"
+              },
+              "words": {
+                "zh": "好，不见不散。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            }
+          }
+        ],
+        "9": [
+          {
+            "clear_all": false,
+            "content": {
+              "words": {
+                "zh": "放下手机，窗外的晚霞染红了半边天。我忍不住笑了出来。",
+                "en": "",
+                "ja": "",
+                "ru": ""
+              }
+            },
+            "next": {"ex_content": [["ex_girl","main","1"],[":this:","end", "1"]]}
           }
         ]
       },

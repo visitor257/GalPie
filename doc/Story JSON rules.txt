@@ -15,7 +15,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
 "settings": dictionary (optional; defaults are used when missing)
     Description: Used to configure language support, window size, title, etc. When missing or empty, the program uses defaults (language falls back to "zh", window 1280x720, title "GalPie").
-    Keys inside "settings": "language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id"
+    Keys inside "settings": "language", "window_size", "window_title", "identify_code", "transition_color", "default_audio_lang_id", "extra_content", "use_main"
 
     "language": dictionary (optional; defaults to "zh" when missing)
         Description: Sets the supported languages. The current format is a dictionary: {language tag: language display name}.
@@ -46,12 +46,26 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
     "default_audio_lang_id": string (optional)
         Explanation of "default_audio_lang_id": The fallback language tag for audio. When the audio file for the current language is missing in a scene's audio config, the program falls back to the audio file of this language tag (only effective for audio with json_mode=judge; see the scene-level "audio" explanation below). When missing, there is no fallback (if the current language has no file, nothing is played).
 
+    "extra_content": dictionary (optional)
+        Explanation of "extra_content": Registers additional-content (DLC) packages in the form {package_id: json_path}, e.g., {"ex_girl": "./ex/ex_girl.json"}.
+        Each "package" is a standalone story JSON. After entering a package, every resource path inside it is resolved relative to that JSON's own directory (not the main work's directory).
+        Packages are entered through the "ex_content" route of a scene/option "next" (see the "next" explanation below); the reserved id ":main:" refers to the main work.
+        A package that cannot be read counts as not installed: the route moves on to the next candidate instead of failing.
+
+    "use_main": bool (optional; default false; only used by additional-content packages)
+        Explanation of "use_main": Whether this package may inherit resource definitions from the main work.
+        true: inheritance allowed - character_and_motion / backgrounds / bgm / audio etc. that this package does not define are supplemented from the main work (objects with the same id are deep-merged field by field; fields written in this package win).
+        false or missing: only this package's own definitions are used.
+        Note: "story" (storylines) is never inherited - only this package's own storylines are played, otherwise same-named lines would be merged page by page and mix content.
+        Paths are resolved separately: inherited main-work resources still resolve against the main work's directory; new paths written in this package resolve against this package's directory.
+
 "ui": dictionary (optional; the default UI is used when missing)
     Description: Used to configure the interactive interface, such as the dialogue box and bottom menu. When missing, the default UI settings are used (default dialogue box style / name region / words region).
     Keys inside "ui": "confirm_ui", "chatbox_and_words_position", "bottom_menu"
+    Additional-content package form: write the string "use_main" on any ui sub-item to keep the main work's setting for that item, e.g., "ui": {"chatbox_and_words_position": "use_main"}; the merge then does not override the main work's part.
 
     "confirm_ui": dictionary (optional; the default confirm dialog appearance is used when missing)
-        Description: Interface configuration of the confirm dialog. The confirm dialog is used for operations that need a second confirmation: the main menu "Continue" (menu_pos.qload) before loading the latest save, the bottom menu "Q.Load" (quick load) before loading the latest save, and the main menu "Quit" (menu_pos.quit) before exiting the game.
+        Description: Interface configuration of the confirm dialog. The confirm dialog is used for operations that need a second confirmation: the main menu "Continue" (menu_pos.qload) before loading the latest save, the bottom menu "Q.Load" (quick load) before loading the latest save, the main menu "Quit" (menu_pos.quit) before exiting the game, and the bottom menu "Skip" before jumping to the next choice.
         The confirm dialog consists of a full-screen mask (color from settings.transition_color, 50% opacity) plus a centered rounded box with one line of question text and two buttons (Cancel/Confirm).
         Keys inside "confirm_ui": "ui_mode", "color", "text_color", "cancel_color", "confirm_color"
 
@@ -93,21 +107,26 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
     "bottom_menu": dictionary (optional)
         Description: Sets the bottom menu bar during the story. If not provided, no bottom menu bar is shown.
-        Keys inside "bottom_menu": "mode", "color", "button_color", "backlog_bgcolor", "save"
+        Keys inside "bottom_menu": "mode", "color", "button_color", "backlog_bgcolor", "save", "height_ratio", "extend"
 
         "mode": string (optional)
             Explanation of "mode": The mode of the bottom menu; currently only "default" (preset style) is supported.
-            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "⊙" button, the "Log" button, the "Settings" button, the "Skip (▷▷)" toggle, the "Auto-play (▷)" toggle, the "Load" button, the "Save" button, the "Quick Load (Q.Load)" button, and the "Quick Save (Q.Save)" button arranged from right to left.
+            default mode: Shows a semi-transparent menu bar at the bottom of the window, with the "⊙" button, the "Log" button, the "Settings" button, the "Skip-to-choice" button, the "Skip (▷▷)" toggle, the "Auto-play (▷)" toggle, the "Load" button, the "Save" button, the "Quick Load (Q.Load)" button, and the "Quick Save (Q.Save)" button arranged from right to left.
             The "⊙" button is a hide toggle: pressing it hides the dialogue box and the whole bottom menu (including the menu bar itself) while the story keeps advancing; pressing anywhere (left or right click) restores them. The dialogue box is restored to its visibility before hiding (if it was already hidden by the story, e.g. on a transition page, it stays hidden).
-            The Settings button opens the settings panel; the Log button opens the backlog panel; the Save button opens the save panel; the Load button opens the load panel (same as main menu "Load"); the Quick Save button saves directly to the quick save slot; the Quick Load (Q.Load) button shows a confirm dialog (appearance from ui.confirm_ui), then loads the latest save (same as F3).
+            The Settings button opens the settings panel; the Log button opens the backlog panel; the Save button opens the save panel; the Load button opens the load panel (same as main menu "Load"); the Quick Save button saves directly to the quick save slot; the Quick Load (Q.Load) button shows a confirm dialog (appearance from ui.confirm_ui), then loads the latest save.
             While any of the settings/log/save/load panels is open, pressing the right mouse button is equivalent to pressing that panel's "Back" button, closing it directly.
-            (F2=save, F3=load latest save, A=auto-play, S=skip)
+            (A=auto-play, S=skip)
             Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening the settings/log/save panel pauses both, and they resume after returning to the story.
 
         "color": list (optional)
             Explanation of "color": The fill color of the bottom menu bar, RGBA format, four integers from 0 to 255, e.g., [0, 0, 0, 200].
             Default value is [0, 0, 0, 255].
 
+        "height_ratio": float (optional; default 0.03)
+            Explanation of "height_ratio": The menu bar height as a ratio of the logical frame height, e.g., 0.03 = 21.6 px out of 720 (rounded).
+
+        "extend": integer (optional; default 50)
+            Explanation of "extend": Extra pixels the menu bar extends below the logical bottom, preventing exposed edges / seams when the window aspect ratio deviates from 16:9; write 0 to disable. The extension is clipped with the scene and does not affect fitInView scaling.
 
         "button_color": list (optional)
             Explanation of "button_color": The background color of the buttons on the bottom menu bar (Log/Settings/Skip/Auto-play/Save/Quick Save), RGBA format, e.g., [0, 0, 0, 200].
@@ -166,7 +185,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
     "change": list (optional)
         Explanation of "change": The transition effect when the main menu appears. Format is [[r,g,b], "gradient"],
         i.e., a list consisting of a color and an effect name. The program takes the 2nd element (the effect name) as the transition effect.
-        The 1st element (the color) is currently not used in the code and is reserved only.
+        The 1st element (the color) is used as the backdrop block during the fade-in: when the game starts (or when the ending returns to the main menu) a full-screen block of that color is laid down before the menu fades in; when coming back from the settings/save panels no block is laid down (the menu just fades in). When omitted, no block is drawn and the viewport's black background shows through.
         Currently supported effects: gradient "gradient".
 
     "title": dictionary (optional)
@@ -201,10 +220,12 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                 The program takes the text for the current language; if absent, it takes the first text in the dictionary.
             3rd element (optional): The additional config dictionary, e.g., {"ui_mode": "default"}.
             Currently built-in supported button tags and their functions:
-                "qload": Continue game (quick load). On click, if any save exists, a confirm dialog is shown (appearance from ui.confirm_ui); on confirm it loads the latest save (same as F3, quick save first) and enters the story. If no save exists, clicking does nothing (no dialog).
+                "qload": Continue game (quick load). On click, if any save exists, a confirm dialog is shown (appearance from ui.confirm_ui); on confirm it loads the latest save (quick save first) and enters the story. If no save exists, clicking does nothing (no dialog).
                 "start": Start the game; clicking enters the story.
                 "load": Opens the load panel (load game interface). Its additional config dictionary has the same structure as the "save" config of the bottom menu bar (color/saves_color/saves_text_color/text_color/button_color), used to set the appearance of the load panel; defaults are used if not provided.
                 "settings": Opens the settings panel (language/resolution switching, etc.). Its additional config dictionary (ui_mode/color/text_color/button_color) is used to set the appearance of the settings panel; defaults are used if not provided.
+                    That dictionary is actually an override table for the preset panel style. Besides the four above you can also write: margin_ratio (inset ratio on all four sides, default 0.1), corner_radius (default 24), fill_color/fill_alpha (panel fill and opacity, default [255,255,255] / 217), fade_duration (fade-in ms, default 500), button_radius/button_height/button_margin/button_bottom_margin/button_gap (bottom buttons), title_top_margin/title_left_ratio/title_size/title_stroke_width (title), item_left_margin/item_gap/column_gap (setting rows), res_label_size/res_value_size/res_arrow_size (font sizes), button_opacity, z (layer); anything omitted keeps its default.
+                    Deprecated (still accepted by the code but no visible effect): border_offset, border_width, border_color, border_alpha (the old white rim was removed).
                 "quit": Quit the game. On click a confirm dialog is shown (appearance from ui.confirm_ui, question text "Quit?"); the game quits only after confirmation.
             Other custom button tags are currently not bound to any function (clicking does nothing); they are displayed only.
 
@@ -299,7 +320,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
 
                 Element inside the list: dictionary (required)
                     Description: The settings of a scene
-                    Keys inside the dictionary: "clear_all", "change", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
+                    Keys inside the dictionary: "clear_all", "change", "stay_time", "bg", "characters", "chatbox", "content", "bgm", "audio", "selection", "next"
 
                     "clear_all": bool (optional, default false; but the "clear_all" of the first page of every storyline must be true)
                         Description: Whether to clear the content of the previous page's scenes. true means yes, false means no. The "clear_all" of the first page of every storyline must be true, otherwise the content of the previous storyline/page will remain.
@@ -308,13 +329,56 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         Explanation of "change": Sets the transition effect; by default it changes directly
                         Currently supported effects:
                             Gradient  "gradient"
-                        String form: Fill in the effect name directly, e.g., "change": "gradient".
-                        List form: two elements, the first is the effect name and the second is the effect duration in seconds (float), e.g., "change": ["gradient", 0.2] (gradient 0.2 s), "change": ["gradient", 2] (gradient 2 s).
+                            Slide     "slide"
+                        Gradient form:
+                            String: Fill in the effect name directly, e.g., "change": "gradient".
+                            List: two elements, the first is the effect name and the second is the effect duration in seconds (float), e.g., "change": ["gradient", 0.2] (gradient 0.2 s), "change": ["gradient", 2] (gradient 2 s).
+                            Dictionary: write the second element as {"time": seconds, "start_change": {"last": seconds, "this": seconds}}; compared with the list form it adds a delayed start so the old and new frames can be staggered, e.g.,
+                                "change": ["gradient", {"time": 0.5, "start_change": {"last": 0.1, "this": 0}}]
+                                -> the old frame starts fading out after 0.1 s and finishes at 0.6 s; the new frame starts fading in immediately and finishes at 0.5 s.
+                                "time": the fade-out/fade-in duration for each side (seconds; default 1.0).
+                                "start_change.last": how many seconds the old frame (fade-out side) waits before starting (default 0).
+                                "start_change.this": how many seconds the new frame (fade-in side) waits before starting (default 0).
+                                This dictionary form works for the scene-level change, chatbox.change, and gradient replacement of characters/backgrounds.
+                        Slide form: ["slide", axis, old side, new side(, options)]
+                            Axis: "horizontal" (slides left/right, the divider is vertical) / "vertical" (slides up/down, the divider is horizontal); default "horizontal".
+                            Old side / new side: "left"/"right" (horizontal axis) or "top"/"bottom" (vertical axis); default right->left for the horizontal axis and bottom->top for the vertical axis.
+                            Options: the 5th element (optional), either a number or a dictionary.
+                                Number: the transition duration in seconds, equivalent to {"time": seconds}.
+                                Dictionary keys: "time", "slide_element"
+                                "time": The transition duration in seconds (float); default 1.0, minimum 0.05 (smaller values are raised to 0.05).
+                                "slide_element": list (optional) defining the appearance elements drawn along the moving divider (edging, shadow, color bands, ...). The list moves together with the divider.
+                                    Each element is a dictionary with keys: "area", "color"
+                                    "area": [[x1,y1],[x2,y2]], two diagonal points forming a rectangle. The coordinate system uses "the origin on the divider" as (0,0):
+                                        Horizontal axis (vertical divider): the origin is the topmost point of the divider; x is unbounded (write the offset relative to the divider, positive or negative); y is bounded (frame height) and negative values count from the tail.
+                                        Vertical axis (horizontal divider): the origin is the leftmost point of the divider; y is unbounded (write the offset relative to the divider); x is bounded (frame width) and negative values count from the tail.
+                                        Negative tail rule: -1 is the last finite value on that axis (for horizontal, the frame height such as 720; for vertical, the frame width such as 1280), -2 is the second-to-last (719 / 1279), and so on. This cannot be used on the unbounded axis.
+                                    "color": [r,g,b] or [r,g,b,a], fills that area with the color (a defaults to 255).
+                                    Layer order: later elements in the list are painted on top of earlier ones.
+                            Example: "change": ["slide", "horizontal", "right", "left"] (default 1 s)
+                                     "change": ["slide", "horizontal", "right", "left", {"time": 0.5}] (finishes in 0.5 s)
+                                     "change": ["slide", "horizontal", "right", "left", {"time": 0.5, "slide_element": [{"area": [[-5,0],[5,-1]], "color": [0,0,0,170]}]}]
+                                        (a 10px-wide, full-height, semi-transparent black edge straddling the vertical line; -1 means the frame height)
+
+                    "stay_time": float or int (optional)
+                        Explanation of "stay_time": How long this scene stays, in seconds (e.g., "stay_time": 1). Its effect is exactly the same as the "animate" duration of the empty-string "" character tag: the engine waits this long before automatically moving on to the next scene, and a click skips the wait.
+                        Typical use: transition pages that have no text and no audio and only show a transition/fade (e.g., the pause before the black screen at the ending), so you no longer need to write an empty-character animation just to control the pacing.
+                        Two notes: (1) if the scene has a valid "audio", this field has no effect (the voice itself sets the pace); (2) if the empty-string "" character's "animate" duration is also present, the larger of the two is used.
 
                     "bg": string or dictionary (optional)
-                        Explanation of "bg": Sets the background; there are two ways to write it.
+                        Explanation of "bg": Sets the background; there are three ways to write it.
                         String form: the content should be a background tag set in "backgrounds" above, e.g., "bg": "公园".
-                        Dictionary form: {"color": [r,g,b]} a solid-color background, i.e., the whole screen is filled with an RGB color as the background, e.g., "bg": {"color": [0, 0, 0]} (black background).
+                        Solid-color form: {"color": [r,g,b]} a solid-color background, i.e., the whole screen is filled with an RGB color as the background, e.g., "bg": {"color": [0, 0, 0]} (black background).
+                        Framing form (new syntax): {"bg": background tag, "zoom": float, "start_pos": [x, y], "animate": [...]}
+                            Keys inside the dictionary: "bg", "zoom", "start_pos", "animate"
+                            "bg": the background tag (required; taken from "backgrounds" above).
+                            "zoom": zoom factor (optional; default 1.0). The original image is first scaled to fill the logical canvas (KeepAspectRatioByExpanding), then multiplied by this factor.
+                            "start_pos": the coordinate [x, y] of the top-left corner of the display region on the *zoomed* image (pixels; optional; centered when omitted).
+                                Example: a 720p image with zoom 1.5 becomes 1920x1080, so start_pos x ranges 0-640 and y ranges 0-360.
+                            "animate": animation group list (optional), same structure as character animations ([[{...}], ...]); keys inside each group: "time", "move", "zoom".
+                                "move": relative displacement (added on top of the starting framing position), e.g., [[640,0]] moves the background 640 pixels to the right.
+                                "zoom": absolute target factor (interpolated from the current zoom; background zoom can be animated).
+                            With this form the coordinates are logical-canvas coordinates and characters no longer follow the background offset (the old centered offset no longer applies).
 
                     "characters": dictionary (optional)
                         Description: Sets the characters with sprites to appear on stage
@@ -369,9 +433,12 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         "visible": bool (required)
                             Explanation of the value of "visible": Whether to show the dialogue box. true shows it, false hides it.
 
-                        "change": string (optional)
+                        "change": string or list (optional)
                             Explanation of "change": The transition effect of showing/hiding the dialogue box. Currently supported effects:
                                 Gradient  "gradient"
+                            String form: fill in the effect name directly, e.g., "change": "gradient" (default 1 second).
+                            List form: two elements, the first is the effect name and the second is the duration in seconds (float), e.g., "change": ["gradient", 0.3] (fade out/in in 0.3 s), "change": ["gradient", 2] (2 s).
+                            When hiding, the duration is the fade-out time; when showing, it is the fade-in time.
 
                     "content": dictionary (optional)
                         Description: Sets the dialogue content. Scenes without this field (such as pure background-switching pages) are directly marked as having text and audio finished, and automatically advance to the next scene / wait for page turning.
@@ -380,7 +447,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         "words": dictionary (required; as long as "content" is written, "words" must be present)
                             Description: Sets the dialogue subtitle for the language corresponding to each language tag. You can learn more in the example JSON parsing in Part 2.
                             Note: In the code, display_dialog directly indexes content["words"]; if missing, an error is raised. Therefore, as long as "content" is written, "words" must be provided.
-                            The subtitle takes the text for the current language; if absent, it falls back to "zh"; if still absent, an empty string.
+                            The subtitle takes the text for the current language; if absent, it falls back to "zh"; if still absent, it takes the first non-empty value in the dictionary; an empty string only as the last resort.
                             Explanation of keys inside "words": The language tags set in "language" of "settings" above
 
                             <language tag>: string (required)
@@ -389,7 +456,7 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         "speaking": dictionary / "speaking_name": string (both optional; both may be omitted; if both are omitted, the name is displayed as empty)
                             Description: Sets the speaker's name. If both are filled in, "speaking_name" takes priority.
                             Explanation of "speaking": Sets the speaker's name for the language corresponding to each language tag. You can learn more in the example JSON parsing in Part 2.
-                            The name takes the text for the current language; if absent, it falls back to "zh"; if still absent, an empty string.
+                            The name takes the text for the current language; if absent, it falls back to "zh"; if still absent, it takes the first non-empty value in the dictionary; an empty string only as the last resort.
                             Explanation of keys inside "speaking": The language tags set in "language" of "settings" above
 
                             <language tag>: string (optional)
@@ -433,8 +500,8 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         Description: Sets a selection scene (option page). This scene only shows options and waits for the player to click before jumping.
                         Keys inside "selection": "change", "selection"
 
-                        "change": string (optional)
-                            Explanation of "change": The transition effect when the options appear. Currently supported: gradient "gradient".
+                        "change": string (optional; reserved)
+                            Explanation of "change": Originally planned as the transition effect when the options appear; the program currently ignores this field (writing it has no effect). Kept for future versions.
 
                         "selection": list (required)
                             Description: The option list.
@@ -456,171 +523,389 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         - String "end": The last page of the whole story; after it finishes, the game automatically returns to the main menu.
                         - Dictionary {"direct": [storyline, page]}: Directly jumps to the specified page of the specified storyline, e.g., {"direct": ["main", "41"]}.
                         - Dictionary {"judge": [[candidate storyline list], [fallback]]}: A scoring-based route-selection route. The candidate storyline list may contain multiple [storyline, page] entries; the fallback is a single fixed [storyline, page]. In the judgement, the current scores of the storylines (initial values from "storyline_id_score" in "storyline_settings"; the "score" of options is added) are compared and the first place is taken: if the score difference between the first and the second place >= "score_gap", the first-place storyline is entered; otherwise the fallback is entered. Example: {"judge": [[["girl", "1"]], [["main", "41"]]]}.
+                        - Dictionary {"ex_content": [[package, storyline, page], ...]}: Cross-package (additional content) route.
+                            "package": the package id of a story JSON, registered in settings.extra_content ({package_id: json_path}).
+                            Two reserved forms: ":this:" = the package you are currently in; ":main:" = the main work (the JSON currently opened).
+                            Candidates are tried in list order: only when a package cannot be read, or that package has no such storyline/page, does the route move on to the next candidate; the first valid candidate is the target and is entered immediately.
+                            With a single valid element the result is the same as entering it directly.
+                            After entering the target package, its resource paths resolve relative to its own JSON directory.
+                            Example: {"ex_content": [[":main:", "end", "1"]]} (after the additional content ends, return to page 1 of the main work's "end" storyline)
+                                     {"ex_content": [["dlc_a", "main", "3"], [":main:", "main", "41"]]} (prefer dlc_a; fall back to the main work if unreadable)
 
 
 
 2. Example JSON Parsing:
-The following is the actual content of story/sample_create.json (some translation texts duplicated from above are omitted; the structure is complete).
 
-{
-  "settings": {                         <-Basic settings
-    "language": {                       <-Sets the language (dictionary format: {language tag: language display name}); the program takes the first "zh" as the initial language
-      "zh": "中文",
-      "en": "English",
-      "ja": "日本語",
-      "ru": "Русский"
-    },
-    "window_size": [                    <-Window resolution list; index=0 is the initial resolution; the options in the list appear in the resolution dropdown of the settings panel
-      "1280x720",
-      "1600x900",
-      "1920x1080"
+This section reproduces both JSON files under story/ in full, line by line (nothing omitted). Lines starting with "<-" are comments, not JSON content.
+
+2.1 story/sample_create.json (main work: 4 storylines main / cafe_girl / girl / end)
+
+```json
+"settings": {
+  "language": {                                       <- {tag: display name}; the first one is the initial language
+    "zh": "中文",                                     <- Language tag -> display name in the settings panel
+    "en": "English",                                  <- Language tag -> display name in the settings panel
+    "ja": "日本語",                                   <- Language tag -> display name in the settings panel
+    "ru": "Русский"                                   <- Language tag -> display name in the settings panel
+  },
+  "window_size": [                                    <- Resolution list: index 0 is initial; all entries appear in the settings dropdown
+    "1280x720",
+    "1600x900",
+    "1920x1080"
+  ],
+  "window_title": "Sample story",                     <- Window title (also the save filename prefix)
+  "identify_code": "sample_identify",                 <- Identify code (also part of save filenames)
+  "transition_color": [                               <- Transition color RGB (start/load/blank backdrop)
+    0,
+    0,
+    0
+  ],
+  "default_audio_lang_id": "zh",                      <- Audio fallback language (json_mode=judge only)
+  "extra_content": {                                  <- Additional-content (DLC) packages: {id: json path}
+    "ex_girl": "./ex/ex_girl.json"                    <- Package id -> that package's json path (relative to this json)
+  }
+},
+"ui": {
+  "confirm_ui": {                                     <- Confirm dialog appearance
+    "ui_mode": "default",                             <- Interface mode; only default
+    "color": [                                        <- Dialog fill RGBA
+      255,
+      255,
+      255,
+      217
     ],
-    "window_title": "Sample story",     <-Window title, optional; defaults to GalPie
-    "identify_code": "sample_identify",  <-Story identification code, optional
-    "transition_color": [0, 0, 0],        <-Transition color, optional; defaults to black. After clicking "Start Game" the main menu fades into this color, stays about 1.5 seconds, then fades into the story; the same happens after confirming a load from the main menu
-    "default_audio_lang_id": "zh"          <-Audio fallback language tag, optional; when the audio file of the current language is missing, falls back to this language
+    "text_color": [                                   <- Question text RGB
+      185,
+      122,
+      87,
+      255
+    ],
+    "cancel_color": [                                 <- Cancel button fill RGB
+      255,
+      255,
+      255
+    ],
+    "confirm_color": [                                <- Confirm button fill RGB
+      30,
+      30,
+      30
+    ]
   },
-  "ui": {                                           <-UI settings
-    "confirm_ui": {                                 <-Confirm dialog config (continue/quick load/quit confirmations)
-      "ui_mode": "default",                         <-Interface mode, only "default" supported
-      "color": [255, 255, 255, 217],                <-Confirm box background color, RGBA
-      "text_color": [185, 122, 87, 255],            <-Question text color (e.g. "Confirm?")
-      "cancel_color": [255, 255, 255],              <-"Cancel" button background color
-      "confirm_color": [30, 30, 30]                 <-"Confirm" button background color
-    },
-    "chatbox_and_words_position": {                 <-Sets the dialogue box style
-      "chatbox": "./res/ui/chatbox.png",            <-The image of the dialogue box style
-      "text_color": [255, 255, 255],                <-Unread text color, RGB (optional; default white)
-      "readed_text_color": [255, 255, 0],           <-Read text color, RGB (optional; default white)
-      "name_show_region": [[76,60],[270,149]],      <-The region where the speaker's name is displayed on the dialogue box style (top-left and bottom-right)
-      "words_show_region": [[310,60],[805,149]]     <-The region where the subtitle is displayed on the dialogue box style (top-left and bottom-right)
-    },
-    "bottom_menu": {                                <-Bottom menu bar (optional), the preset menu shown at the bottom of the window during the story
-      "mode": "default",                            <-Mode; currently only default is supported (preset style: from right to left ⊙ / Log / Settings / Skip / Auto-play / Load / Save / Q.Load / Q.Save)
-      "color": [0, 0, 0, 150],                      <-Fill color of the menu bar, RGBA
-      "button_color": [0, 0, 0, 200],               <-Background color of the buttons on the menu bar, RGBA; the text color is chosen automatically by brightness (RGB sum < 383 white text / >= 383 black text, inverted on hover)
-      "backlog_bgcolor": [255, 255, 255, 200],      <-Background color of the backlog (log) panel, RGBA
-      "save": {                                     <-Save panel / load panel interface config
-        "ui_mode": "default",                       <-Interface mode; currently only default is supported
-        "color": [255, 255, 255, 217],              <-Panel background color, RGBA
-        "saves_color": [185, 122, 87, 255],         <-Save slot background color, RGBA; on hover blends 35% toward white (RGB sum < 383) or toward black (>= 383)
-        "saves_text_color": [255, 255, 255],        <-Text color inside the save slots (line/date-time/trash icon/empty "SAVE"/confirmation text), RGB; the confirm/cancel button text is always white
-        "text_color": [30, 30, 30],                 <-Static text color inside the panel (title, page number, etc.), RGB
-        "button_color": [0, 0, 0, 255]              <-Background color of the bottom toolbar buttons of the panel, RGBA; text/hover rules same as the menu bar button_color
-      }
-    }
+  "chatbox_and_words_position": {                     <- Dialogue box style and text regions
+    "chatbox": "./res/ui/chatbox.png",                <- Dialogue box style and text regions
+    "text_color": [                                   <- Dialogue box style and text regions
+      255,
+      255,
+      255
+    ],
+    "readed_text_color": [                            <- Dialogue box style and text regions
+      255,
+      255,
+      0
+    ],
+    "name_show_region": [                             <- Dialogue box style and text regions
+      [
+        76,
+        60
+      ],
+      [
+        270,
+        149
+      ]
+    ],
+    "words_show_region": [                            <- Dialogue box style and text regions
+      [
+        310,
+        60
+      ],
+      [
+        805,
+        149
+      ]
+    ]
   },
-  "menu": {                                         <-Main menu (optional)
-    "bg": "./res/menu/bg.png",                      <-Main menu background image
-    "bgm": {                                         <-Main menu background music (optional)
-      "bgm": "./res/audio/bgm_menu.mp3",             <-Music file path
-      "in": "normal",                                <-Entrance effect: normal (play directly) or gradient (fade in)
-      "out": "gradient"                              <-Exit effect: normal (stop directly) or gradient (fade out)
-    },
-    "change": [[0, 0, 0], "gradient"],        <-Transition effect of the main menu appearing; [color, effect name]; the program takes the 2nd element
-    "title": {"zh": "./res/menu/title.png"},        <-Title image, given by language tag; falls back to zh if no image for the current language
-    "button": "./res/menu/button.png",              <-Normal style image of the button
-    "button_touched": "./res/menu/button_touched.png",  <-Style image of the button when hovered/pressed
-    "text_rgb": [255, 255, 255],                    <-Color of the button text, RGB
-    "menu_pos": {                                   <-Positions and texts of the title and buttons
-      "title": [54, 48],                            <-Position of the title image [x, y]
-      "qload": [                                    <-Continue (quick load) button: position [x, y] (confirm dialog if saves exist, then load latest; does nothing if no save)
-        [115, 230],
-        {"zh": "继续游戏", "en": "Continue", "ja": "続きから", "ru": "Продолжить"}  <-Button text (by language tag)
+  "bottom_menu": {                                    <- Bottom menu bar during the story
+    "mode": "default",                                <- Menu bar mode; only default
+    "color": [                                        <- Menu bar fill RGBA
+      0,
+      0,
+      0,
+      150
+    ],
+    "button_color": [                                 <- Button fill RGBA (text auto black/white)
+      0,
+      0,
+      0,
+      200
+    ],
+    "backlog_bgcolor": [                              <- Backlog panel background RGBA
+      255,
+      255,
+      255,
+      200
+    ],
+    "save": {                                         <- Save/load panel appearance
+      "ui_mode": "default",                           <- Interface mode; only default
+      "color": [                                      <- Panel fill RGBA
+        255,
+        255,
+        255,
+        217
       ],
-      "start": [                                    <-Start game button: position [x, y]
-        [115, 310],
-        {"zh": "开始游戏", "en": "Start Game", "ja": "ゲーム開始", "ru": "Начать игру"}  <-Button text (by language tag)
+      "saves_color": [                                <- Save slot fill RGBA
+        185,
+        122,
+        87,
+        255
       ],
-      "settings": [                                 <-Settings button
-        [115, 470],
-        {"zh": "设置", "en": "Settings", "ja": "設定", "ru": "Настройки"},
-        {"ui_mode": "default", "color": [255, 255, 255, 217], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Additional config (panel appearance)
+      "saves_text_color": [                           <- Save slot text RGB
+        255,
+        255,
+        255
       ],
-      "load": [                                     <-Load game button: opens the load panel
-        [115, 390],
-        {"zh": "加载存档", "en": "Load", "ja": "ロード", "ru": "Загрузить"},
-        {"ui_mode": "default", "color": [255, 255, 255, 217], "saves_color": [185, 122, 87, 255], "saves_text_color": [255, 255, 255], "text_color": [30, 30, 30], "button_color": [0, 0, 0, 255]}  <-Load panel appearance config (same as save panel)
+      "text_color": [                                 <- Panel static text RGB
+        30,
+        30,
+        30
       ],
-      "quit": [                                     <-Quit game button
-        [115, 550],
-        {"zh": "退出", "en": "Quit", "ja": "終了", "ru": "Выйти"}
+      "button_color": [                               <- Panel button fill RGBA
+        0,
+        0,
+        0,
+        255
       ]
     }
+  }
+},
+"menu": {
+  "bg": "./res/menu/bg.png",                          <- Main menu background
+  "bgm": {                                            <- Menu BGM: plays on enter, stops on leave
+    "bgm": "./res/audio/bgm_menu.mp3",                <- BGM file path
+    "in": "normal",                                   <- Entry: normal / gradient / ["gradient", s]
+    "out": "gradient"                                 <- Exit: normal / gradient / ["gradient", s]
   },
-  "story_and_position": {       <-Story plot, characters and backgrounds
-    "character_and_motion": {   <-Character settings
-      "girl": {                 <-Character tag
-        "name": {               <-The name/title of the character (by language tag)
-          "zh": "女孩",
-          "en": "Girl",
-          "ja": "少女",
-          "ru": "Девушка"
-        },
-        "form": {                                               <-Sets the form tags, i.e., the forms/styles of the character
-          "校服": "./res/character/girl/uniform.png"              <-The image file corresponding to this form
-        },
-        "face": {                                               <-Sets the expression tags, i.e., the expressions of the character
-          "平常": "./res/character/girl/normal.png",              <-The image file corresponding to this expression
-          "脸红": "./res/character/girl/shy.png",
-          "惊讶": "./res/character/girl/surprise.png",
-          "脸红及微笑": "./res/character/girl/smile_shy.png"
-        }
+  "change": [                                         <- [color, effect]: color block before fade-in on start/ending
+    [
+      0,
+      0,
+      0
+    ],
+    "gradient"
+  ],
+  "title": {                                          <- Title image {language tag: path}
+    "zh": "./res/menu/title.png"
+  },
+  "button": "./res/menu/button.png",                  <- Button image
+  "button_touched": "./res/menu/button_touched.png",   <- Button hover image
+  "text_rgb": [                                       <- Button text RGB
+    255,
+    255,
+    255
+  ],
+  "menu_pos": {                                       <- Menu positions and button definitions
+    "title": [                                        <- Title position [x, y]
+      54,
+      48
+    ],
+    "qload": [                                        <- Continue (confirm, loads latest save)
+      [
+        115,
+        230
+      ],
+      {
+        "zh": "继续游戏",
+        "en": "Continue",
+        "ja": "続きから",
+        "ru": "Продолжить"
       }
-    },
-    "backgrounds": {                <-Sets the background tags and their corresponding background images
-      "公园": "./res/bg/park.png",
-      "天空": "./res/bg/sky.png",
-      "咖啡馆": "./res/bg/cafe.png",
-      "家_主角": "./res/bg/home_main.png"
-    },
-    "bgm": {                        <-Story BGM definition table (optional); scene-level bgm operations reference by id
-      "bgm1": "./res/audio/bgm_1.mp3",
-      "bgm2": "./res/audio/bgm_2.mp3",
-      "bgm3": "./res/audio/bgm_3.mp3"
-    },
-    "selection_button": {           <-Option button appearance (optional)
-      "text_color": [255, 255, 255],  <-Option text color, RGB
-      "normal": "./res/ui/selection.png",        <-Button normal-state image
-      "touched": "./res/ui/selection_touched.png"  <-Button hover-state image
-    },
-    "storyline_settings": {         <-Storyline config (optional): starting main storyline, selection threshold, initial scores of branches
-      "main_storyline": "main",     <-Main storyline tag (the storyline played first when the game starts)
-      "score_gap": 0.5,             <-Selection threshold (for judge routing)
-      "storyline_id_score": {       <-Initial scores of the branch storylines (for scoring; option score is added)
-        "main": 1.0,
-        "girl": 1.0
+    ],
+    "start": [                                        <- Start: [pos, texts, extra config (optional)]
+      [
+        115,
+        310
+      ],
+      {
+        "zh": "开始游戏",
+        "en": "Start Game",
+        "ja": "ゲーム開始",
+        "ru": "Начать игру"
       }
-    },
-    "story": {                                                            <-The story plot, and the settings of storylines, pages and scenes
-      "main": {                                                           <-The storyline tag specified by "main_storyline" in "storyline_settings" above; this is "main", and the plot of this storyline is set here
-        "1": [{                                                           <-The key is the page number, starting from 1. Note: the type of the key is a string.
-          "clear_all": true,                                              <-Whether to clear all content of the previous page; true means yes, false means no. The "clear_all" of the first page of every storyline must be true.
-          "change": "gradient",                                           <-Sets the transition effect; "gradient" here means the effect is a gradient
-          "bg": "天空",                                                     <-Sets the background; fill in a background tag set above. The background tags set above are "公园", "天空", "咖啡馆"; "天空" is filled in here.
-          "content": {                                                    <-Sets the dialogue content
-            "speaking": {                                                 <-Sets the speaker's name
-              "zh": "",                                                   <-Set the name for every language tag. It can be an empty string "", meaning no name is shown.
+    ],
+    "load": [                                         <- Load (extra config = load panel appearance)
+      [
+        115,
+        390
+      ],
+      {
+        "zh": "加载存档",
+        "en": "Load",
+        "ja": "ロード",
+        "ru": "Загрузить"
+      },
+      {
+        "ui_mode": "default",
+        "color": [
+          255,
+          255,
+          255,
+          217
+        ],
+        "saves_color": [
+          185,
+          122,
+          87,
+          255
+        ],
+        "saves_text_color": [
+          255,
+          255,
+          255
+        ],
+        "text_color": [
+          30,
+          30,
+          30
+        ],
+        "button_color": [
+          0,
+          0,
+          0,
+          255
+        ]
+      }
+    ],
+    "settings": [                                     <- Settings (extra config = settings panel appearance)
+      [
+        115,
+        470
+      ],
+      {
+        "zh": "设置",
+        "en": "Settings",
+        "ja": "設定",
+        "ru": "Настройки"
+      },
+      {
+        "ui_mode": "default",
+        "color": [
+          255,
+          255,
+          255,
+          217
+        ],
+        "text_color": [
+          30,
+          30,
+          30
+        ],
+        "button_color": [
+          0,
+          0,
+          0,
+          255
+        ]
+      }
+    ],
+    "quit": [                                         <- Quit (confirm, then exit)
+      [
+        115,
+        550
+      ],
+      {
+        "zh": "退出",
+        "en": "Quit",
+        "ja": "終了",
+        "ru": "Выйти"
+      }
+    ]
+  }
+},
+"story_and_position": {
+  "character_and_motion": {                           <- Characters: {tag: {name, form, face}}
+    "girl": {                                         <- Character tag (referenced by scene characters)
+      "name": {                                       <- Name {language tag: name}
+        "zh": "女孩",
+        "en": "Girl",
+        "ja": "少女",
+        "ru": "Девушка"
+      },
+      "form": {                                       <- Forms {form tag: image path}
+        "校服": "./res/character/girl/uniform.png"
+      },
+      "face": {                                       <- Expressions {expr tag: image path}
+        "平常": "./res/character/girl/normal.png",
+        "脸红": "./res/character/girl/shy.png",
+        "惊讶": "./res/character/girl/surprise.png",
+        "脸红及微笑": "./res/character/girl/smile_shy.png"
+      }
+    }
+  },
+  "backgrounds": {                                    <- Backgrounds: {tag: image path}
+    "公园": "./res/bg/park.png",                      <- Background tag -> image path
+    "天空": "./res/bg/sky.png",                       <- Background tag -> image path
+    "咖啡馆": "./res/bg/cafe.png",                    <- Background tag -> image path
+    "家_主角": "./res/bg/home_main.png"               <- Background tag -> image path
+  },
+  "bgm": {                                            <- BGM table: {id: path}, referenced by scene ops
+    "bgm1": "./res/audio/bgm_1.mp3",                  <- BGM id -> file path
+    "bgm2": "./res/audio/bgm_2.mp3",                  <- BGM id -> file path
+    "bgm3": "./res/audio/bgm_3.mp3"                   <- BGM id -> file path
+  },
+  "selection_button": {                               <- Choice button assets
+    "text_color": [                                   <- Choice text RGB
+      255,
+      255,
+      255
+    ],
+    "normal": "./res/ui/selection.png",               <- Normal state image
+    "touched": "./res/ui/selection_touched.png"       <- Hover state image
+  },
+  "storyline_settings": {                             <- Storyline settings
+    "main_storyline": "main",                         <- Starting storyline tag (default main)
+    "score_gap": 0.5,                                 <- judge routing threshold (default 0)
+    "storyline_id_score": {                           <- Initial score per storyline
+      "main": 1.0,
+      "girl": 1.0
+    }
+  },
+  "story": {                                          <- Storyline -> page -> scenes
+    "main": {                                         <- Storyline main (43 pages)
+      "1": [                                          <- Page 1 (1 scenes) - （此为测试剧情，仅作程序测试用途...
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "天空",                               <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "",
               "en": "",
               "ja": "",
               "ru": ""
             },
-            "words": {                                                    <-Sets the dialogue content, i.e., the subtitle. Set the subtitle for every language tag.
+            "words": {
               "zh": "（此为测试剧情，仅作程序测试用途，故事内容为AI生成）",
               "en": "(This is a test story, used only for program testing. The story content is AI-generated.)",
               "ja": "（これはテスト用ストーリーです。プログラムテストのみを目的としており、物語の内容はAIによって生成されています）",
               "ru": "（Это тестовая история, предназначенная только для тестирования программы. Содержание сгенерировано ИИ）"
             }
           },
-          "bgm": [                                                        <-Scene-level BGM operations (optional), executed in order
-            {"id": "", "out": "gradient"},                              <-Empty id stops the current BGM; out is the exit effect (fade out)
-            {"id": "bgm1", "in": "normal"}                              <-Plays bgm1 (id from the bgm definition table above); in is the entrance effect (play directly)
+          "bgm": [                                    <- BGM ops (executed in order)
+            {
+              "id": "",                               <- BGM id ("" = all/current)
+              "out": "gradient"                       <- Exit: normal / gradient / ["gradient", s]
+            },
+            {
+              "id": "bgm1",                           <- BGM id ("" = all/current)
+              "in": "normal"                          <- Entry: normal / gradient / ["gradient", s]
+            }
           ]
-        }],
-        "2": [{                                                           <-Page 2
-          "clear_all": false,
-          "content": {
-            "speaking_name": "girl",                                      <-Speaker setting; if a character tag is set in "character_and_motion" above, you can use "speaking_name" directly here and fill in the character tag
+        }
+      ],
+      "2": [                                          <- Page 2 (1 scenes) - 你好，这里有人坐吗？
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
             "words": {
               "zh": "你好，这里有人坐吗？",
               "en": "Hello, is this seat taken?",
@@ -628,19 +913,37 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Здравствуйте, это место занято?"
             }
           },
-          "audio": {                                                      <-Scene-level audio (optional): voice/sound effects; parallel within a group, sequential between groups until finished
-            "json_mode": "normal",                                       <-Parsing mode normal: play_in_order is a multi-language dictionary; only the current language is taken
+          "audio": {                                  <- Voice config
+            "json_mode": "normal",
             "play_in_order": {
-              "zh": [["./res/audio/audio_girl_main_2_zh.wav"]],           <-2D list: sequential between groups, parallel within a group
-              "en": [["./res/audio/audio_girl_main_2_en.wav"]],
-              "ja": [["./res/audio/audio_girl_main_2_ja.wav"]],
-              "ru": [["./res/audio/audio_girl_main_2_ru.wav"]]
+              "zh": [
+                [
+                  "./res/audio/audio_girl_main_2_zh.wav"
+                ]
+              ],
+              "en": [
+                [
+                  "./res/audio/audio_girl_main_2_en.wav"
+                ]
+              ],
+              "ja": [
+                [
+                  "./res/audio/audio_girl_main_2_ja.wav"
+                ]
+              ],
+              "ru": [
+                [
+                  "./res/audio/audio_girl_main_2_ru.wav"
+                ]
+              ]
             }
           }
-        }],
-        "3": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "3": [                                          <- Page 3 (1 scenes) - 啊，没有，请坐吧。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -654,10 +957,12 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "А, нет, садитесь, пожалуйста."
             }
           }
-        }],
-        "4": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "4": [                                          <- Page 4 (1 scenes) - 一个温暖的春日午后，阳光透过树叶...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "",
               "en": "",
@@ -671,20 +976,31 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Тёплым весенним днём солнечные лучи пробивались сквозь листву на парковую скамейку."
             }
           }
-        }],
-        "5": [{                               <-Page 5
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "公园",                         <-The background is set to "公园"; this tag is set in "backgrounds" above
-          "characters": {                     <-Sets the characters appearing on stage
-            "girl": {                         <-The key is the character tag set in "character_and_motion" above
-              "form": "校服",                   <-Sets the form, i.e., the form tag set in "form" of this character tag in "character_and_motion" above
-              "pos": [320,80],                <-Sets the position of the form image; the list contains the x and y coordinates of the form image on the background image. The coordinate system is based on the background image. The top-left corner of the image is the origin (0 point); the x axis increases to the right and the y axis increases downward. Here it means the form image is placed at the pixel (320, 80) on the background image.
-              "face": ["平常",[0,0]],           <-Sets the expression and the position of the expression image. The list has two elements: the first is the expression tag set in "face" of this character tag in "character_and_motion" above, here "平常" set above; the second is a list, the x and y coordinates of the expression image on the form image (the offset is not used in the current version of the code; the expression is always drawn at the top-left corner (0,0) of the form image; this coordinate is reserved). Here it means the expression image is placed at the pixel (0, 0) on the form image.
-              "zoom": 1.5                     <-Sets the zoom; here it is set to enlarge to 1.5x
+        }
+      ],
+      "5": [                                          <- Page 5 (1 scenes) - 谢谢。我经常看到你一个人坐在这里...
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "公园",                               <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
             }
           },
-          "content": {
+          "content": {                                <- Dialogue content
             "speaking_name": "girl",
             "words": {
               "zh": "谢谢。我经常看到你一个人坐在这里，是在想什么事情吗？",
@@ -693,14 +1009,20 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Спасибо. Я часто вижу, как вы сидите здесь один. О чём-то задумались?"
             }
           },
-          "audio": {                                                      <-Scene-level audio (optional)
-            "json_mode": "judge",                                        <-Parsing mode judge: play_in_order is a template 2D list
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "6": [{                               <-Page 6
-          "clear_all": false,                 <-"bg" and "characters" are not set here, but the "bg" and "characters" set on the previous page (page 5) are not removed, because the "clear_all" of this page is false
-          "content": {
+        }
+      ],
+      "6": [                                          <- Page 6 (1 scenes) - 嗯，只是喜欢这里的安静。你呢？为...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -714,10 +1036,12 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Ммм, просто люблю тишину здесь. А вы? Почему сегодня пришли в парк?"
             }
           }
-        }],
-        "7": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "7": [                                          <- Page 7 (1 scenes) - 一位陌生女孩的搭讪，让我的心跳加...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "",
               "en": "",
@@ -731,10 +1055,12 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "От знакомства с незнакомой девушкой моё сердце забилось быстрее."
             }
           }
-        }],
-        "8": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "8": [                                          <- Page 8 (1 scenes) - 我来散散心。最近学业有点忙，需要...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking_name": "girl",
             "words": {
               "zh": "我来散散心。最近学业有点忙，需要放松一下。",
@@ -743,14 +1069,20 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Я пришла развеяться. В последнее время много учёбы, нужно расслабиться."
             }
           },
-          "audio": {                                                      <-Scene-level audio (optional)
+          "audio": {                                  <- Voice config
             "json_mode": "judge",
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "9": [{                                               <-Page 9
-          "clear_all": false,                                 <-The first scene; "clear_all" is false, so the content of the previous scene is not cleared
-          "content": {
+        }
+      ],
+      "9": [                                          <- Page 9 (2 scenes) - 我懂那种感觉。要不……一起去那边...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -764,31 +1096,63 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Я понимаю это чувство. Может... сходим в то кафе вон там?"
             }
           }
-          },
-          {
-          "clear_all": false,                                 <-The second scene; "clear_all" is false, so the content of the first scene is not cleared
-          "characters": {                                     <-But "characters" is set here. Note: for each character in "characters", the code first removes the old character with the same tag and then re-adds it; therefore only the characters that are set again are replaced, while other characters that are not set are kept
+        },
+        {                                             <- scene #1 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["脸红",[0,0]],                           <-The expression here is set to 脸红 (the offset coordinate [0,0] is reserved; not used in the current version of the code)
-              "zoom": 1.5,                                    <-Sets the initial zoom of the character in this scene, enlarged to 1.5x
-              "animate": [                                    <-Sets the animation
-                [{                                            <-The first group of animations; a group can contain multiple animation settings, which play simultaneously as the same group. Only one animation is set here.
-                  "time": 0.2,                                <-Sets the animation duration, 0.2 seconds here
-                  "zoom": 1.4                                 <-The animation effect, zoom here. The effect of this animation is: from the initial zoom of this scene, i.e., 1.5x (since it is the first group, it is the scene's initial zoom; if it were not the first group, it would be the value at the end of the previous group), zoom out to 1.4x over 0.2 seconds.
-                }],
-                [{                                            <-The second group of animations, played after the first group finishes
-                  "time": 0.2,                                <-Sets the animation duration, 0.2 seconds here
-                  "move": [[0,-10],[0,10],[0,-10],[0,10]]     <-The animation effect, move here. The effect of this animation is: from the initial position in the scene (since the previous group did not move, it is the scene's initial position), over 0.2 seconds, move up 10, down 10, up 10, down 10, appearing as if the character jumps twice.
-                }]
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "zoom": 1.4
+                  }
+                ],
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
               ]
             }
           }
-        }],
-        "10": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "10": [                                         <- Page 10 (1 scenes) - 我的突然邀请，让女孩顿时红了脸。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "",
               "en": "",
@@ -802,25 +1166,55 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "От моего внезапного приглашения девушка мгновенно покраснела."
             }
           }
-        }],
-        "11": [{
-          "clear_all": false,
-          "bg": "公园",
-          "characters": {
+        }
+      ],
+      "11": [                                         <- Page 11 (1 scenes) - 好啊，我很乐意！
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "bg": "公园",                               <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["脸红及微笑",[0,0]],
-              "zoom": 1.4,
-              "animate": [
-                [{
-                  "time": 0.2,
-                  "move": [[0,-10],[0,10],[0,-10],[0,10]]
-                }]
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.4,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
               ]
             }
           },
-          "content": {
+          "content": {                                <- Dialogue content
             "speaking_name": "girl",
             "words": {
               "zh": "好啊，我很乐意！",
@@ -829,14 +1223,20 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Хорошо, с удовольствием!"
             }
           },
-          "audio": {                                                      <-Scene-level audio (optional)
+          "audio": {                                  <- Voice config
             "json_mode": "judge",
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "12": [{
-          "clear_all": false,
-          "content": {
+        }
+      ],
+      "12": [                                         <- Page 12 (1 scenes) - 那走吧，我请客。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "主角",
               "en": "Protagonist",
@@ -850,14 +1250,16 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Тогда пошли, я угощаю."
             }
           }
-        }],
-        "13": [{                                                           <-Page 13: hide the dialogue box (no background/character changes; only demonstrates chatbox control)
-          "clear_all": false,
-          "chatbox": {                                                     <-Controls showing/hiding of the dialogue box
-            "visible": false,                                              <-Hides the dialogue box
-            "change": "gradient"                                           <-Showing/hiding uses the gradient transition
+        }
+      ],
+      "13": [                                         <- Page 13 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": "gradient"
           },
-          "content": {                                                     <-Content can still be filled in when the dialogue box is hidden (not displayed)
+          "content": {                                <- Dialogue content
             "speaking": {
               "zh": "",
               "en": "",
@@ -871,37 +1273,70 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": ""
             }
           }
-        }],
-        "14": [{                                                           <-Page 14: switch background (no content)
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "天空"
-        }],
-        "15": [{                                                           <-Page 15: switch background to the café
-          "clear_all": true,
-          "change": "gradient",
-          "bg": "咖啡馆",
-          "bgm": [                                                        <-Scene-level BGM operations (optional)
-            {"id": "bgm1", "out": ["gradient", 0.5]},                 <-Stops bgm1: "out" list form, fade out over 0.5 seconds
-            {"id": "bgm2", "in": "normal", "delay": 0.5}              <-Plays bgm2 after a 0.5-second delay ("in" plays directly)
+        }
+      ],
+      "14": [                                         <- Page 14 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "天空"                                <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+        }
+      ],
+      "15": [                                         <- Page 15 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "咖啡馆",                             <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "bgm": [                                    <- BGM ops (executed in order)
+            {
+              "id": "bgm1",                           <- BGM id ("" = all/current)
+              "out": [                                <- Exit: normal / gradient / ["gradient", s]
+                "gradient",
+                0.5
+              ]
+            },
+            {
+              "id": "bgm2",                           <- BGM id ("" = all/current)
+              "in": "normal",                         <- Entry: normal / gradient / ["gradient", s]
+              "delay": 0.5                            <- Delay in seconds (page turns do not cancel)
+            }
           ]
-        }],
-        "16": [{                                                           <-Page 16: restore the dialogue box and bring the character on stage
-          "clear_all": false,
-          "change": "gradient",
-          "characters": {
+        }
+      ],
+      "16": [                                         <- Page 16 (1 scenes) - 你经常来这里吗？
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
             "girl": {
-              "form": "校服",
-              "pos": [320,80],
-              "face": ["平常",[0,0]],
-              "zoom": 1.5
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
             }
           },
-          "chatbox": {                                                     <-Restores the dialogue box display
+          "chatbox": {                                <- Dialogue box: {visible, change}
             "visible": true,
             "change": "gradient"
           },
-          "content": {
+          "content": {                                <- Dialogue content
             "speaking_name": "girl",
             "words": {
               "zh": "你经常来这里吗？",
@@ -910,53 +1345,2246 @@ The following is the actual content of story/sample_create.json (some translatio
               "ru": "Вы часто сюда приходите?"
             }
           },
-          "audio": {                                                      <-Scene-level audio (optional)
-            "json_mode": "judge",                                        <-Parsing mode judge: play_in_order is a template 2D list
-            "play_in_order": [["./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"]]  <-<line>/<page>/<lang_id> are replaced; falls back to default_audio_lang_id when the current language has no file
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
           }
-        }],
-        "17": [{                                                          <-Page 17: selection scene (option page)
-          "clear_all": false,
-          "chatbox": {                                                     <-The dialogue box is usually hidden on an option page
+        }
+      ],
+      "17": [                                         <- Page 17 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
             "visible": false,
             "change": "gradient"
           },
-          "selection": {                                                   <-Selection scene: shows options and waits for the player to click before jumping
-            "change": "gradient",                                          <-The transition effect when the options appear
-            "selection": [                                                 <-The option list
+          "selection": {                              <- Choice scene: shows options and waits
+            "change": "gradient",
+            "selection": [
               {
-                "text": {"zh": "是的，我经常来", "en": "Yes, I come here often", "ja": "うん、よく来てるよ", "ru": "Да, я часто сюда прихожу"},  <-Option text (by language tag)
-                "score": ["main", 0.5],                                    <-The score added to the "main" storyline after selection (for scoring)
-                "next": {"direct": ["main", "18"]}                       <-After selection, jump to page 18 of the main storyline
+                "text": {
+                  "zh": "是的，我经常来",
+                  "en": "Yes, I come here often",
+                  "ja": "うん、よく来てるよ",
+                  "ru": "Да, я часто сюда прихожу"
+                },
+                "score": [
+                  "main",
+                  0.5
+                ],
+                "next": {
+                  "direct": [
+                    "main",
+                    "18"
+                  ]
+                }
               },
               {
-                "text": {"zh": "没有，这是我第一次来", "en": "No, this is my first time", "ja": "いや、初めて来たんだ", "ru": "Нет, я здесь впервые"},
-                "score": ["girl", 0.5],
-                "next": {"direct": ["cafe_girl", "1"]}                   <-Jump to page 1 of the cafe_girl storyline (branch storyline)
+                "text": {
+                  "zh": "没有，这是我第一次来",
+                  "en": "No, this is my first time",
+                  "ja": "いや、初めて来たんだ",
+                  "ru": "Нет, я здесь впервые"
+                },
+                "score": [
+                  "girl",
+                  0.5
+                ],
+                "next": {
+                  "direct": [
+                    "cafe_girl",
+                    "1"
+                  ]
+                }
               }
             ]
           }
-        }]
-      }
+        }
+      ],
+      "18": [                                         <- Page 18 (1 scenes) - 是的，我经常来。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "是的，我经常来。",
+              "en": "Yes, I come here often.",
+              "ja": "うん、よく来てるよ。",
+              "ru": "Да, я часто сюда прихожу."
+            }
+          }
+        }
+      ],
+      "19": [                                         <- Page 19 (1 scenes) - 看起来不错。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "看起来不错。",
+              "en": "That looks nice.",
+              "ja": "いい感じだね。",
+              "ru": "Выглядит неплохо."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "20": [                                         <- Page 20 (1 scenes) - 来看看点什么吧
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "来看看点什么吧",
+              "en": "Let's see what to order",
+              "ja": "何を注文しようか",
+              "ru": "Давай посмотрим, что заказать"
+            }
+          }
+        }
+      ],
+      "21": [                                         <- Page 21 (1 scenes) - 你有什么推荐的吗？
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你有什么推荐的吗？",
+              "en": "Do you have any recommendations?",
+              "ja": "何かおすすめはある？",
+              "ru": "Что-нибудь порекомендуешь?"
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "22": [                                         <- Page 22 (1 scenes) - 他家的拿铁很不错。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "他家的拿铁很不错。",
+              "en": "Their latte is really good.",
+              "ja": "ここのカフェラテはすごく美味しいよ。",
+              "ru": "У них отличный латте."
+            }
+          }
+        }
+      ],
+      "23": [                                         <- Page 23 (1 scenes) - 那就来一杯拿铁吧。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那就来一杯拿铁吧。",
+              "en": "Then I'll have a latte.",
+              "ja": "じゃあカフェラテをもらうよ。",
+              "ru": "Тогда мне латте."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "24": [                                         <- Page 24 (1 scenes) - 两杯拿铁。
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "咖啡馆",                             <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "两杯拿铁。",
+              "en": "Two lattes, please.",
+              "ja": "カフェラテを2つ。",
+              "ru": "Два латте."
+            }
+          }
+        }
+      ],
+      "25": [                                         <- Page 25 (1 scenes) - 我们端着咖啡坐到靠窗的位置。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "我们端着咖啡坐到靠窗的位置。",
+              "en": "We carried our coffees and sat by the window.",
+              "ja": "コーヒーを持って、窓際の席に座った。",
+              "ru": "Мы взяли кофе и сели у окна."
+            }
+          }
+        }
+      ],
+      "26": [                                         <- Page 26 (1 scenes) - 这里确实很舒服。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "这里确实很舒服。",
+              "en": "This place really is cozy.",
+              "ja": "ここは本当に落ち着くなあ。",
+              "ru": "Здесь действительно уютно."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "27": [                                         <- Page 27 (1 scenes) - 是啊，很适合聊天。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "是啊，很适合聊天。",
+              "en": "Yeah, it's perfect for chatting.",
+              "ja": "うん、話すのにぴったりだね。",
+              "ru": "Да, отлично подходит для разговора."
+            }
+          }
+        }
+      ],
+      "28": [                                         <- Page 28 (1 scenes) - 说起来，我还不知道你叫什么名字。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "说起来，我还不知道你叫什么名字。",
+              "en": "By the way, I don't think I ever caught your name.",
+              "ja": "そういえば、君の名前まだ聞いてなかったね。",
+              "ru": "Кстати, я так и не узнал твоё имя."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "29": [                                         <- Page 29 (1 scenes) - 我叫林越，你呢？
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "我叫林越，你呢？",
+              "en": "I'm Lin Yue. And you?",
+              "ja": "俺は林越。君は？",
+              "ru": "Меня зовут Линь Юэ. А ты?"
+            }
+          }
+        }
+      ],
+      "30": [                                         <- Page 30 (1 scenes) - 我叫苏晴。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "我叫苏晴。",
+              "en": "I'm Su Qing.",
+              "ja": "私は蘇晴。",
+              "ru": "Я Су Цин."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "31": [                                         <- Page 31 (1 scenes) - 我们一边喝着咖啡，一边聊了起来。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "我们一边喝着咖啡，一边聊了起来。",
+              "en": "We chatted away as we sipped our coffee.",
+              "ja": "コーヒーを飲みながら、俺たちはいろいろ話した。",
+              "ru": "Попивая кофе, мы разговорились."
+            }
+          }
+        }
+      ],
+      "32": [                                         <- Page 32 (1 scenes) - 你平时喜欢做什么？
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你平时喜欢做什么？",
+              "en": "What do you usually like to do?",
+              "ja": "普段は何をするのが好きなの？",
+              "ru": "Чем ты обычно любишь заниматься?"
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "33": [                                         <- Page 33 (1 scenes) - 偶尔会去书店逛逛。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "偶尔会去书店逛逛。",
+              "en": "I browse bookstores every now and then.",
+              "ja": "たまに本屋さんをぶらぶらするかな。",
+              "ru": "Иногда заглядываю в книжные магазины."
+            }
+          }
+        }
+      ],
+      "34": [                                         <- Page 34 (1 scenes) - 好巧，我也喜欢逛书店。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2
+                  }
+                ],
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "好巧，我也喜欢逛书店。",
+              "en": "What a coincidence—I love bookstores too.",
+              "ja": "偶然だね、僕も本屋巡りが好きなんだ。",
+              "ru": "Какое совпадение, я тоже люблю книжные."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "35": [                                         <- Page 35 (1 scenes) - 那下次可以一起去。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "那下次可以一起去。",
+              "en": "We should go together sometime.",
+              "ja": "じゃあ今度一緒に行こうよ。",
+              "ru": "Тогда в следующий раз можем сходить вместе."
+            }
+          }
+        }
+      ],
+      "36": [                                         <- Page 36 (1 scenes) - 好呀好呀，我知道一家不错的书店！
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "好呀好呀，我知道一家不错的书店！",
+              "en": "Sure, sure! I know a nice bookstore—",
+              "ja": "いいねいいね！いい本屋さんを知ってるんだ、",
+              "ru": "Да, конечно! Я знаю одну хорошую книжную—"
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "37": [                                         <- Page 37 (1 scenes) - 不知不觉，咖啡已经喝完了。
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "咖啡馆",                             <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "不知不觉，咖啡已经喝完了。",
+              "en": "Before we knew it, our coffee was gone.",
+              "ja": "気がつけば、コーヒーは飲み終わっていた。",
+              "ru": "Незаметно кофе закончился."
+            }
+          }
+        }
+      ],
+      "38": [                                         <- Page 38 (1 scenes) - 时间不早了，我得走了。我们下次见...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                             <- Zoom (default 1.0)
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "时间不早了，我得走了。我们下次见吧。",
+              "en": "It's getting late—I should get going. See you next time.",
+              "ja": "もう遅いし、そろそろ帰るね。また会おう。",
+              "ru": "Уже поздно, мне пора. До встречи."
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          }
+        }
+      ],
+      "39": [                                         <- Page 39 (1 scenes) - 嗯，下次见。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "嗯，下次见。",
+              "en": "Mm, see you next time.",
+              "ja": "うん、またね。",
+              "ru": "Да, до встречи."
+            }
+          }
+        }
+      ],
+      "40": [                                         <- Page 40 (1 scenes) - 随后我们交换了联系方式，就这样分...
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "天空",                               <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            },
+            "words": {
+              "zh": "随后我们交换了联系方式，就这样分开了。",
+              "en": "We exchanged contact info, and then went our separate ways.",
+              "ja": "その後、連絡先を交換して、俺たちは別れた。",
+              "ru": "Затем мы обменялись контактами и расстались."
+            }
+          },
+          "next": {                                   <- Route: "end" / direct / judge / ex_content
+            "judge": [
+              [
+                [
+                  "girl",
+                  "1"
+                ]
+              ],
+              [
+                [
+                  "main",
+                  "41"
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "41": [                                         <- Page 41 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": "gradient"
+          }
+        }
+      ],
+      "42": [                                         <- Page 42 (2 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": {                                     <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "": {
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          },
+          "bgm": [                                    <- BGM ops (executed in order)
+            {
+              "id": "bgm2",                           <- BGM id ("" = all/current)
+              "out": [                                <- Exit: normal / gradient / ["gradient", s]
+                "gradient",
+                0.5
+              ]
+            }
+          ]
+        },
+        {                                             <- scene #1 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "家_主角",                            <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- Dialogue content
+            "words": {
+              "zh": "回到家后，我打开电脑。",
+              "en": "Back home, I turned on my computer.",
+              "ja": "家に帰って、パソコンを開いた。",
+              "ru": "Вернувшись домой, я включил компьютер."
+            }
+          },
+          "bgm": [                                    <- BGM ops (executed in order)
+            {
+              "id": "bgm3",                           <- BGM id ("" = all/current)
+              "in": "normal",                         <- Entry: normal / gradient / ["gradient", s]
+              "delay": 0.5                            <- Delay in seconds (page turns do not cancel)
+            }
+          ]
+        }
+      ],
+      "43": [                                         <- Page 43 (1 scenes) - 继续学习吧。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "继续学习吧。",
+              "en": "Time to keep studying.",
+              "ja": "勉強を続けよう。",
+              "ru": "Пора продолжать учёбу."
+            }
+          },
+          "next": {                                   <- Route: "end" / direct / judge / ex_content
+            "direct": [
+              "end",
+              "1"
+            ]
+          }
+        }
+      ]
+    },
+    "cafe_girl": {                                    <- Storyline cafe_girl (2 pages)
+      "1": [                                          <- Page 1 (1 scenes) - 不，这是我第一次来。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "不，这是我第一次来。",
+              "en": "No, this is my first time.",
+              "ja": "いや、初めて来たんだ。",
+              "ru": "Нет, я здесь впервые."
+            }
+          }
+        }
+      ],
+      "2": [                                          <- Page 2 (1 scenes) - 是吗？我也是第一次来，而且你选的...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "校服",                         <- Form tag (from that character's form table)
+              "pos": [                                <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                               <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                            <- Zoom (default 1.0)
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "是吗？我也是第一次来，而且你选的这家店真不错！",
+              "en": "Really? It's my first time too, and you picked a nice place!",
+              "ja": "そうなの？私も初めてなんだけど、いいお店を選んだね！",
+              "ru": "Правда? Я тоже впервые здесь, и ты выбрал хорошее место!"
+            }
+          },
+          "audio": {                                  <- Voice config
+            "json_mode": "judge",
+            "play_in_order": [
+              [
+                "./res/audio/audio_girl_<line>_<page>_<lang_id>.wav"
+              ]
+            ]
+          },
+          "next": {                                   <- Route: "end" / direct / judge / ex_content
+            "direct": [
+              "main",
+              "20"
+            ]
+          }
+        }
+      ]
+    },
+    "girl": {                                         <- Storyline girl (9 pages)
+      "1": [                                          <- Page 1 (1 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": "gradient"
+          }
+        }
+      ],
+      "2": [                                          <- Page 2 (2 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": {                                     <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "": {
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        {                                             <- scene #1 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",                       <- Transition: gradient / ["gradient", s] / slide
+          "bg": "家_主角",                            <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": "gradient"
+          },
+          "content": {                                <- Dialogue content
+            "words": {
+              "zh": "到家没多久，我便收到了苏晴发来的信息。",
+              "en": "Not long after getting home, I got a message from Su Qing.",
+              "ja": "家に着いて間もなく、蘇晴からメッセージが届いた。",
+              "ru": "Вскоре после возвращения домой я получил сообщение от Су Цин."
+            }
+          }
+        }
+      ],
+      "3": [                                          <- Page 3 (1 scenes) - 今天谢谢你，咖啡馆真的很棒。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "今天谢谢你，咖啡馆真的很棒。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "4": [                                          <- Page 4 (1 scenes) - 不用谢，能和你聊天我也很开心。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "不用谢，能和你聊天我也很开心。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "5": [                                          <- Page 5 (1 scenes) - 那个……你说你也喜欢逛书店，周末...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那个……你说你也喜欢逛书店，周末有空吗？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "6": [                                          <- Page 6 (1 scenes) - 周末？应该有空的。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "周末？应该有空的。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "7": [                                          <- Page 7 (1 scenes) - 那周六下午两点，我在市中心那家「...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那周六下午两点，我在市中心那家「纸间书屋」等你？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "8": [                                          <- Page 8 (1 scenes) - 好，不见不散。
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "好，不见不散。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "9": [                                          <- Page 9 (1 scenes) - 放下手机，窗外的晚霞染红了半边天...
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "content": {                                <- Dialogue content
+            "words": {
+              "zh": "放下手机，窗外的晚霞染红了半边天。我忍不住笑了出来。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          },
+          "next": {                                   <- Route: "end" / direct / judge / ex_content
+            "ex_content": [
+              [
+                "ex_girl",
+                "main",
+                "1"
+              ],
+              [
+                ":this:",
+                "end",
+                "1"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "end": {                                          <- Storyline end (1 pages)
+      "1": [                                          <- Page 1 (2 scenes)
+        {                                             <- scene #0 of this page
+          "clear_all": false,                         <- Clear previous page visuals (true on a line's first page)
+          "characters": {                             <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "": {
+              "animate": [                            <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                                   <- scene #0 of this page
+                    "time": 1
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                                <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": "gradient"
+          },
+          "bgm": [                                    <- BGM ops (executed in order)
+            {
+              "id": "",                               <- BGM id ("" = all/current)
+              "out": "gradient"                       <- Exit: normal / gradient / ["gradient", s]
+            }
+          ]
+        },
+        {                                             <- scene #1 of this page
+          "clear_all": true,                          <- Clear previous page visuals (true on a line's first page)
+          "change": [                                 <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            2
+          ],
+          "bg": {                                     <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "next": "end"                               <- Route: "end" / direct / judge / ex_content
+        }
+      ]
     }
   }
 }
-(The following pages are omitted: the "next" route also has "end" (ending) and {"judge": ...} (score-based judgement) formats, as well as scene-level bgm / solid-color backgrounds / empty-character animations, etc.; all of them are explained in the rules above.)
+```
 
----
+2.2 story/ex/ex_girl.json (additional content / DLC: use_main inherits main resources, ex_content returns to the main work)
+
+```json
+"settings": {
+  "language": {                              <- {tag: display name}; the first one is the initial language
+    "zh": "中文",                            <- Language tag -> display name in the settings panel
+    "en": "English",                         <- Language tag -> display name in the settings panel
+    "ja": "日本語",                          <- Language tag -> display name in the settings panel
+    "ru": "Русский"                          <- Language tag -> display name in the settings panel
+  },
+  "default_audio_lang_id": "zh",             <- Audio fallback language (json_mode=judge only)
+  "use_main": true                           <- true = may inherit main-work resources; story is never inherited
+},
+"ui": {
+  "chatbox_and_words_position": "use_main"   <- Dialogue box style and text regions
+},
+"story_and_position": {
+  "character_and_motion": {                  <- Characters: {tag: {name, form, face}}
+    "girl": {                                <- Character tag (referenced by scene characters)
+      "form": {                              <- Forms {form tag: image path}
+        "日常": "./dlc/character/girl/daily.png",
+        "日常_挥手": "./dlc/character/girl/daily_wave.png",
+        "日常_思考": "./dlc/character/girl/daily_think.png"
+      },
+      "face": {                              <- Expressions {expr tag: image path}
+        "平常_脸红": "./dlc/character/girl/normal_shy.png",
+        "微笑": "./dlc/character/girl/smile.png",
+        "微笑_眯眼": "./dlc/character/girl/smile_squint.png"
+      }
+    }
+  },
+  "backgrounds": {                           <- Backgrounds: {tag: image path}
+    "街道": "./dlc/bg/street.png",           <- Background tag -> image path
+    "书店": "./dlc/bg/book.png"              <- Background tag -> image path
+  },
+  "storyline_settings": {                    <- Storyline settings
+    "main_storyline": "main",                <- Starting storyline tag (default main)
+    "score_gap": 0.5,                        <- judge routing threshold (default 0)
+    "storyline_id_score": {                  <- Initial score per storyline
+      "main": 1.0
+    }
+  },
+  "story": {                                 <- Storyline -> page -> scenes
+    "main": {                                <- Storyline main (23 pages)
+      "1": [                                 <- Page 1 (3 scenes)
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "": {
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.5
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "bgm": [                           <- BGM ops (executed in order)
+            {
+              "id": "",                      <- BGM id ("" = all/current)
+              "out": "gradient"              <- Exit: normal / gradient / ["gradient", s]
+            }
+          ]
+        },
+        {                                    <- scene #1 of this page
+          "clear_all": true,                 <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",              <- Transition: gradient / ["gradient", s] / slide
+          "bg": {                            <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "color": [
+              0,
+              0,
+              0
+            ]
+          },
+          "stay_time": 0.5                   <- Stay seconds (used when no text/voice)
+        },
+        {                                    <- scene #2 of this page
+          "clear_all": true,                 <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",              <- Transition: gradient / ["gradient", s] / slide
+          "bg": {                            <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "bg": "街道",
+            "zoom": 1.1,
+            "start_pos": [
+              0,
+              72
+            ]
+          },
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "周六，阳光正好。我提前十分钟到了书店门口。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "2": [                                 <- Page 2 (2 scenes)
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "bg": {                            <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+            "bg": "街道",
+            "zoom": 1.1,
+            "start_pos": [
+              0,
+              72
+            ],
+            "animate": [
+              [
+                {                            <- scene #0 of this page
+                  "time": 0.5,
+                  "move": [
+                    [
+                      128,
+                      0
+                    ]
+                  ]
+                }
+              ]
+            ]
+          },
+          "stay_time": 0.5                   <- Stay seconds (used when no text/voice)
+        },
+        {                                    <- scene #1 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            0.2
+          ],
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常_挥手",           <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- Zoom (default 1.0)
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "林越！",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "3": [                                 <- Page 3 (1 scenes) - 你来得好早。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "你来得好早。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "4": [                                 <- Page 4 (1 scenes) - 怕你找不到嘛。走吧，这家店二楼有...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.5,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                92
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "怕你找不到嘛。走吧，这家店二楼有很舒服的阅读区。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "5": [                                 <- Page 5 (3 scenes)
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "": {
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.5
+                  }
+                ]
+              ]
+            }
+          },
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          }
+        },
+        {                                    <- scene #1 of this page
+          "clear_all": true,                 <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "slide",
+            "horizontal",
+            "right",
+            "left",
+            {
+              "time": 0.5
+            }
+          ],
+          "bg": "书店",                      <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常_思考",           <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "stay_time": 0.5                   <- Stay seconds (used when no text/voice)
+        },
+        {                                    <- scene #2 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "书店里弥漫着淡淡的纸张和咖啡香气。她在文学区的书架前停下脚步。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "6": [                                 <- Page 6 (1 scenes) - 你平时喜欢看什么类型的书？
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.5,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你平时喜欢看什么类型的书？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "7": [                                 <- Page 7 (1 scenes) - 小说多一些，尤其是那种日常向的。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "小说多一些，尤其是那种日常向的。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "8": [                                 <- Page 8 (1 scenes) - 真的吗？我也是！我最喜欢那种……...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- Zoom (default 1.0)
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.2,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "真的吗？我也是！我最喜欢那种……明明什么都没发生，却让人觉得心里暖暖的故事。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "9": [                                 <- Page 9 (1 scenes) - 就像……今天的天气一样？
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "就像……今天的天气一样？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "10": [                                <- Page 10 (1 scenes) - 她愣了一下，随即低头笑了，耳根微...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                100
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "她愣了一下，随即低头笑了，耳根微微泛红。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "11": [                                <- Page 11 (1 scenes) - 嗯，就像今天一样。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                100
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "脸红及微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- Zoom (default 1.0)
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.7,
+                    "move": [
+                      [
+                        0,
+                        5
+                      ],
+                      [
+                        0,
+                        -5
+                      ],
+                      [
+                        0,
+                        5
+                      ],
+                      [
+                        0,
+                        -5
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "嗯，就像今天一样。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "12": [                                <- Page 12 (1 scenes) - 我们在书店待了一整个下午。从村上...
+        {                                    <- scene #0 of this page
+          "clear_all": true,                 <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "slide",
+            "horizontal",
+            "right",
+            "left",
+            {
+              "slide_element": [
+                {
+                  "area": [
+                    [
+                      -5,
+                      0
+                    ],
+                    [
+                      5,
+                      -1
+                    ]
+                  ],
+                  "color": [
+                    0,
+                    0,
+                    0,
+                    170
+                  ]
+                }
+              ]
+            }
+          ],
+          "bg": "书店",                      <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "我们在书店待了一整个下午。从村上春树聊到乙一，从推理小说聊到绘本。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "13": [                                <- Page 13 (1 scenes) - 你知道吗？我一直很想找个人一起逛...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            0.2
+          ],
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "微笑",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "你知道吗？我一直很想找个人一起逛书店，但朋友们都觉得太无聊了。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "14": [                                <- Page 14 (1 scenes) - 我觉得一点也不无聊。能这样安安静...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": "gradient",              <- Transition: gradient / ["gradient", s] / slide
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "我觉得一点也不无聊。能这样安安静静地待在一起，本身就是很好的事。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "15": [                                <- Page 15 (1 scenes) - 她抬起头看着我，眼神里有种说不清...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常_脸红",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "她抬起头看着我，眼神里有种说不清的光。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "16": [                                <- Page 16 (1 scenes) - 那我们以后……可以经常这样吗？
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那我们以后……可以经常这样吗？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "17": [                                <- Page 17 (1 scenes) - 当然可以。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "当然可以。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "18": [                                <- Page 18 (1 scenes) - 夕阳透过落地窗洒进来，把她的侧脸...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "gradient",
+            {
+              "time": 0.2,
+              "start_change": {
+                "last": 0.15,
+                "this": 0
+              }
+            }
+          ],
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5                    <- Zoom (default 1.0)
+            }
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "夕阳透过落地窗洒进来，把她的侧脸镀上一层金色。那一刻，我突然觉得，春天才刚刚开始。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "19": [                                <- Page 19 (3 scenes)
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "stay_time": 0.5,                  <- Stay seconds (used when no text/voice)
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": false,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          }
+        },
+        {                                    <- scene #1 of this page
+          "clear_all": true,                 <- Clear previous page visuals (true on a line's first page)
+          "change": [                        <- Transition: gradient / ["gradient", s] / slide
+            "slide",
+            "horizontal",
+            "left",
+            "right",
+            {
+              "time": 0.5
+            }
+          ],
+          "bg": "街道",                      <- Background: tag / {"color"} / {"bg","zoom","start_pos","animate"}
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                320,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "平常",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- Zoom (default 1.0)
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.6,
+                    "move": [
+                      [
+                        5,
+                        0
+                      ],
+                      [
+                        -5,
+                        0
+                      ],
+                      [
+                        5,
+                        0
+                      ],
+                      [
+                        -5,
+                        0
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        {                                    <- scene #2 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "chatbox": {                       <- Dialogue box: {visible, change}
+            "visible": true,
+            "change": [
+              "gradient",
+              0.3
+            ]
+          },
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "走出书店时，她忽然拉了拉我的衣角。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "20": [                                <- Page 20 (1 scenes) - 下周这附近会新开一家甜品店，要不...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "下周这附近会新开一家甜品店，要不要一起去试试？",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "21": [                                <- Page 21 (1 scenes) - 好啊，这次我请你。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "speaking": {
+              "zh": "主角",
+              "en": "Protagonist",
+              "ja": "主人公",
+              "ru": "Протагонист"
+            },
+            "words": {
+              "zh": "好啊，这次我请你。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "22": [                                <- Page 22 (1 scenes) - 那我就不客气啦。
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "characters": {                    <- Characters: {tag: {form,pos,face,zoom,animate}}
+            "girl": {
+              "form": "日常",                <- Form tag (from that character's form table)
+              "pos": [                       <- Sprite position [x, y]
+                315,
+                80
+              ],
+              "face": [                      <- "expr" or ["expr", [x, y]] (offset unused)
+                "微笑_眯眼",
+                [
+                  0,
+                  0
+                ]
+              ],
+              "zoom": 1.5,                   <- Zoom (default 1.0)
+              "animate": [                   <- Animation groups [[{time,move,zoom}]]
+                [
+                  {                          <- scene #0 of this page
+                    "time": 0.5,
+                    "move": [
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ],
+                      [
+                        0,
+                        -10
+                      ],
+                      [
+                        0,
+                        10
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          "content": {                       <- Dialogue content
+            "speaking_name": "girl",
+            "words": {
+              "zh": "那我就不客气啦。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          }
+        }
+      ],
+      "23": [                                <- Page 23 (1 scenes) - 她的笑容比傍晚的风还要轻快。我知...
+        {                                    <- scene #0 of this page
+          "clear_all": false,                <- Clear previous page visuals (true on a line's first page)
+          "content": {                       <- Dialogue content
+            "words": {
+              "zh": "她的笑容比傍晚的风还要轻快。我知道，我们的故事，还远没有结束。",
+              "en": "",
+              "ja": "",
+              "ru": ""
+            }
+          },
+          "next": {                          <- Route: "end" / direct / judge / ex_content
+            "ex_content": [
+              [
+                ":main:",
+                "end",
+                "1"
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
 ## Save System (.gpsave)
 
 - Slot saves: `saves/{title}_{identify_code}_SLOT{index}.gpsave`, where index is the slot number (save panel row 1 = 0-3, row 2 = 4-7; page 2 = 8-15, and so on).
-- Quick save: `saves/{title}_{identify_code}_QSAVE.gpsave`, index is fixed at -1; it is not shown in the save panel and is always listed first when loading (F3).
-- A save file is a pickle-serialized list of 11 elements: title, identify code, thumbnail PNG, storyline config, current storyline, current page-1, speaker, words (multi-language dict), date, time, slot index.
-- Settings file: `saves/{title}_{identify_code}_SETTINGS.gpsetting` (contents: title, identify code, resolution, language).
+- Quick save: `saves/{title}_{identify_code}_QSAVE.gpsave`, index is fixed at -1; it is not shown in the save panel and is always listed first when loading.
+- A save file is a pickle-serialized list of 14 elements (index 0-13): title, identify code, thumbnail PNG, storyline config, current storyline, current page-1, speaker, words (multi-language dict), date, time, slot index, page-initial snapshot (bg/characters/chatbox/bgm), scores (branch score dict), package id of the save (":main:" for the main work, otherwise the DLC package id). Older saves missing indices 11-13 are handled with defaults (no snapshot -> rebuilt from the story, no scores, treated as main work).
+- Settings file: `saves/{title}_{identify_code}_SETTINGS.gpsetting`, a pickle-serialized list of 8 elements: title, identify code, resolution ("fullscreen" when fullscreen), language, skip-read-text flag, BGM volume, voice volume, interrupt-voice-on-page-turn flag.
+- Filename sanitizing: before being written into a filename, the title (window_title) and identify code (identify_code) both have spaces replaced with "-" and underscores "_" with "+" (e.g., "Sample story" -> "Sample-story"); the actual filename may therefore differ from the field text.
+- Read history: `saves/{title}_{identify_code}_READED.gpreaded` (JSON, fully independent of saves; deleting saves does not reset read progress). On-disk structure: {"package|storyline:page": [read scene index, ...]}, with the reserved package id ":main:" for the main work. Skip/fast-forward stops automatically at unread content.
 
 ### Save panel / Load panel
 
 The save panel and the load panel are the same panel component (SavePanel); the appearance is determined by `ui.bottom_menu.save` (save) or the additional config of `menu.menu_pos.load` on the main menu (load); the two config structures are the same.
 
-- **Save panel** (click the bottom "Save" button during the story, or press F2 for quick save):
+- **Save panel** (click the bottom "Save" button during the story):
   - The panel shows 8 save slots (2 rows x 4 columns); each slot shows the thumbnail, line text, date and time; an empty slot shows the gray "SAVE" text.
   - Click an empty slot -> save directly to that slot; click a slot that has a save -> "Confirm overwrite?" appears; after confirming, the old save is deleted and the new one is saved.
   - A slot that has a save has a trash button at the bottom-right; clicking it shows "Confirm delete?"; click "Confirm" to delete that save, or click "Cancel" / click elsewhere to exit the confirmation.
@@ -968,14 +3596,18 @@ The save panel and the load panel are the same panel component (SavePanel); the 
 
 ### Bottom menu bar buttons
 
-From right to left during the story:
+From right to left during the story (10 buttons in total):
 
-1. **Log**: opens the backlog panel (shows the lines that have been displayed in the current playthrough, translated according to the current language).
-2. **Settings**: opens the settings panel (language switching, resolution switching; the settings are saved to the .gpsetting file).
-3. **Skip (▷▷)**: quickly skips the story (each page only builds the first scene, does not show dialogue, and turns the page immediately).
-4. **Auto-play (▷)**: advances the story automatically.
-5. **Save**: opens the save panel.
-6. **Quick Save (Q.Save)**: saves directly to the quick save slot (overwriting the old quick save).
+1. **⊙ (hide)**: hides the dialogue box + bottom menu bar (including the bar itself) while the story keeps running; click anywhere to restore.
+2. **Log**: opens the backlog panel (shows the lines that have been displayed in the current playthrough, translated according to the current language).
+3. **Settings**: opens the settings panel (language switching, resolution switching, skip-read-text toggle, volumes; the settings are saved to the .gpsetting file).
+4. **Skip-to-choice**: shows a confirm dialog "Jump to next choice?"; after confirming it fades to black, silently simulates the advance while the screen is black, and stays on that choice page (black duration = max(compute time + 500 ms, 1000 ms)); if the pre-check finds no target nothing happens.
+5. **Skip (▷▷)**: auto-advances by simulating a click every 50 ms: if the text is not fully shown it is completed immediately; once the text is complete it moves on to the next scene/page (voice follows the "interrupt voice on page turn" setting). With "skip read text" enabled it stops automatically at unread content; disabled on the ending storyline (end); mutually exclusive with auto-play.
+6. **Auto-play (▷)**: advances the story automatically.
+7. **Load**: opens the load panel (same as the main menu "Load").
+8. **Save**: opens the save panel.
+9. **Q.Load (quick load)**: shows a confirm dialog, then loads the latest save (the quick save always sorts first).
+10. **Q.Save (quick save)**: saves directly to the quick save slot (overwriting the old quick save).
 
 Skip and Auto-play are mutually exclusive — enabling one automatically disables the other; opening a panel pauses both, and they resume after returning to the story.
 
@@ -984,5 +3616,4 @@ Skip and Auto-play are mutually exclusive — enabling one automatically disable
 - Space / Enter / left mouse button: advance the story (during typewriter display, clicking completes the display)
 - A: auto-play toggle
 - S: skip toggle
-- F2: save
-- F3: load the latest save (quick save first)
+- Esc: closes the currently open backlog / settings / save / load panel (confirm dialogs can also be closed with Esc)
