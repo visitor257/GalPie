@@ -16,21 +16,23 @@ See the LICENSE file for the full text.
 Artwork, audio and story data (NOT covered by the MIT License)
 --------------------------------------------------------------------------
 
-The sample assets under story/res/ are not covered by the MIT License:
+The sample assets under story/res/ and story/ex/ are not covered by the MIT
+License:
 
-  - Backgrounds:      story/res/bg/
-  - Character art:    story/res/character/
+  - Backgrounds:      story/res/bg/, story/ex/dlc/bg/
+  - Character art:    story/res/character/, story/ex/dlc/character/
   - UI and menu art:  story/res/ui/, story/res/menu/
-  - Voice lines:      story/res/audio/*.wav
+  - Voice lines:      story/res/audio/*.wav, story/ex/dlc/audio/*.wav
   - Music:            story/res/audio/bgm_*.mp3
+  - Source/working files: story/ex/dlc/character/**/*.paint
 
 Copyright in these assets is owned by the author. All rights reserved.
 
 They are included for demonstration and testing only, so that the sample
-story (story/sample_create.json) can be played out of the box. You may keep
-and view them as part of this repository, but you may not reuse, modify or
-redistribute them for any commercial purpose without the author's prior
-written permission.
+stories (story/sample_create.json and the additional-content example
+story/ex/ex_girl.json) can be played out of the box. You may keep and view
+them as part of this repository, but you may not reuse, modify or redistribute
+them for any commercial purpose without the author's prior written permission.
 
 Part of the sample artwork was generated with AI image-generation tools.
 
@@ -105,18 +107,19 @@ GalPie's MIT License.
 美术、音频与剧情素材（不适用 MIT 许可）
 --------------------------------------------------------------------------
 
-story/res/ 下的示例素材不在 MIT 许可范围内：
+story/res/ 与 story/ex/ 下的示例素材不在 MIT 许可范围内：
 
-  - 背景：    story/res/bg/
-  - 角色立绘：story/res/character/
+  - 背景：    story/res/bg/、story/ex/dlc/bg/
+  - 角色立绘：story/res/character/、story/ex/dlc/character/
   - UI 与菜单：story/res/ui/、story/res/menu/
-  - 语音：    story/res/audio/*.wav
+  - 语音：    story/res/audio/*.wav、story/ex/dlc/audio/*.wav
   - 音乐：    story/res/audio/bgm_*.mp3
+  - 源文件/工程文件：story/ex/dlc/character/**/*.paint
 
 上述素材的著作权归作者所有，保留所有权利（All rights reserved）。
 
-它们仅用于演示与测试，使示例剧情（story/sample_create.json）可以直接
-运行。你可以随本仓库保留、查看这些素材，但未经作者书面许可，不得将其
+它们仅用于演示与测试，使示例剧情（story/sample_create.json 与附加内容示例
+story/ex/ex_girl.json）可以直接运行。你可以随本仓库保留、查看这些素材，但未经作者书面许可，不得将其
 用于任何商业用途，也不得再分发或修改后分发。
 
 部分示例美术由作者使用 AI 绘图工具生成。
