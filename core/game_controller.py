@@ -1386,13 +1386,51 @@ class GameController:
                 out[k] = v
         return out
 
+    @staticmethod
+    def _parse_package_token(raw_pkg):
+        """解析「包位」写法，返回 (kind, pkg_id)。
+
+        支持的写法（kind / pkg_id）：
+          - None、""、":this:"   -> ("this", None)  当前所在的包
+          - ":main:"             -> ("main", None)  主作（当前打开的那个 json）
+          - ":<id>:"             -> ("id", "<id>") 主作 settings.extra_content 里登记的包
+                                                      （id 内不能再带冒号；冒号写法只是显式标注，
+                                                       与直接写裸 id 完全等价）
+          - 其他裸字符串         -> ("id", 原字符串)
+        非法写法 -> (None, None)。
+        """
+        if raw_pkg is None or raw_pkg == "":
+            return "this", None
+        s = str(raw_pkg)
+        if s == ":this:":
+            return "this", None
+        if s == ":main:":
+            return "main", None
+        if len(s) >= 2 and s.startswith(":") and s.endswith(":"):
+            inner = s[1:-1]
+            if not inner or ":" in inner:
+                print(f"包标识写法非法（应为 :包id:，id 内不能带冒号）: {s}")
+                return None, None
+            return "id", inner
+        return "id", s
+
     def _package_entry(self, pkg_id):
         """取包条目（None 或当前包 -> 当前 story_data；":main:" -> 主作）。
 
         ":main:" 是「主作」的外部保留 id（与 ":this:" 同一套写法），
         存档里的包标识也用它，因此这里必须能显式取到主作——
         当前在附加包时，None 指的是「当前包」而不是主作。
+        ":<id>:" 写法（id 为主作 extra_content 的键）在这里一并归一成裸 id。
         """
+        kind, resolved = self._parse_package_token(pkg_id)
+        if kind is None:
+            return None
+        if kind == "this":
+            pkg_id = self.current_package_id
+        elif kind == "main":
+            pkg_id = ":main:"
+        else:
+            pkg_id = resolved
         if pkg_id == ":main:":
             if self._main_data is None:
                 return None
@@ -1407,10 +1445,18 @@ class GameController:
         """切换当前包（pkg_id=None 或 ":main:" 表示回主作）。成功返回 True。
 
         只换 story_data / base_path；settings/ui 不重新应用（仍以主作为准）。
+        接受 ":this:" 与 ":<id>:" 写法（与 _resolve_ex_content 同一套解析）。
         """
         # 统一口径：":main:" 与 None 都表示主作（存档里写的是 ":main:"）
-        if pkg_id == ":main:":
+        kind, resolved = self._parse_package_token(pkg_id)
+        if kind is None:
+            return False
+        if kind == "this":
+            pkg_id = self.current_package_id
+        elif kind == "main":
             pkg_id = None
+        else:
+            pkg_id = resolved
         if pkg_id == self.current_package_id:
             return True
         if pkg_id is None:
@@ -1430,7 +1476,8 @@ class GameController:
     def _resolve_ex_content(self, items):
         """ex_content 路由：按顺序尝试 [[包, 线, 页], ...]，返回 (包id, 线, 页) 或 None。
 
-        ":this:" = 当前所在的包；":main:" = 主作（附加内容回主作用它）。
+        ":this:" = 当前所在的包；":main:" = 主作（附加内容回主作用它）；
+        ":<id>:" = 主作 settings.extra_content 里登记的那个包（与裸写 id 等价）。
         只有「包读不到」或「包里没有这条线/这一页」才顺延下一个候选。
         返回值里主作统一用 None（内部口径），附加包用其 id。
         """
@@ -1440,12 +1487,14 @@ class GameController:
             if not isinstance(item, (list, tuple)) or len(item) < 3:
                 continue
             raw_pkg, raw_line, raw_page = item[0], item[1], item[2]
-            if raw_pkg in (None, "", ":this:"):
+            kind, pkg_id = self._parse_package_token(raw_pkg)
+            if kind is None:
+                print(f"ex_content 候选包标识非法，跳过: {item}")
+                continue
+            if kind == "this":
                 pkg_id = self.current_package_id
-            elif raw_pkg == ":main:":
+            elif kind == "main":
                 pkg_id = ":main:"
-            else:
-                pkg_id = str(raw_pkg)
             try:
                 page = int(raw_page)
             except (TypeError, ValueError):

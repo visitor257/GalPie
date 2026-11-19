@@ -526,11 +526,13 @@ Top-level keys: "settings", "ui", "menu", "story_and_position"
                         - Dictionary {"ex_content": [[package, storyline, page], ...]}: Cross-package (additional content) route.
                             "package": the package id of a story JSON, registered in settings.extra_content ({package_id: json_path}).
                             Two reserved forms: ":this:" = the package you are currently in; ":main:" = the main work (the JSON currently opened).
+                            The colon form ":package id:" (id taken from the main work's settings.extra_content) explicitly tags a package id and is exactly equivalent to writing the bare id; the id itself may not contain colons. A form like ":a:b:" is treated as an invalid candidate (a message is printed, the candidate is skipped and the route moves on); an unregistered id simply counts as "cannot be read" and is skipped too.
                             Candidates are tried in list order: only when a package cannot be read, or that package has no such storyline/page, does the route move on to the next candidate; the first valid candidate is the target and is entered immediately.
                             With a single valid element the result is the same as entering it directly.
                             After entering the target package, its resource paths resolve relative to its own JSON directory.
                             Example: {"ex_content": [[":main:", "end", "1"]]} (after the additional content ends, return to page 1 of the main work's "end" storyline)
                                      {"ex_content": [["dlc_a", "main", "3"], [":main:", "main", "41"]]} (prefer dlc_a; fall back to the main work if unreadable)
+                                     {"ex_content": [[":dlc_a:", "main", "3"]]} (writing ":dlc_a:" behaves exactly like writing "dlc_a")
 
 
 
